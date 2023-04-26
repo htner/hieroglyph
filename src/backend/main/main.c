@@ -45,6 +45,9 @@
 
 #include "catalog/catversion.h"
 
+#include "sdb/optimizer_main.h"
+#include "sdb/worker_main.h"
+
 const char *progname;
 
 
@@ -227,9 +230,12 @@ main(int argc, char *argv[])
 	 */
 	pgwin32_signal_initialize();
 #endif
-
 	if (argc > 1 && strcmp(argv[1], "--boot") == 0)
 		AuxiliaryProcessMain(argc, argv);	/* does not return */
+	else if (argc > 1 && strncmp(argv[1], "--optimizer", 11) == 0)
+		OptimizerServiceMain(argc, argv);
+	else if (argc > 1 && strncmp(argv[1], "--worker", 8) == 0)
+		WorkerServiceMain(argc, argv);	/* does not return */
 	else if (argc > 1 && strcmp(argv[1], "--describe-config") == 0)
 		GucInfoMain();			/* does not return */
 	else if (argc > 1 && strcmp(argv[1], "--single") == 0)

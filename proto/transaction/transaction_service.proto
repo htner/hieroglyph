@@ -1,0 +1,52 @@
+
+
+syntax = "proto3";
+package transaction;
+
+import "mvcc_kv.proto";
+import "lock.proto";
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./proto";
+
+service Transaction {
+    rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {}
+    rpc Commit(CommitRequest) returns (CommitResponse) {}
+    rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
+
+    rpc Set(MVCCKV) returns (MVCCKey) {}
+    rpc Delete(MVCCKey) returns (MVCCKey) {}
+
+    rpc Lock(LockRequest) returns (LockResponse) {}
+    rpc Unlock(UnockRequest) returns (UnlockResponse) {}
+}
+
+message StartTransactionRequest {
+    uint64 dboid = 1;
+    string sid = 2;
+}
+
+message StartTransactionResponse {
+    uint32 rescode = 1;
+    uint64 tid = 2;
+}
+
+message CommitRequest {
+    uint64 dboid = 1;
+    uint64 tid = 2;
+}
+
+message CommitResponse {
+    uint32 rescode = 1;
+}
+
+message RollbackRequest {
+    uint64 dboid = 1;
+    uint64 tid = 2;
+}
+
+message RollbackResponse {
+    uint32 rescode = 1;
+}

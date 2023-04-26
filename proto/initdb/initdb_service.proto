@@ -1,0 +1,21 @@
+syntax = "proto3";
+package wukongdb;
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./initdb";
+
+/* InitDB Request */
+message InitdbRequest {
+    uint64  user_id = 1;
+    uint64  database_id = 2;
+}
+
+message InitdbResponse {
+    int32 rescode = 1;
+}
+
+service Initdb {
+      rpc init_database(InitdbRequest) returns (InitdbResponse);
+};
