@@ -35,10 +35,13 @@ go: $(PROTO_GO_SRC)
 
 # for go-zero
 # goctl rpc protoc $< --go_out=../../gosrv/$(SDB_DIR)/proto --go-grpc_out=../../gosrv/$(SDB_DIR)/proto --zrpc_out=../../gosrv/$(SDB_DIR)
+# for go-micro
+# @protoc --micro_out=../../gosrv/$(SDB_DIR) --go_out=:../../gosrv/$(SDB_DIR) $< 
+# using google grpc here
 
 %_service.pb.go: %_service.proto
 	@mkdir -p ../../gosrv/$(SDB_DIR)/proto
-	@protoc --micro_out=../../gosrv/$(SDB_DIR) --go_out=:../../gosrv/$(SDB_DIR) $< 
+	protoc $< --go_out=../../gosrv/$(SDB_DIR) --go-grpc_out=../../gosrv/$(SDB_DIR)
 
 %.pb.go: %.proto
 	@mkdir -p ../../gosrv/$(SDB_DIR)/proto

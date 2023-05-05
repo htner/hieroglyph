@@ -16,11 +16,11 @@ ifeq ($(UNAME), Linux)
 XARGS += -r
 endif
 XARGS += rm -r
-PROGRAMS = schedule transaction
+PROGRAMS = schedule
 
 bins=$(patsubst %,bin/%,$(PROGRAMS) )
 
-all: build
+all: clean build
 
 .PHONY: build
 

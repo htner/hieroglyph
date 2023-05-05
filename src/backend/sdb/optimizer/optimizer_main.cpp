@@ -40,10 +40,12 @@ int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
     InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);
 
 	while (true) {
 		auto task = sdb::TaskQueueSingleton::GetInstance()->pop_front(); 
+		LOG(ERROR) << "get one task";
 		task->Run();
 	}
 
@@ -63,7 +65,7 @@ int OptimizerServerRun(int argc, char** argv) {
 	// use brpc::SERVER_OWNS_SERVICE.
 	if (server.AddService(&http_svc,
 					   brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-	LOG(ERROR) << "Fail to add http_svc";
+		LOG(ERROR) << "Fail to add http_svc";
 		return -1;
 	}
 
@@ -71,7 +73,7 @@ int OptimizerServerRun(int argc, char** argv) {
 	brpc::ServerOptions options;
 	options.idle_timeout_sec = FLAGS_idle_timeout_s;
 	if (server.Start(FLAGS_port, &options) != 0) {
-	LOG(ERROR) << "Fail to start HttpServer";
+		LOG(ERROR) << "Fail to start HttpServer";
 		return -1;
 	}
 

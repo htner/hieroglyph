@@ -6,12 +6,12 @@ require (
 	github.com/apple/foundationdb/bindings/go v0.0.0-20221217231509-73f196a137f3
 	github.com/sirupsen/logrus v1.9.0
 	go-micro.dev/v4 v4.10.2
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.30.0
 	modernc.org/golex v1.0.2
 )
 
 require (
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	golang.org/x/net v0.8.0 // indirect
@@ -34,6 +34,9 @@ require (
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
+	github.com/go-micro/plugins v0.0.0-20230405210455-c2901332679b // indirect
+	github.com/go-micro/plugins/v4/client/grpc v1.2.0 // indirect
+	github.com/go-micro/plugins/v4/transport/grpc v1.2.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.0.4 // indirect
@@ -58,6 +61,8 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
+	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	google.golang.org/grpc v1.53.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )

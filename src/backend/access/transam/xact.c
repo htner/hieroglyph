@@ -2676,8 +2676,11 @@ StartTransaction(void)
 	 * database be selected. In such case, we disallow updating the snapshot
 	 * of segments configuration.
 	 */
+	/*
+	FIXME_SDB sdb not need?
 	if (Gp_role == GP_ROLE_DISPATCH && OidIsValid(MyDatabaseId))
 		cdbcomponent_updateCdbComponents();
+	*/
 
 	/*
 	 * Acquire a resource group slot.
@@ -2899,7 +2902,8 @@ CommitTransaction(void)
 	 */
 	ProcArrayEndTransaction(MyProc, latestXid);
 
-	EndLocalDistribXact(true);
+	/* FIXMD_SDB not need transaction*/
+	// EndLocalDistribXact(true);
 
 	/*
 	 * This is all post-commit cleanup.  Note that if an error is raised here,

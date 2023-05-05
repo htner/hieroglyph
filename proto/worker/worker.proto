@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-syntax = "proto2";
+syntax = "proto3";
 
 package sdb;
 
@@ -30,20 +30,25 @@ service Worker {
 
 // The request message containing the user's name.
 message QueryRequest {
-  required uint64 query_id = 1;
-  required uint64 sid = 3;
-  required uint64 uid = 4;
-  required uint64 dbid = 5;
-  required uint64 xid = 6;
+  uint64 query_id = 1;
+  uint64 sid = 2;
+  uint64 uid = 3;
+  uint64 dbid = 4;
+  uint64 slice_id = 5;
 
-  map<uint64, uint64> catalog_version = 7;
-  required string sql = 8;
-  required string query_info = 9;
-  required string plan_info = 10;
-  required uint64 slice_id = 11;
+  uint64 min_xid = 6;
+  uint64 max_xid = 7;
+
+  string sql = 8;
+  string query_info = 9;
+  string plan_info = 10;
+  string plan_info_dxl = 11;
+
+  uint64 guc_version = 20;
+  map<uint64, uint64> catalog_version = 21;
 }
 
 // The response message containing the greetings
 message QueryReply {
-  required string message = 1;
+  string message = 1;
 }

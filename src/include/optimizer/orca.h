@@ -21,7 +21,7 @@
 
 #ifdef USE_ORCA
 
-extern PlannedStmt * optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams);
+extern PlannedStmt * optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str);
 extern Node *transformGroupedWindows(Node *node, void *context);
 
 #else

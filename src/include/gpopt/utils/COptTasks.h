@@ -161,6 +161,9 @@ public:
 	static PlannedStmt *GPOPTOptimizedPlan(Query *query,
 										   SOptContext *gpopt_context);
 
+	static PlannedStmt *GPOPTOptimizedPlanBoth(Query *query,
+											   SOptContext *gpopt_context,
+											   char** plan_dtx);
 	// enable/disable a given xforms
 	static bool SetXform(char *xform_str, bool should_disable);
 };

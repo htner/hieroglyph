@@ -1,35 +1,69 @@
+/*
+ *
+ * Copyright 2015 gRPC authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+// Package main implements a client for Greeter service.
 package main
 
 import (
+	"context"
+	"flag"
+	"log"
+	"time"
 
-	"github.com/htner/sdb/gosrv/schedule/handler"
-	pb "github.com/htner/sdb/gosrv/schedule/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	pb "github.com/htner/sdb/gosrv/optimizer/proto"
+)
 
-	"go-micro.dev/v4"
-	"go-micro.dev/v4/logger"
-
+const (
+	defaultName = "world"
 )
 
 var (
-	service = "schedule"
-	version = "latest"
+	addr = flag.String("addr", "localhost:40000", "the address to connect to")
+	name = flag.String("name", defaultName, "Name to greet")
 )
 
 func main() {
-	// Create service
-	srv := micro.NewService(
-	)
-	srv.Init(
-		micro.Name(service),
-		micro.Version(version),
-	)
+	flag.Parse()
+	// Set up a connection to the server.
+	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	c := pb.NewOptimizerClient(conn)
 
-	// Register handler
-	if err := pb.RegisterScheduleHandler(srv.Server(), new(handler.Schedule)); err != nil {
-		logger.Fatal(err)
+	// Contact the server and print out its response.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 60)
+	defer cancel()
+  r, err := c.Optimize(ctx, &pb.OptimizeRequest{Name: *name, Sql: "select * from student"})
+	if err != nil {
+		log.Fatalf("could not greet: %v", err)
 	}
-	// Run service
-	if err := srv.Run(); err != nil {
-		logger.Fatal(err)
-	}
+	log.Printf("Greeting: %s %d %d %d", string(r.PlanDxlStr), len(r.PlanDxlStr), len(r.PlanstmtStr), len(r.PlanParamsStr))
+  for i, slice := range r.Slices {
+    log.Printf("%d->%s", i, slice.String())
+  }
+
+  // prepare segments
+
+  // Slice Info
+
+  // Send To Work
 }

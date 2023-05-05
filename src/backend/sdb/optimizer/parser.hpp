@@ -29,6 +29,7 @@ public:
 
 		oldcontext = MemoryContextSwitchTo(parse_context_);
 		parsetree_list = raw_parser(query_string);
+    elog_node_display(PG_LOG, "parse results:", parsetree_list, true);
 		return parsetree_list;
 	}
 

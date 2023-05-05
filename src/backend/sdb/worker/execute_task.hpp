@@ -14,14 +14,31 @@ public:
   }
 
 	void Run() {
+    PrepareGuc();
     PrepareCatalog();
     HandleQuery();
   }
 
+	void PrepareGuc() {
+    // jump now
+  }
+
 	void PrepareCatalog() {
+    // jump now
   }
 
 	void HandleQuery() {
+    CommandDest dest = whereToSendOutput;
+    MemoryContext oldcontext;
+    bool		save_log_statement_stats = log_statement_stats;
+    bool		was_logged = false;
+    char		msec_str[32];
+    PlannedStmt	   *plan = NULL;
+    QueryDispatchDesc *ddesc = NULL;
+    CmdType		commandType = CMD_UNKNOWN;
+    SliceTable *sliceTable = NULL;
+    ExecSlice  *slice = NULL;
+    ParamListInfo paramLI = NULL;
 	}
 
 private:

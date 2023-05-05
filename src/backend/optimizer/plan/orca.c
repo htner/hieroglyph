@@ -42,6 +42,9 @@
 
 /* GPORCA entry point */
 extern PlannedStmt * GPOPTOptimizedPlan(Query *parse, bool *had_unexpected_failure);
+extern PlannedStmt *GPOPTOptimizedPlanBoth(Query *query,
+										   char** plan_str,
+										   bool * had_unexpected_failure);
 
 static Plan *remove_redundant_results(PlannerInfo *root, Plan *plan);
 static Node *remove_redundant_results_mutator(Node *node, void *);
@@ -89,7 +92,7 @@ log_optimizer(PlannedStmt *plan, bool fUnexpectedFailure)
  * This is the main entrypoint for invoking Orca.
  */
 PlannedStmt *
-optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams)
+optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str)
 {
 	/* flag to check if optimizer unexpectedly failed to produce a plan */
 	bool			fUnexpectedFailure = false;
@@ -153,7 +156,7 @@ optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	pqueryCopy = (Query *) transformGroupedWindows((Node *) pqueryCopy, NULL);
 
 	/* Ok, invoke ORCA. */
-	result = GPOPTOptimizedPlan(pqueryCopy, &fUnexpectedFailure);
+	result = GPOPTOptimizedPlanBoth(pqueryCopy, plan_str, &fUnexpectedFailure);
 
 	log_optimizer(result, fUnexpectedFailure);
 

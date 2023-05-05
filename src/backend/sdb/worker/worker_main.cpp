@@ -34,15 +34,22 @@ DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
 
-int WorkerThreadRun(int argc, char** argv) {
+int WorkerServerRun(int argc, char** argv);
+
+int WorkerServiceMain(int argc, char* argv[]) {
 	InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+	Gp_role = GP_ROLE_EXECUTE;
+	std::thread worker_thread(WorkerServerRun, argc, argv);
 
 	while (true) {
 		auto task = sdb::ExecuteTaskQueueSingleton::GetInstance()->pop_front(); 
+		LOG(ERROR) << "get one task";
 		task->Run();
 	}
+	worker_thread.join();	
 }
-int WorkerServiceMain(int argc, char* argv[]) {
+
+int WorkerServerRun(int argc, char** argv);
     // Parse gflags. We recommend you to use gflags as well.
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 

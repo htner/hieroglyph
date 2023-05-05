@@ -125,10 +125,11 @@ static List *formIdleSegmentIdList(void);
 
 static bool param_walker(Node *node, ParamWalkerContext *context);
 static Oid	findParamType(List *params, int paramid);
-static Bitmapset *getExecParamsToDispatch(PlannedStmt *stmt, ParamExecData *intPrm,
+
+//
+extern Bitmapset *getExecParamsToDispatch(PlannedStmt *stmt, ParamExecData *intPrm,
 										  List **paramExecTypes);
-static SerializedParams *serializeParamsForDispatch(QueryDesc *queryDesc,
-													ParamListInfo externParams,
+extern SerializedParams *serializeParamsForDispatch(ParamListInfo externParams,
 													ParamExecData *execParams,
 													List *paramExecTypes,
 													Bitmapset *sendParams);
@@ -247,8 +248,7 @@ CdbDispatchPlan(struct QueryDesc *queryDesc,
 	 */
 	sendParams = getExecParamsToDispatch(stmt, execParams, &paramExecTypes);
 	queryDesc->ddesc->paramInfo =
-		serializeParamsForDispatch(queryDesc,
-								   queryDesc->params,
+		serializeParamsForDispatch(queryDesc->params,
 								   execParams, paramExecTypes, sendParams);
 
 	/*
@@ -1463,9 +1463,8 @@ formIdleSegmentIdList(void)
  * XXX: Sending *all* record types can be quite bulky, but ATM there is no
  * easy way to extract just the needed record types.
  */
-static SerializedParams *
-serializeParamsForDispatch(QueryDesc *queryDesc,
-						   ParamListInfo externParams,
+SerializedParams *
+serializeParamsForDispatch(ParamListInfo externParams,
 						   ParamExecData *execParams,
 						   List *paramExecTypes,
 						   Bitmapset *sendParams)
@@ -1561,7 +1560,7 @@ serializeParamsForDispatch(QueryDesc *queryDesc,
  * an internal parameter), the plan will just use the value that's already
  * in the EState->es_param_exec_vals array.
  */
-static Bitmapset *
+Bitmapset *
 getExecParamsToDispatch(PlannedStmt *stmt, ParamExecData *intPrm,
 						List **paramExecTypes)
 {
