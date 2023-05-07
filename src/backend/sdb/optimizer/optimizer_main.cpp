@@ -18,6 +18,7 @@
 // A server to receive HelloRequest and send back HelloReply
 
 #include "backend/sdb/common/pg_export.hpp"
+
 #include <gflags/gflags.h>
 #include <brpc/server.h>
 #include <brpc/restful.h>
@@ -68,6 +69,8 @@ int OptimizerServerRun(int argc, char** argv) {
 		LOG(ERROR) << "Fail to add http_svc";
 		return -1;
 	}
+
+	FLAGS_port = PostPortNumber;
 
 	// Start the server.
 	brpc::ServerOptions options;

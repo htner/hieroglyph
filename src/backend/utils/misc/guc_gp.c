@@ -290,6 +290,8 @@ bool		optimizer_print_optimization_context;
 bool		optimizer_print_optimization_stats;
 bool		optimizer_print_xform_results;
 
+int			worker;
+
 /* array of xforms disable flags */
 bool		optimizer_xforms[OPTIMIZER_XFORMS_COUNT] = {[0 ... OPTIMIZER_XFORMS_COUNT - 1] = false};
 char	   *optimizer_search_strategy_path = NULL;
@@ -4117,6 +4119,16 @@ struct config_int ConfigureNamesInt_gp[] =
 		NULL, NULL, NULL
 	},
 
+	{
+		{"worker", PGC_SUSET, GP_ARRAY_TUNING,
+			gettext_noop(""),
+			gettext_noop(""),
+			GUC_SUPERUSER_ONLY |  GUC_NO_SHOW_ALL | GUC_NOT_IN_SAMPLE | GUC_UNIT_S
+		},
+		&worker,
+		60, 0, INT_MAX,
+		NULL, NULL, NULL
+	},
 
 	{
 		/* Can't be set in postgresql.conf */

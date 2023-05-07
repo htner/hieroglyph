@@ -1,10 +1,11 @@
 #pragma once
 
+#include "backend/sdb/common/pg_export.hpp"
+
 #include <memory>
 #include <string_view>
 
 #include "optimizer/optimizer_service.pb.h"
-#include "backend/sdb/common/pg_export.hpp"
 #include "backend/sdb/optimizer/parser.hpp"
 
 namespace sdb {
@@ -66,7 +67,7 @@ public:
     int planstmt_len;
     int planstmt_len_uncompressed;
     char* planstmt_cstr = serializeNode((Node*)plan, &planstmt_len, &planstmt_len_uncompressed);
-    std::string planstmt_str(planstmt_cstr, planstmt_len_uncompressed);
+    std::string planstmt_str(planstmt_cstr, planstmt_len);
     reply_->set_planstmt_str(planstmt_str);
     reply_->set_plan_dxl_str(plan_str_copy);
     reply_->set_plan_params_str(params_str);
@@ -103,7 +104,7 @@ public:
       pb->set_slice_index(slice.sliceIndex);
       pb->set_parent_index(slice.parentIndex);
       pb->set_gang_type(slice.gangType);
-      pb->set_numsegments(slice.numsegments);
+      pb->set_num_segments(slice.numsegments);
       pb->set_segindex(slice.segindex);
 
       auto dispatch_info = pb->mutable_direct_dispatch_info();
@@ -112,7 +113,7 @@ public:
       ListCell   *lc;
       foreach(lc, slice.directDispatch.contentIds) {
         auto id = lfirst_int(lc);
-        dispatch_info->add_segments_ids(id);
+        dispatch_info->add_segments(id);
       }
     }
   }

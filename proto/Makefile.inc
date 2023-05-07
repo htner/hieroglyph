@@ -53,3 +53,4 @@ go: $(PROTO_GO_SRC)
 clean:
 	rm -f *.go
 	rm -f *.cc
+	rm -f *.h

@@ -30,14 +30,14 @@ service Optimizer {
 
 message PBDirectDispatchInfo {
   bool is_direct_dispatch = 1;
-  repeated int32 segments_ids = 2;
+  repeated int32 segments = 2;
 }
 
 message PBPlanSlice {
   int32 slice_index = 1;
   int32 parent_index = 2;
   int32 gang_type = 3;
-  int32 numsegments = 4;
+  int32 num_segments = 4;
   int32 segindex = 5;
   PBDirectDispatchInfo direct_dispatch_info = 6;
 }

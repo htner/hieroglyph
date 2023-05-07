@@ -19,6 +19,7 @@
 
 #include "backend/sdb/common/pg_export.hpp"
 
+#include <thread>
 #include <gflags/gflags.h>
 #include <butil/logging.h>
 #include <brpc/server.h>
@@ -49,9 +50,9 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	worker_thread.join();	
 }
 
-int WorkerServerRun(int argc, char** argv);
+int WorkerServerRun(int argc, char** argv) {
     // Parse gflags. We recommend you to use gflags as well.
-    gflags::ParseCommandLineFlags(&argc, &argv, true);
+    // gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     // Generally you only need one Server.
     brpc::Server server;
@@ -67,6 +68,7 @@ int WorkerServerRun(int argc, char** argv);
         return -1;
     }
 
+	FLAGS_port = PostPortNumber;
     // Start the server.
     brpc::ServerOptions options;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;

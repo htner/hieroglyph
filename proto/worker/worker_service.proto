@@ -28,27 +28,63 @@ service Worker {
   rpc Exec(QueryRequest) returns (QueryReply) {}
 }
 
+message PBExecSlice {
+ int32 slice_index = 1;
+ int32 root_index = 2;
+ int32 parent_index = 3;
+ int32 plan_num_segments = 4;
+ repeated int32 children = 5; // restart
+ int32 gang_type = 6;
+ repeated int32 segments = 7;
+}
+
+message PBSliceTable {
+  int32 local_slice = 1;
+  repeated PBExecSlice slices = 2;
+  bool has_motions = 4;
+  int64 instrument_options = 5;
+  uint32 ic_instance_id = 6;
+}
+
+message WorkerInfo {
+  string addr = 1;
+  int64 id = 2; // global id
+  int32 segid = 3;  // loacl id for query
+}
+
 // The request message containing the user's name.
 message QueryRequest {
   uint64 query_id = 1;
-  uint64 sid = 2;
+  uint64 sessionid = 2;
   uint64 uid = 3;
   uint64 dbid = 4;
   uint64 slice_id = 5;
+  uint64 worker_id = 6;
 
-  uint64 min_xid = 6;
-  uint64 max_xid = 7;
+  uint64 min_xid = 7;
+  uint64 max_xid = 8;
 
-  string sql = 8;
-  string query_info = 9;
-  string plan_info = 10;
-  string plan_info_dxl = 11;
+  string sql = 9;
+  bytes query_info = 10;
+  bytes plan_info = 11;
+  bytes plan_info_dxl = 12;
+  bytes plan_params = 13;
 
   uint64 guc_version = 20;
   map<uint64, uint64> catalog_version = 21;
+  repeated WorkerInfo workers = 22;
+  PBSliceTable slice_table = 23;
 }
 
 // The response message containing the greetings
 message QueryReply {
   string message = 1;
+}
+
+message MotionDataRequest {
+  uint64 query_id = 1;
+  uint64 sessionid = 2;
+}
+
+message MotionDataReply {
 }
