@@ -82,7 +82,7 @@ extern void SerializeRecordCacheIntoChunks(SerTupInfo *pSerInfo,
 										   MotionConn *conn);
 
 /* Convert a tuple into chunks directly in a set of transport buffers */
-extern int SerializeTuple(TupleTableSlot *tuple, SerTupInfo *pSerInfo, struct directTransportBuffer *b, TupleChunkList tcList, int16 targetRoute);
+extern int SerializeTuple(TupleTableSlot *tuple, SerTupInfo *pSerInfo, TupleChunkList tcList, int16 targetRoute);
 
 /* Convert a sequence of chunks containing serialized tuple data into a
  * MinimalTuple.

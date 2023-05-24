@@ -213,7 +213,7 @@ proc_exit_prepare(int code)
 	* It's ok to shutdown Interconnect background thread here, process is dying, no
 	* necessary to receive more motion data.
 	*/
-	WaitInterconnectQuit();
+	//WaitInterconnectQuit();
 
 	elog(DEBUG3, "proc_exit(%d)", code);
 

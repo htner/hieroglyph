@@ -70,125 +70,166 @@ func main() {
     log.Printf("%d.%s", i, slice.String())
   }
 
-  //rootSliceIndex := 0
-
-
-
-
   // prepare segments
-
   var sliceTable wpb.PBSliceTable
   sliceTable.InstrumentOptions = 0
   sliceTable.HasMotions = false
   // Slice Info
   sliceTable.Slices = make([]*wpb.PBExecSlice, len(r.Slices))
+  segindex := int32(1)
   for i, planSlice := range r.Slices {
-      log.Printf("%d.%s", i, planSlice.String())
-      execSlice := new(wpb.PBExecSlice)
-      execSlice.SliceIndex= planSlice.SliceIndex
-      execSlice.PlanNumSegments = planSlice.NumSegments
+    log.Printf("%d.%s", i, planSlice.String())
+    execSlice := new(wpb.PBExecSlice)
+    execSlice.SliceIndex= planSlice.SliceIndex
+    execSlice.PlanNumSegments = planSlice.NumSegments
 
-      rootIndex := int32(0)
-      parentIndex := planSlice.ParentIndex
-      if (parentIndex < -1 || int(parentIndex) >= len(r.Slices)) {
-        log.Fatal("invalid parent slice index %d", parentIndex)
+    rootIndex := int32(0)
+    parentIndex := planSlice.ParentIndex
+    if (parentIndex < -1 || int(parentIndex) >= len(r.Slices)) {
+      log.Fatal("invalid parent slice index %d", parentIndex)
+    }
+    if (parentIndex >= 0) {
+      parentExecSlice := sliceTable.Slices[parentIndex]
+      children := parentExecSlice.Children
+      if children == nil {
+        children = make([]int32, 0)
       }
-      if (parentIndex >= 0) {
-        parentExecSlice := sliceTable.Slices[parentIndex]
-        children := parentExecSlice.Children
-        if children == nil {
-            children = make([]int32, 0)
+      parentExecSlice.Children = append(children, execSlice.SliceIndex)
+
+      rootIndex = execSlice.SliceIndex
+      count := 0
+      for (r.Slices[rootIndex].ParentIndex >= 0) {
+        rootIndex = r.Slices[rootIndex].ParentIndex
+
+        count++
+        if (count > len(r.Slices)) {
+          log.Fatal("circular parent-child relationship")
         }
-        parentExecSlice.Children = append(children, execSlice.SliceIndex)
-
-        rootIndex = execSlice.SliceIndex
-        count := 0
-        for (r.Slices[rootIndex].ParentIndex >= 0) {
-            rootIndex = r.Slices[rootIndex].ParentIndex
-            
-            count++
-            if (count > len(r.Slices)) {
-              log.Fatal("circular parent-child relationship")
-            }
-        }
-        sliceTable.HasMotions = true
-      } else {
-          rootIndex = int32(i)
       }
-      execSlice.ParentIndex = parentIndex 
-      execSlice.RootIndex = rootIndex 
-      execSlice.GangType = planSlice.GangType 
-      
-      numSegments := planSlice.NumSegments
-      dispatchInfo := planSlice.DirectDispatchInfo
-      switch planSlice.GangType {
-        case 0:
-          execSlice.PlanNumSegments = 1 
-        case 1:
-          fallthrough
-        case 2:
-          execSlice.PlanNumSegments = numSegments
-          if dispatchInfo != nil && dispatchInfo.IsDirectDispatch {
-            execSlice.Segments = dispatchInfo.Segments
-          } else {
-            execSlice.Segments = dispatchInfo.Segments
-          }
-        case 3:
-          execSlice.PlanNumSegments = 1 
-        case 4:
-          execSlice.PlanNumSegments = 1 
-      }
-      sliceTable.Slices[0] = execSlice
-    } 
+      sliceTable.HasMotions = true
+    } else {
+      rootIndex = int32(i)
+    }
+    execSlice.ParentIndex = parentIndex 
+    execSlice.RootIndex = rootIndex 
+    execSlice.GangType = planSlice.GangType 
 
-  for i := 0; i < 4; i++ { 
+    numSegments := planSlice.NumSegments
+    // dispatchInfo := planSlice.DirectDispatchInfo
+    switch planSlice.GangType {
+    case 0:
+      execSlice.PlanNumSegments = 1 
+    case 1:
+      fallthrough
+    case 2:
+      execSlice.PlanNumSegments = 1 
+    //execSlice.Segments = dispatchInfo.Segments
+    /*
+if dispatchInfo != nil && dispatchInfo.IsDirectDispatch {
+} else {
+execSlice.Segments = dispatchInfo.Segments
+}
+*/
+    case 3:
+      fallthrough
+    case 4:
+      fallthrough
+    default:
+      execSlice.PlanNumSegments = numSegments 
+    }
+
+    for k := int32(0); k < execSlice.PlanNumSegments; k++ {
+      execSlice.Segments = append(execSlice.Segments, segindex)
+      log.Printf("init segs %d(%d) %d/%d->%d", execSlice.SliceIndex, planSlice.GangType, k, execSlice.PlanNumSegments, segindex)
+      segindex++
+    }
+    sliceTable.Slices[i] = execSlice
+  } 
+  log.Println(sliceTable.String())
+
+  log.Printf("------------------------------------")
+
+  for i := int32(0); i < 4; i++ { 
     // Send To Work
-    sliceTable.LocalSlice = int32(i)
-    addr := fmt.Sprintf("%s:%d", *workIp, *workPort + i)
+    go func(i int32, localSliceTable wpb.PBSliceTable) {
+      sliceid := 0
+      if i > 0 {
+        sliceid = 1
+      }
+      //localSliceTable := sliceTable
+      addr := fmt.Sprintf("%s:%d", *workIp, *workPort + int(i))
+      log.Printf("addr:%s", addr)
 
-    workConn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-    if err != nil {
-      log.Fatalf("did not connect: %v", err)
-    }
-    defer workConn.Close()
-    workClient := wpb.NewWorkerClient(workConn)
+      workConn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+      if err != nil {
+        log.Fatalf("did not connect: %v", err)
+      }
+      defer workConn.Close()
+      workClient := wpb.NewWorkerClient(workConn)
 
-    // Contact the server and print out its response.
-    ctx, workCancel := context.WithTimeout(context.Background(), time.Second * 60)
-    defer workCancel()
+      // Contact the server and print out its response.
+      ctx, workCancel := context.WithTimeout(context.Background(), time.Second * 60)
+      defer workCancel()
 
-    workinfo := &wpb.WorkerInfo {
-      Addr: "127.0.0.1:40001",
-      Id : 1,
-      Segid: 1,
-    } 
+      workinfos := make(map[int32]*wpb.WorkerInfo, 0)
+      for j := int32(1); j < 5; j++ {
+        workinfo := &wpb.WorkerInfo {
+          Addr: fmt.Sprintf("127.0.0.1:%d", 40000+j),
+          Id : int64(j),
+          Segid: j,
+        }
+        workinfos[j] = workinfo
+      }
 
-    workinfos := make([]*wpb.WorkerInfo, 0)
-    workinfos = append(workinfos, workinfo)
+      localSliceTable.LocalSlice = int32(sliceid)
+      taskid := &wpb.TaskIdentify {QueryId:1, SliceId:int32(sliceid), SegId:i + 1} 
 
-    query := &wpb.QueryRequest {
-      QueryId: 1,
-      Sessionid: 1,
-      Uid: 1,
-      Dbid: 1,
-      SliceId: 0,
-      MinXid: 1,
-      MaxXid: 1,
-      Sql: "select * from student",
-      QueryInfo: nil,
-      PlanInfo: r.PlanstmtStr,
-      PlanInfoDxl: r.PlanDxlStr,
-      PlanParams: r.PlanParamsStr,
-      GucVersion: 1,
-      Workers: workinfos,
-      SliceTable: &sliceTable,
-    }
+      query := &wpb.PrepareTaskRequest {
+        TaskIdentify: taskid, 
+        Sessionid: 1,
+        Uid: 1,
+        Dbid: 1,
+        MinXid: 1,
+        MaxXid: 1,
+        Sql: "select * from student",
+        QueryInfo: nil,
+        PlanInfo: r.PlanstmtStr,
+        //PlanInfoDxl: r.PlanDxlStr,
+        PlanParams: r.PlanParamsStr,
+        GucVersion: 1,
+        Workers: workinfos,
+        SliceTable: &localSliceTable,
+      }
 
-    reply, err := workClient.Exec(ctx, query)
-    if err != nil {
-      log.Fatalf("could not greet: %v", err)
-    }
-    log.Fatalln("could not greet: ", reply)
-  }
+      reply, err := workClient.Prepare(ctx, query)
+      log.Println("----- query -----")
+      log.Println(query)
+      if err != nil {
+        log.Fatalf("could not prepare: %v", err)
+      }
+      if reply != nil {
+        log.Printf("prepare reply: %v", reply.String())
+      }
 
+      time.Sleep(2*time.Second)
+
+      query1 := &wpb.StartTaskRequest {
+        TaskIdentify: taskid, 
+      }
+
+      reply1, err := workClient.Start(ctx, query1)
+      if err != nil {
+        log.Fatalf("could not start: %v", err)
+      }
+      if reply1 != nil {
+        log.Printf("start reply: %v", reply1.String())
+      }
+      time.Sleep(2*time.Second)
+    }(i, sliceTable)
+
+    log.Printf("start next: %d", i)
+    time.Sleep(1*time.Second)
+  } 
+
+  time.Sleep(160*time.Second)
 }

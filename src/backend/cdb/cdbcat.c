@@ -427,7 +427,7 @@ GpPolicyFetch(Oid tbloid)
 		 * otherwise, planner will arrange a gang whose size is larger than the size
 		 * of cluster and dispatcher cannot handle this.
 		 */
-		if ((Gp_role == GP_ROLE_DISPATCH || Gp_role == GP_ROLE_EXECUTE) &&
+		if (false && (Gp_role == GP_ROLE_DISPATCH || Gp_role == GP_ROLE_EXECUTE) &&
 			policyform->numsegments > getgpsegmentCount())
 		{
 			ReleaseSysCache(gp_policy_tuple);

@@ -1226,8 +1226,8 @@ exec_mpp_query(const char *query_string,
 			{
 				slice = &sliceTable->slices[i];
 
-				if (bms_is_member(qe_identifier, slice->processesMap))
-					break;
+				//if (bms_is_member(qe_identifier, slice->processesMap))
+			//		break;
 			}
 			if (i == sliceTable->numSlices)
 				elog(ERROR, "could not find QE identifier in process map");
@@ -6243,9 +6243,9 @@ InitMinimizePostgresEnv(int argc, char *argv[],
 	 * MessageContext is reset once per iteration of the main loop, ie, upon
 	 * completion of processing of each command message from the client.
 	 */
-	//MessageContext = AllocSetContextCreate(TopMemoryContext,
-//										   "MessageContext",
-//										   ALLOCSET_DEFAULT_SIZES);
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+										   "MessageContext",
+										   ALLOCSET_DEFAULT_SIZES);
 
 	/*
 	 * Create memory context and buffer used for RowDescription messages. As
@@ -6278,7 +6278,8 @@ void
 exec_worker_query(const char *query_string,
 				  PlannedStmt	   *plan,
 				  SerializedParams *paramInfo,
-				  SliceTable *sliceTable
+				  SliceTable *sliceTable,
+				  void* task
 )
 {
 	CommandDest dest = whereToSendOutput;
@@ -6326,6 +6327,8 @@ exec_worker_query(const char *query_string,
 
 	ddesc = makeNode(QueryDispatchDesc);
 	ddesc->sliceTable = sliceTable;
+	ddesc->paramInfo = paramInfo;
+	ddesc->task = task;
 	/*
 		 * Deserialize and apply security context from QD.
 	*/
@@ -6341,16 +6344,7 @@ exec_worker_query(const char *query_string,
 			sliceTable->localSlice >= sliceTable->numSlices)
 			elog(ERROR, "MPPEXEC: received invalid slice table: %d", sliceTable->localSlice);
 
-		/* Identify slice to execute */
-		for (i = 0; i < sliceTable->numSlices; i++)
-		{
-			slice = &sliceTable->slices[i];
-
-			if (bms_is_member(qe_identifier, slice->processesMap))
-				break;
-		}
-		if (i == sliceTable->numSlices)
-			elog(ERROR, "could not find QE identifier in process map");
+		slice = &sliceTable->slices[sliceTable->localSlice];
 		sliceTable->localSlice = slice->sliceIndex;
 
 		/* Set global sliceid variable for elog. */
@@ -6456,7 +6450,7 @@ exec_worker_query(const char *query_string,
 		 * Create unnamed portal to run the query or queries in. If there
 		 * already is one, silently drop it.
 		 */
-		portal = CreatePortal("", true, true);
+		portal = CreatePortal("worker", true, true);
 		/* Don't display the portal in pg_cursors */
 		portal->visible = false;
 
@@ -6528,7 +6522,7 @@ exec_worker_query(const char *query_string,
 		 * clients who will expect either a command-complete message or an
 		 * error, not one and then the other.
 		 */
-		finish_xact_command();
+		// finish_xact_command();
 
 		if (Debug_dtm_action == DEBUG_DTM_ACTION_FAIL_END_COMMAND &&
 			CheckDebugDtmActionSqlCommandTag(commandTag))
@@ -6545,13 +6539,13 @@ exec_worker_query(const char *query_string,
 		 * command the client sent, regardless of rewriting. (But a command
 		 * aborted by error will not send an EndCommand report at all.)
 		 */
-		EndCommand(completionTag, dest);
+		/// EndCommand(completionTag, dest);
 	}							/* end loop over parsetrees */
 
 	/*
 	 * Close down transaction statement, if one is open.
 	 */
-	finish_xact_command();
+	// finish_xact_command();
 
 	debug_query_string = NULL;
 }

@@ -57,7 +57,8 @@ void set_worker_param(int64_t sessionid, int64_t identifier);
 void exec_worker_query(const char *query_string,
                        PlannedStmt	   *plan,
                        SerializedParams *paramInfo,
-                       SliceTable *sliceTable);
+                       SliceTable *sliceTable,
+                       void* task);
 
 extern int PostPortNumber;
 

@@ -57,7 +57,6 @@ int WorkerServerRun(int argc, char** argv) {
     // Generally you only need one Server.
     brpc::Server server;
 
-
 	sdb::WorkerService http_svc;
     // Add services into server. Notice the second parameter, because the
     // service is put on stack, we don't want server to delete it, otherwise
@@ -76,7 +75,6 @@ int WorkerServerRun(int argc, char** argv) {
         LOG(ERROR) << "Fail to start HttpServer";
         return -1;
     }
-
     // Wait until Ctrl-C is pressed, then Stop() and Join() the server.
     server.RunUntilAskedToQuit();
     return 0;

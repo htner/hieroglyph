@@ -46,7 +46,7 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 
 	while (true) {
 		auto task = sdb::TaskQueueSingleton::GetInstance()->pop_front(); 
-		LOG(ERROR) << "get one task";
+		LOG(ERROR) << "get one optimizer task";
 		task->Run();
 	}
 
