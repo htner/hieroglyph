@@ -1,0 +1,107 @@
+syntax = "proto3";
+package lake;
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./proto";
+
+service Lake {
+    rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {}
+    rpc Commit(CommitRequest) returns (CommitResponse) {}
+    rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
+
+    rpc UpdateFiles(UpdateFilesRequest) returns (UpdateFilesResponse) {}
+
+    rpc Lock(LockRequest) returns (LockResponse) {}
+    rpc Unlock(UnockRequest) returns (UnlockResponse) {}
+}
+
+message LakeFile {
+    uint64 space = 1;
+    std::string file_name = 2;
+}
+
+message StartTransactionRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+}
+
+message StartTransactionResponse {
+}
+
+message NewWriteTidRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+}
+
+message NewWriteTidResponse {
+    uint64 commit_xid = 1;
+}
+
+
+message CommitRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 commit_xid = 3;
+}
+
+message CommitResponse {
+}
+
+message RollbackRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 commit_xid = 3;
+}
+
+message RollbackResponse {
+}
+
+/* enums for type of operation represented by a Query or PlanTree */
+enum LockType {
+	LOCKTAG_RELATION = 0; 		/* whole relation */
+	LOCKTAG_RELATION_EXTEND = 1;	/* the right to extend a relation */
+	LOCKTAG_TRANSACTION = 2;		/* transaction (for waiting for xact done) */
+}
+
+message LockRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    relation rel = 3;
+    LockType lock_type = 4;
+}
+
+message LockResponse {
+}
+
+message UnockRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    relation rel = 3;
+    LockType lock_type = 4;
+}
+
+message UnlockResponse {
+}
+
+message UpdateFilesRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    relation rel = 3;
+    repeated LakeFile add_files = 4;
+    repeated LakeFile remove_files = 5;
+}
+
+message UpdateFilesResponse {
+}
+
+message GetFileFilesRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    relation rel = 3;
+}
+
+message GetFileFilesResponse {
+    repeated LakeFile add_files = 1;
+}
