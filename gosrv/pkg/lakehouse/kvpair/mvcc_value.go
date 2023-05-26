@@ -1,4 +1,4 @@
-package kvpair
+package kv_pair 
 
 import (
 	"bytes"
@@ -8,15 +8,19 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
-type MvccValue struct {
+type FileValue struct {
+	Xmin       types.TransactionId
 	Xmax       types.TransactionId
 	XminStatus uint8
 	XmaxStatus uint8
-	UserValue  Value
 }
 
-func (val *MvccValue) EncFdbValue(buf *bytes.Buffer) error {
-	err := binary.Write(buf, binary.LittleEndian, val.Xmax)
+func (val *FileValue) EncFdbValue(buf *bytes.Buffer) error {
+  err := binary.Write(buf, binary.LittleEndian, val.Xmin)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(buf, binary.LittleEndian, val.Xmax)
 	if err != nil {
 		return err
 	}
@@ -28,11 +32,15 @@ func (val *MvccValue) EncFdbValue(buf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	return val.UserValue.EncValue(buf)
+  return nil
 }
 
-func (v *MvccValue) DecFdbValue(reader *bytes.Reader) error {
-	err := binary.Read(reader, binary.LittleEndian, v.Xmax)
+func (v *FileValue) DecFdbValue(reader *bytes.Reader) error {
+	err := binary.Read(reader, binary.LittleEndian, v.Xmin)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(reader, binary.LittleEndian, v.Xmax)
 	if err != nil {
 		return err
 	}
@@ -55,5 +63,5 @@ func (v *MvccValue) DecFdbValue(reader *bytes.Reader) error {
 			return errors.New("not enough data read")
 		}
 	*/
-	return v.UserValue.DecValue(reader)
+  return nil
 }
