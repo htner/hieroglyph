@@ -14,7 +14,6 @@ const (
 	LockTag        uint16 = 19
 
 	// MVCC使用
-	SysCatalogTag uint16 = 256
 	SchemaKVTag   uint16 = 257
 	LakeFileTag   uint16 = 259
 )

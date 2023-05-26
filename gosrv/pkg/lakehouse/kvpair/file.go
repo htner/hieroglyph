@@ -10,12 +10,12 @@ import (
 
 // key database/rel/filename->info
 type File struct {
-	Db   types.DatabaseId
-	Rel  types.RelId
-	name string
 	Xmin types.TransactionId
 	Xmax types.TransactionId
+  XminState XState 
+  XmaxState XState 
 	meta map[string]string
+  Space uint64 
 }
 
 func (f *File) EncKey(buf *bytes.Buffer) error {

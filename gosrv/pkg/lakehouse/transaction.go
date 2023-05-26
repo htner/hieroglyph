@@ -34,7 +34,7 @@ func NewTranscationWithXid(dbid types.DatabaseId, xid types.TransactionId, sid t
 	return &Transaction{Xid: xid, Dbid: dbid, Sid: sid}
 }
 
-// 使用fdb的原则， 启动一个事务
+// 使用 fdb 的原则， 启动一个事务
 func (t *Transaction) Start(manual bool) error {
 	db := fdb.MustOpenDefault()
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
@@ -60,7 +60,7 @@ func (t *Transaction) Start(manual bool) error {
 	return e
 }
 
-// 使用fdb的原则，事务不要超过一个函数
+// 使用 fdb 的原则，事务不要超过一个函数
 func (t *Transaction) AssignReadXid(sessionid types.SessionId, autoCommit bool) error {
 	db := fdb.MustOpenDefault()
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {

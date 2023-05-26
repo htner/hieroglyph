@@ -10,14 +10,20 @@ import (
 type WAL struct {
 	Xid   types.TransactionId
 	Seqid uint64
-	Log   []byte
+}
+
+const DELETE_FILE uint8 = 1
+const INSERT_FILE uint8 = 2
+
+type WALItem struct {
+  Type uint8
+  Name string
 }
 
 func NewWAL(xid types.TransactionId, seqid uint64, log []byte) *WAL {
 	return &WAL{
 		Xid:   xid,
 		Seqid: seqid,
-		Log:   log,
 	}
 }
 
