@@ -8,18 +8,37 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
+const (
+	SessionTransactionIdle uint8 = 1
+	SessionTransactionStart uint8 = 2
+	SessionTransactionCommit uint8 = 3
+)
+
 type Session struct {
 	Id   types.SessionId
 	Uid  uint64
 	DbId types.DatabaseId
 
 	Token               []byte
-	InTransaction       bool
-	InManualTransaction bool
+	State     			int8
+	AutoCommit 			bool
 
 	ReadTranscationId    types.TransactionId
 	WriteTranscationId   types.TransactionId
 	ReadOnlyTransactions map[types.DatabaseId]types.TransactionId
+}
+
+func NewSession(id types.SessionId) *Session {
+	return &Session{
+		Id:   id,
+		Uid:  0,
+		DbId: 0,
+		Token: "",
+		ReadTranscationId:   0,
+		WriteTranscationId:  0,
+		InManualTransaction: false,
+		InTransaction:       false,
+	}
 }
 
 func NewLocalSession(id types.SessionId, uid uint64, dbid types.DatabaseId, token []byte) *Session {
@@ -27,9 +46,7 @@ func NewLocalSession(id types.SessionId, uid uint64, dbid types.DatabaseId, toke
 		Id:   id,
 		Uid:  uid,
 		DbId: dbid,
-
 		Token: token,
-
 		ReadTranscationId:   0,
 		WriteTranscationId:  0,
 		InManualTransaction: false,

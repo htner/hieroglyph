@@ -13,8 +13,6 @@ type TransactionInfo struct {
 	DbId         types.DatabaseId
 	Sessionid    types.SessionId
 	Status       uint8
-	AutoCommit   bool
-	UpdateKeySeq uint64
 }
 
 func (s *TransactionInfo) Tag() uint16 {
@@ -22,11 +20,11 @@ func (s *TransactionInfo) Tag() uint16 {
 }
 
 func (t *TransactionInfo) EncFdbKey(buf *bytes.Buffer) error {
-	err := binary.Write(buf, binary.LittleEndian, t.Tid)
+	err := binary.Write(buf, binary.LittleEndian, t.DbId)
 	if err != nil {
 		return err
 	}
-	return binary.Write(buf, binary.LittleEndian, t.DbId)
+	return binary.Write(buf, binary.LittleEndian, t.Tid)
 }
 
 func (t *TransactionInfo) EncFdbValue(buf *bytes.Buffer) error {
@@ -35,11 +33,11 @@ func (t *TransactionInfo) EncFdbValue(buf *bytes.Buffer) error {
 }
 
 func (t *TransactionInfo) DecFdbKey(buf *bytes.Reader) error {
-	err := binary.Read(buf, binary.LittleEndian, &t.Tid)
+	err := binary.Read(buf, binary.LittleEndian, &t.DbId) 
 	if err != nil {
 		return err
 	}
-	return binary.Read(buf, binary.LittleEndian, &t.DbId)
+	return binary.Read(buf, binary.LittleEndian, &t.Tid)
 }
 
 func (t *TransactionInfo) DecFdbValue(buf *bytes.Reader) error {
