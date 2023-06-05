@@ -1,11 +1,10 @@
-package lock
+package lakehouse
 
 import (
 	"errors"
 	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
@@ -58,19 +57,19 @@ func (L *LockMgr) LockWait(tr fdb.Transaction, lock *Lock, ms int) error {
 			return errors.New("Retry")
 		}
 	}
-	kvOp := lakehouse.NewKvOperator(tr)
+	kvOp := NewKvOperator(tr)
 	return kvOp.Write(lock, lock)
 }
 
 func (M *LockMgr) Unlock(tr fdb.Transaction, lock *Lock) error {
-	kvOp := lakehouse.NewKvOperator(tr)
+	kvOp := NewKvOperator(tr)
 	return kvOp.Delete(lock)
 }
 
 func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid types.TransactionId) error {
 	var lock Lock
 	lock.Database = database
-	kvOp := lakehouse.NewKvOperator(tr)
+	kvOp := NewKvOperator(tr)
 	perfix, err := kv.MarshalRangePerfix(&lock)
 	if err != nil {
 		return err

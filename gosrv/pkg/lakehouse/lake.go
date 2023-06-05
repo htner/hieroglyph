@@ -5,7 +5,6 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/lock"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
@@ -17,7 +16,7 @@ func NewLakeRelOperator(dbid types.DatabaseId, sid types.SessionId) (L *LakeRelO
 	return &LakeRelOperator{T: NewTranscation(dbid, sid)}
 }
 
-func (L *LakeRelOperator) MarkFiles(files []string) error {
+func (L *LakeRelOperator) MarkFiles(rel types.RelId, files []string) error {
 	// 上锁
 	db, err := fdb.OpenDefault()
 	if err != nil {
@@ -28,10 +27,15 @@ func (L *LakeRelOperator) MarkFiles(files []string) error {
 			t := L.T
 			t.CheckVaild(tr)
 
-			var mgr lock.LockMgr
-			var fdblock lock.Lock
-			fdblock.Database =
-				mgr.Lock()
+			var mgr LockMgr
+			var fdblock Lock
+			fdblock.Database = t.Database
+			fdblock.Relation = rel
+			fdblock.LockType = InsertLock
+			err := mgr.Lock(tr, &fdblock) //retry
+			if err != nil {
+				return nil, err
+			}
 
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
@@ -52,7 +56,7 @@ func (L *LakeRelOperator) MarkFiles(files []string) error {
 	return e
 }
 
-func (L *LakeRelOperator) InsertFiles(files []*kv.FileMeta) error {
+func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*kv.FileMeta) error {
 	// 上锁
 	db, err := fdb.OpenDefault()
 	if err != nil {
@@ -62,6 +66,17 @@ func (L *LakeRelOperator) InsertFiles(files []*kv.FileMeta) error {
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			t.CheckVaild(tr)
+
+			var mgr LockMgr
+			var fdblock Lock
+			fdblock.Database = t.Database
+			fdblock.Relation = rel
+			fdblock.LockType = InsertLock
+			err := mgr.Lock(tr, &fdblock) //retry
+			if err != nil {
+				return nil, err
+			}
+
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
 				file.Xmin = t.Xid
@@ -92,7 +107,7 @@ func (L *LakeRelOperator) InsertFiles(files []*kv.FileMeta) error {
 	return e
 }
 
-func (L *LakeRelOperator) DeleleFiles(files []*kv.FileMeta) error {
+func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*kv.FileMeta) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -102,6 +117,17 @@ func (L *LakeRelOperator) DeleleFiles(files []*kv.FileMeta) error {
 			t := L.T
 			t.CheckVaild(tr)
 			kvOp := NewKvOperator(tr)
+
+			var mgr LockMgr
+			var fdblock Lock
+			fdblock.Database = t.Database
+			fdblock.Relation = rel
+			fdblock.LockType = UpdateLock
+			err := mgr.Lock(tr, &fdblock) //retry
+			if err != nil {
+				return nil, err
+			}
+
 			for _, file := range files {
 				file.Xmax = t.Xid
 				file.XmaxState = XS_START
@@ -127,13 +153,24 @@ func (L *LakeRelOperator) DeleleFiles(files []*kv.FileMeta) error {
 	return e
 }
 
-func (L *LakeRelOperator) GetAllFileForRead(filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
+func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
 	}
 	fs, e := db.Transact(
 		func(tr fdb.Transaction) (interface{}, error) {
+
+			var mgr LockMgr
+			var fdblock Lock
+			fdblock.Database = L.T.Database
+			fdblock.Relation = rel
+			fdblock.LockType = ReadLock
+			err := mgr.Lock(tr, &fdblock) //retry
+			if err != nil {
+				return nil, err
+			}
+
 			var files []*kv.FileMeta
 			sKey, err := kv.MarshalRangePerfix(filemeta)
 			if err != nil {
@@ -166,13 +203,23 @@ func (L *LakeRelOperator) GetAllFileForRead(filemeta *kv.FileMeta) ([]*kv.FileMe
 	return fs.([]*kv.FileMeta), e
 }
 
-func (L *LakeRelOperator) GetAllFileForWrite(filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
+func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
 	}
 	fs, e := db.Transact(
 		func(tr fdb.Transaction) (interface{}, error) {
+			var mgr LockMgr
+			var fdblock Lock
+			fdblock.Database = L.T.Database
+			fdblock.Relation = rel
+			fdblock.LockType = UpdateLock
+			err := mgr.Lock(tr, &fdblock) //retry
+			if err != nil {
+				return nil, err
+			}
+
 			var files []*kv.FileMeta
 			sKey, err := kv.MarshalRangePerfix(filemeta)
 			if err != nil {
