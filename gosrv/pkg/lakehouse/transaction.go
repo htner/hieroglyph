@@ -64,93 +64,77 @@ func (t *Transaction) Start(autoCommit bool) error {
 }
 
 // 使用 fdb 的原则，事务不要超过一个函数
-func (t *Transaction) AssignReadXid(sessionid types.SessionId, autoCommit bool) error {
-	db, err := fdb.OpenDefault()
+func (t *Transaction) CheckReadAble(tr fdb.Transaction) (*kv.Session, error) {
+	kvOp := NewKvOperator(tr)
+	sess := kv.NewSession(t.Sid)
+	err := kvOp.Read(sess, sess)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		kvOp := NewKvOperator(tr)
-		sess := kv.NewSession(t.Sid)
-		err := kvOp.Read(sess, sess)
-		if err != nil {
-			return nil, err
-		}
-		if sess.State != kv.SessionTransactionStart {
-			return nil, errors.New("")
-		}
-		if sess.ReadTranscationId != 0 {
-			return nil, errors.New("")
-		}
-
-		maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
-		err = kvOp.Read(maxTid, maxTid)
-		if err != nil {
-			return nil, err
-		}
-
-		sess.ReadTranscationId = maxTid.Max
-		err = kvOp.Write(sess, sess)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if e != nil {
-		t.Xid = 0
+	if sess.State != kv.SessionTransactionStart {
+		return nil, errors.New("")
 	}
-	return e
+	if sess.ReadTranscationId != 0 {
+		return sess, nil
+	}
+
+	maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
+	err = kvOp.Read(maxTid, maxTid)
+	if err != nil {
+		return nil, err
+	}
+
+	sess.ReadTranscationId = maxTid.Max
+	err = kvOp.Write(sess, sess)
+	if err != nil {
+		return nil, err
+	}
+	return sess, nil
 }
 
-// 使用fdb的原则，事务不要超过一个函数
-func (t *Transaction) AssignWriteXid(autoCommit bool) error {
-	db, err := fdb.OpenDefault()
+func (t *Transaction) CheckWriteAble(tr fdb.Transaction) (*kv.Session, error) {
+	// 保证 session 是有效的
+	kvOp := NewKvOperator(tr)
+
+	var session kv.Session
+	session.Id = t.Sid
+	err := kvOp.Read(&session, &session)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		kvOp := NewKvOperator(tr)
-		sess := kv.NewSession(t.Sid)
-		err := kvOp.Read(sess, sess)
-		if err != nil {
-			return nil, err
-		}
-		if sess.State != kv.SessionTransactionStart {
-			return nil, errors.New("")
-		}
-		if sess.ReadTranscationId != 0 {
-			return nil, errors.New("")
-		}
-
-		maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
-		err = kvOp.Read(maxTid, maxTid)
-		if err != nil {
-			return nil, err
-		}
-		maxTid.Max += 1
-		err = kvOp.Write(maxTid, maxTid)
-		if err != nil {
-			return nil, err
-		}
-
-		if sess.ReadTranscationId == 0 {
-			sess.ReadTranscationId = maxTid.Max
-		}
-		sess.WriteTranscationId = maxTid.Max
-		t.Xid = maxTid.Max
-
-		clog := &kv.TransactionCLog{Sessionid: t.Sid, Tid: t.Xid, DbId: t.Database,
-			Status: XS_START}
-		err = kvOp.Write(clog, clog)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if e != nil {
-		t.Xid = 0
+	if session.State != kv.SessionTransactionStart {
+		return nil, errors.New("")
 	}
-	return e
+	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
+		return nil, errors.New("")
+	}
+	if session.WriteTranscationId != InvaildTranscaton {
+		return &session, nil
+	}
+
+	maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
+	err = kvOp.Read(maxTid, maxTid)
+	if err != nil {
+		return &session, err
+	}
+	maxTid.Max += 1
+	err = kvOp.Write(maxTid, maxTid)
+	if err != nil {
+		return &session, err
+	}
+	session.WriteTranscationId = maxTid.Max
+	if session.ReadTranscationId == InvaildTranscaton {
+		session.ReadTranscationId = maxTid.Max
+	}
+	t.Xid = maxTid.Max
+
+	clog := &kv.TransactionCLog{Sessionid: t.Sid, Tid: t.Xid, DbId: t.Database,
+		Status: XS_START}
+	err = kvOp.Write(clog, clog)
+	if err != nil {
+		return &session, err
+	}
+	return &session, kvOp.Write(&session, &session)
 }
 
 func (t *Transaction) CheckVaild(tr fdb.Transaction) (*kv.TransactionCLog, error) {
@@ -168,6 +152,9 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) (*kv.TransactionCLog, error
 	}
 	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
 		return nil, errors.New("")
+	}
+	if session.WriteTranscationId == InvaildTranscaton {
+		return nil, nil
 	}
 	t.Xid = session.WriteTranscationId
 	t.Database = session.DbId
