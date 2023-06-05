@@ -1,55 +1,58 @@
-package transaction
+package lakehouse
 
 import (
 	"errors"
 	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/transaction/kvpair"
+	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 const (
-	XS_NULL   uint8 = 0
-	XS_INIT   uint8 = 1
-	XS_START  uint8 = 2
-	XS_COMMIT uint8 = 3
-	XS_ABORT  uint8 = 4
+	XS_NULL   types.XState = types.XState(0)
+	XS_INIT   types.XState = types.XState(1)
+	XS_START  types.XState = types.XState(2)
+	XS_COMMIT types.XState = types.XState(3)
+	XS_ABORT  types.XState = types.XState(4)
 )
 
 const InvaildTranscaton types.TransactionId = 0
 
 type Transaction struct {
-	Dbid types.DatabaseId
-	Xid  types.TransactionId // write xid
-	Sid  types.SessionId
+	Database types.DatabaseId
+	Xid      types.TransactionId // write xid
+	Sid      types.SessionId
 }
 
 func NewTranscation(dbid types.DatabaseId, sid types.SessionId) *Transaction {
 	return &Transaction{Xid: InvaildTranscaton,
-		Dbid: dbid, Sid: sid}
+		Database: dbid, Sid: sid}
 }
 
 func NewTranscationWithXid(dbid types.DatabaseId, xid types.TransactionId, sid types.SessionId) *Transaction {
-	return &Transaction{Xid: xid, Dbid: dbid, Sid: sid}
+	return &Transaction{Xid: xid, Database: dbid, Sid: sid}
 }
 
 // 使用 fdb 的原则， 启动一个事务
 func (t *Transaction) Start(autoCommit bool) error {
-	db := fdb.MustOpenDefault()
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := NewKvOperator(tr)
-		sess := NewSession(t.Sid)
+		sess := kv.NewSession(t.Sid)
 		err := kvOp.Read(sess, sess)
 		if err != nil {
 			return nil, err
 		}
-		if sess.State != SessionTransactionIdle {
+		if sess.State != kv.SessionTransactionIdle {
 			return nil, errors.New("session in transaction")
 		}
 		sess.AutoCommit = autoCommit
-		sess.State = SessionTransactionStart
-		err = kvOp.kvOp(sess, sess)
+		sess.State = kv.SessionTransactionStart
+		err = kvOp.Write(sess, sess)
 		if err != nil {
 			return nil, err
 		}
@@ -62,29 +65,35 @@ func (t *Transaction) Start(autoCommit bool) error {
 
 // 使用 fdb 的原则，事务不要超过一个函数
 func (t *Transaction) AssignReadXid(sessionid types.SessionId, autoCommit bool) error {
-	db := fdb.MustOpenDefault()
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := NewKvOperator(tr)
-		sess := NewSession(t.Sid)
+		sess := kv.NewSession(t.Sid)
 		err := kvOp.Read(sess, sess)
 		if err != nil {
 			return nil, err
 		}
-		if sess.State != SessionTransactionStart{
+		if sess.State != kv.SessionTransactionStart {
 			return nil, errors.New("")
 		}
 		if sess.ReadTranscationId != 0 {
 			return nil, errors.New("")
 		}
 
-		maxTid := &kv.MaxTid{Max: 0, DbID: t.DbId}
+		maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
 		err = kvOp.Read(maxTid, maxTid)
 		if err != nil {
 			return nil, err
 		}
 
-		st.s.ReadTranscationId = maxTid.Max
-		t.Xid = maxTid.Max
+		sess.ReadTranscationId = maxTid.Max
+		err = kvOp.Write(sess, sess)
+		if err != nil {
+			return nil, err
+		}
 		return nil, nil
 	})
 	if e != nil {
@@ -95,22 +104,25 @@ func (t *Transaction) AssignReadXid(sessionid types.SessionId, autoCommit bool) 
 
 // 使用fdb的原则，事务不要超过一个函数
 func (t *Transaction) AssignWriteXid(autoCommit bool) error {
-	db := fdb.MustOpenDefault()
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := NewKvOperator(tr)
-		sess := NewSession(t.Sid)
+		sess := kv.NewSession(t.Sid)
 		err := kvOp.Read(sess, sess)
 		if err != nil {
 			return nil, err
 		}
-		if sess.State != SessionTransactionStart{
+		if sess.State != kv.SessionTransactionStart {
 			return nil, errors.New("")
 		}
 		if sess.ReadTranscationId != 0 {
 			return nil, errors.New("")
 		}
 
-		maxTid := &kv.MaxTid{Max: 0, DbID: t.DbId}
+		maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
 		err = kvOp.Read(maxTid, maxTid)
 		if err != nil {
 			return nil, err
@@ -121,15 +133,15 @@ func (t *Transaction) AssignWriteXid(autoCommit bool) error {
 			return nil, err
 		}
 
-		if st.s.ReadTranscationId == 0 {
-			st.s.ReadTranscationId = maxTid.Max
+		if sess.ReadTranscationId == 0 {
+			sess.ReadTranscationId = maxTid.Max
 		}
-		st.s.WriteTranscationId = maxTid.Max
+		sess.WriteTranscationId = maxTid.Max
 		t.Xid = maxTid.Max
 
-		transactionInfo := &kv.TransactionInfo{Sessionid: t.Sid, Tid: t.Xid, DbId: st.s.DbId,
+		clog := &kv.TransactionCLog{Sessionid: t.Sid, Tid: t.Xid, DbId: t.Database,
 			Status: XS_START}
-		err = kvOp.Write(transactionInfo, transactionInfo)
+		err = kvOp.Write(clog, clog)
 		if err != nil {
 			return nil, err
 		}
@@ -141,55 +153,63 @@ func (t *Transaction) AssignWriteXid(autoCommit bool) error {
 	return e
 }
 
-func (t *Transaction) CheckVaild(tr fdb.Transaction) (error, *kv.TransactionInfo) {
+func (t *Transaction) CheckVaild(tr fdb.Transaction) (error, *kv.TransactionCLog) {
 	// 保证 session 是有效的
+	kvOp := NewKvOperator(tr)
+
 	var session kv.Session
 	session.Id = t.Sid
-	err = kvOp.Read(&session, &session)
+	err := kvOp.Read(&session, &session)
 	if err != nil {
 		return err, nil
 	}
-	if session.State != SessionTransactionStart {
+	if session.State != kv.SessionTransactionStart {
+		return errors.New(""), nil
+	}
+	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
 		return errors.New(""), nil
 	}
 	t.Xid = session.WriteTranscationId
-	t.Dbid = session.DbId
+	t.Database = session.DbId
 
 	// 保证事务是有效的
-	var tkv kv.TransactionInfo
-	tkv.Tid = t.Xid
-	tkv.DbId = t.Dbid
-	kvOp := NewKvOperator(tr)
-	err := kvOp.Read(&tkv, &tkv)
+	var clog kv.TransactionCLog
+	clog.Tid = t.Xid
+	clog.DbId = t.Database
+
+	err = kvOp.Read(&clog, &clog)
 	if err != nil {
 		return err, nil
 	}
-	if tkv.Status != XS_START {
+	if clog.Status != XS_START {
 		return errors.New(""), nil
 	}
-	return nil, &tkv
+	return nil, &clog
 }
-
 
 func (t *Transaction) Commit() error {
 	// 更新事务状态
-	db := fdb.MustOpenDefault()
-	_, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		err, tkv := t.CheckVaild(tr)
-		if err != nil {
-			return nil, err
-		}
-		tkv.Status = XS_COMMIT
-		baseTran := NewKvOperator(tr, tkv, tkv)
-		err = baseTran.Write()
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, err = db.Transact(
+		func(tr fdb.Transaction) (interface{}, error) {
+			err, tkv := t.CheckVaild(tr)
+			if err != nil {
+				return nil, err
+			}
+			tkv.Status = XS_COMMIT
+			kvOp := NewKvOperator(tr)
+			err = kvOp.Write(tkv, tkv)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		})
 	if err == nil {
-		// 异步更新kv对即可
-		go t.CommitKV(XS_COMMIT)
+		// 异步更新
+		// go t.CommitKV(XS_COMMIT)
 	}
 	return err
 }

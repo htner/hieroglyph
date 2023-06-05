@@ -1,59 +1,57 @@
-package transaction
+package lakehouse
 
 import (
 	"errors"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/transaction/kvpair"
+	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
 )
 
 type KvOperator struct {
-	tran fdb.Transaction
-
+	t fdb.Transaction
 }
 
 func NewKvOperator(tr fdb.Transaction) *KvOperator {
-	return &KvOperator{tran: tr}
+	return &KvOperator{t: tr}
 }
 
-func (t *KvOperator) Write(k kv.FdbKey, v kv.FdbValue) error {
-	sKey, err := kv.MarshalKey(k)
-
+func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
+	sKey, err := kv.MarshalKey(key)
 	if err != nil {
 		return err
 	}
 	fKey := fdb.Key(sKey)
-	sValue, err := kv.MarshalValue(v)
+	sValue, err := kv.MarshalValue(value)
 	if err != nil {
 		return err
 	}
-	t.tran.Set(fKey, sValue)
+	t.t.Set(fKey, sValue)
 	return nil
 }
 
-func (t *KvOperator) Delete(k kv.FdbKey) error {
-	sKey, err := kv.MarshalKey(k)
+func (t *KvOperator) Delete(key kv.FdbKey) error {
+	sKey, err := kv.MarshalKey(key)
 	if err != nil {
 		return err
 	}
 	fKey := fdb.Key(sKey)
-	t.tran.Clear(fKey)
+	t.t.Clear(fKey)
 	return nil
 }
 
 var KvNotFound = errors.New("kv not found")
 
-func (t *KvOperator) Read(k kv.FdbKey, v kv.FdbValue) error {
-	sKey, err := kv.MarshalKey(k)
+func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
+	sKey, err := kv.MarshalKey(key)
 	if err != nil {
 		return err
 	}
 	fKey := fdb.Key(sKey)
-	future := t.tran.Get(fKey)
+	future := t.t.Get(fKey)
 
-	value, e := future.Get()
+	v, e := future.Get()
 	if e != nil {
 		return KvNotFound
 	}
-	return kv.UnmarshalValue(value, v)
+	return kv.UnmarshalValue(v, value)
 }

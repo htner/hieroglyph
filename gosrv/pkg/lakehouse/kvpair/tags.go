@@ -10,7 +10,9 @@ const (
 	MAXTIDTag      uint16 = 17
 	SeqTag         uint16 = 18
 	LockTag        uint16 = 19
-
-	SchemaKVTag   uint16 = 257
-	LakeFileTag   uint16 = 259
+	LakeLogTag     uint16 = 20
+	LakeLogItemTag uint16 = 21
+	SchemaKVTag    uint16 = 257
+	LakeFileTag    uint16 = 259
+	CLOGTag        uint16 = 260
 )

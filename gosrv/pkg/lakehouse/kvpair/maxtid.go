@@ -8,7 +8,7 @@ import (
 )
 
 type MaxTid struct {
-	DbID types.DatabaseId
+	DbId types.DatabaseId
 	Max  types.TransactionId
 }
 
@@ -17,7 +17,7 @@ func (m *MaxTid) Tag() uint16 {
 }
 
 func (m *MaxTid) EncFdbKey(buf *bytes.Buffer) error {
-	return binary.Write(buf, binary.LittleEndian, m.DbID)
+	return binary.Write(buf, binary.LittleEndian, m.DbId)
 }
 
 func (m *MaxTid) EncFdbValue(buf *bytes.Buffer) error {
@@ -25,7 +25,7 @@ func (m *MaxTid) EncFdbValue(buf *bytes.Buffer) error {
 }
 
 func (m *MaxTid) DecFdbKey(buf *bytes.Reader) error {
-	return binary.Read(buf, binary.LittleEndian, &m.DbID)
+	return binary.Read(buf, binary.LittleEndian, &m.DbId)
 }
 
 func (m *MaxTid) DecFdbValue(buf *bytes.Reader) error {

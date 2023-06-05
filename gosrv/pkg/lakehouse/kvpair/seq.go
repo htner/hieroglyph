@@ -5,12 +5,16 @@ import (
 	"encoding/binary"
 )
 
+type SeqKey interface {
+	EncKey(*bytes.Buffer) error
+	DecKey(*bytes.Reader) error
+}
 type Seq struct {
-	key Key
+	key SeqKey
 	Id  uint64
 }
 
-func NewSeq(key Key, id uint64) *Seq {
+func NewSeq(key SeqKey, id uint64) *Seq {
 	return &Seq{
 		key: key,
 		Id:  id,
