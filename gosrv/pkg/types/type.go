@@ -11,9 +11,3 @@ type SessionId uint64
 type TransactionId uint64
 type OID uint64
 type XState uint8
-
-/*
-func GetDbIdByRelId(rel RelId) DatabaseId {
-	return DatabaseId(rel >> 32)
-}
-*/

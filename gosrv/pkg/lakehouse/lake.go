@@ -22,20 +22,16 @@ func (L *LakeRelOperator) MarkFiles(rel types.RelId, files []string) error {
 	if err != nil {
 		return err
 	}
-	_, e := db.Transact(
+	var mgr LockMgr
+	var fdblock Lock
+	fdblock.Database = L.T.Database
+	fdblock.Relation = rel
+	fdblock.LockType = InsertLock
+
+	_, e := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			t.CheckVaild(tr)
-
-			var mgr LockMgr
-			var fdblock Lock
-			fdblock.Database = t.Database
-			fdblock.Relation = rel
-			fdblock.LockType = InsertLock
-			err := mgr.Lock(tr, &fdblock) //retry
-			if err != nil {
-				return nil, err
-			}
 
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
@@ -52,7 +48,7 @@ func (L *LakeRelOperator) MarkFiles(rel types.RelId, files []string) error {
 				}
 			}
 			return nil, nil
-		})
+		}, 3)
 	return e
 }
 
@@ -62,20 +58,16 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*kv.FileMeta) err
 	if err != nil {
 		return err
 	}
-	_, e := db.Transact(
+	var mgr LockMgr
+	var fdblock Lock
+	fdblock.Database = L.T.Database
+	fdblock.Relation = rel
+	fdblock.LockType = InsertLock
+
+	_, e := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			t.CheckVaild(tr)
-
-			var mgr LockMgr
-			var fdblock Lock
-			fdblock.Database = t.Database
-			fdblock.Relation = rel
-			fdblock.LockType = InsertLock
-			err := mgr.Lock(tr, &fdblock) //retry
-			if err != nil {
-				return nil, err
-			}
 
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
@@ -103,7 +95,7 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*kv.FileMeta) err
 				}
 			}
 			return nil, nil
-		})
+		}, 3)
 	return e
 }
 
@@ -112,21 +104,17 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*kv.FileMeta) err
 	if err != nil {
 		return err
 	}
-	_, e := db.Transact(
+	var mgr LockMgr
+	var fdblock Lock
+	fdblock.Database = L.T.Database
+	fdblock.Relation = rel
+	fdblock.LockType = UpdateLock
+
+	_, e := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			t.CheckVaild(tr)
 			kvOp := NewKvOperator(tr)
-
-			var mgr LockMgr
-			var fdblock Lock
-			fdblock.Database = t.Database
-			fdblock.Relation = rel
-			fdblock.LockType = UpdateLock
-			err := mgr.Lock(tr, &fdblock) //retry
-			if err != nil {
-				return nil, err
-			}
 
 			for _, file := range files {
 				file.Xmax = t.Xid
@@ -149,27 +137,24 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*kv.FileMeta) err
 				}
 			}
 			return nil, nil
-		})
+		}, 3)
 	return e
 }
 
-func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
+func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, types.TransactionId, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
-		return nil, err
+		return nil, InvaildTranscaton, err
 	}
-	fs, e := db.Transact(
-		func(tr fdb.Transaction) (interface{}, error) {
+	var mgr LockMgr
+	var fdblock Lock
 
-			var mgr LockMgr
-			var fdblock Lock
-			fdblock.Database = L.T.Database
-			fdblock.Relation = rel
-			fdblock.LockType = ReadLock
-			err := mgr.Lock(tr, &fdblock) //retry
-			if err != nil {
-				return nil, err
-			}
+	fdblock.Database = L.T.Database
+	fdblock.Relation = rel
+	fdblock.LockType = ReadLock
+
+	fs, e := mgr.DoWithLock(db, &fdblock,
+		func(tr fdb.Transaction) (interface{}, error) {
 
 			var files []*kv.FileMeta
 			sKey, err := kv.MarshalRangePerfix(filemeta)
@@ -199,8 +184,9 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMe
 				}
 			}
 			return files, nil
-		})
-	return fs.([]*kv.FileMeta), e
+		}, 3)
+	// check mvcc
+	return fs.([]*kv.FileMeta), InvaildTranscaton, e
 }
 
 func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
@@ -208,17 +194,15 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 	if err != nil {
 		return nil, err
 	}
-	fs, e := db.Transact(
+
+	var mgr LockMgr
+	var fdblock Lock
+	fdblock.Database = L.T.Database
+	fdblock.Relation = rel
+	fdblock.LockType = UpdateLock
+
+	fs, err := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
-			var mgr LockMgr
-			var fdblock Lock
-			fdblock.Database = L.T.Database
-			fdblock.Relation = rel
-			fdblock.LockType = UpdateLock
-			err := mgr.Lock(tr, &fdblock) //retry
-			if err != nil {
-				return nil, err
-			}
 
 			var files []*kv.FileMeta
 			sKey, err := kv.MarshalRangePerfix(filemeta)
@@ -248,6 +232,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 				}
 			}
 			return files, nil
-		})
-	return fs.([]*kv.FileMeta), e
+		}, 3)
+	// check mvcc
+	return fs.([]*kv.FileMeta), err
 }

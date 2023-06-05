@@ -9,7 +9,26 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
+var ErrorRetry = errors.New("retry")
+
 type LockMgr struct {
+}
+
+func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
+	//return L.LockWait(tr, lock, -1)
+	for i := 0; i < retryNum; i++ {
+		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			err := L.LockWait(tr, lock, -1)
+			if err != nil {
+				return nil, err
+			}
+			return f(tr)
+		})
+		if err != nil {
+			return data, err
+		}
+	}
+	return data, err
 }
 
 func (L *LockMgr) Lock(tr fdb.Transaction, lock *Lock) error {
@@ -22,7 +41,8 @@ func (L *LockMgr) LockWait(tr fdb.Transaction, lock *Lock, ms int) error {
 		return err
 	}
 
-	rr := tr.GetRange(fdb.KeyRange{fdb.Key(perfix), fdb.Key{0xFF}}, fdb.RangeOptions{})
+	rr := tr.GetRange(fdb.KeyRange{Begin: fdb.Key(perfix), End: fdb.Key{0xFF}},
+		fdb.RangeOptions{})
 	ri := rr.Iterator()
 
 	// Advance will return true until the iterator is exhausted
@@ -99,7 +119,6 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid t
 		if fdblock.Xid == lock.Xid {
 			kvOp.Delete(fdblock)
 		}
-
 	}
 	return nil
 }

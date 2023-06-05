@@ -39,8 +39,6 @@ func (t *KvOperator) Delete(key kv.FdbKey) error {
 	return nil
 }
 
-var KvNotFound = errors.New("kv not found")
-
 func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	sKey, err := kv.MarshalKey(key)
 	if err != nil {
@@ -51,7 +49,7 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 
 	v, e := future.Get()
 	if e != nil {
-		return KvNotFound
+		return errors.New("kv not found")
 	}
 	return kv.UnmarshalValue(v, value)
 }

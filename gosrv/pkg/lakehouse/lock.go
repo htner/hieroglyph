@@ -23,22 +23,6 @@ const (
 	DDLLock    = 4
 )
 
-type WaittingLockKey struct {
-	Lock
-	TimeUS uint64 //  同一个锁，按时间排序
-	Xid    uint64
-}
-
-// 按xid来查找
-type TransactionLockKey struct {
-	Xid types.TransactionId
-	//LockKeyDetail LockKey
-}
-
-type TransactionLockValue struct {
-	LockStats uint8 // waitting or lock
-}
-
 func LockConflicts(T1, T2 uint8) bool {
 	if T1 == DDLLock || T2 == DDLLock {
 		return true

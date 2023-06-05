@@ -153,7 +153,7 @@ func (t *Transaction) AssignWriteXid(autoCommit bool) error {
 	return e
 }
 
-func (t *Transaction) CheckVaild(tr fdb.Transaction) (error, *kv.TransactionCLog) {
+func (t *Transaction) CheckVaild(tr fdb.Transaction) (*kv.TransactionCLog, error) {
 	// 保证 session 是有效的
 	kvOp := NewKvOperator(tr)
 
@@ -161,13 +161,13 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) (error, *kv.TransactionCLog
 	session.Id = t.Sid
 	err := kvOp.Read(&session, &session)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	if session.State != kv.SessionTransactionStart {
-		return errors.New(""), nil
+		return nil, errors.New("")
 	}
 	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
-		return errors.New(""), nil
+		return nil, errors.New("")
 	}
 	t.Xid = session.WriteTranscationId
 	t.Database = session.DbId
@@ -179,12 +179,12 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) (error, *kv.TransactionCLog
 
 	err = kvOp.Read(&clog, &clog)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	if clog.Status != XS_START {
-		return errors.New(""), nil
+		return nil, errors.New("")
 	}
-	return nil, &clog
+	return &clog, nil
 }
 
 func (t *Transaction) Commit() error {
@@ -195,7 +195,7 @@ func (t *Transaction) Commit() error {
 	}
 	_, err = db.Transact(
 		func(tr fdb.Transaction) (interface{}, error) {
-			err, tkv := t.CheckVaild(tr)
+			tkv, err := t.CheckVaild(tr)
 			if err != nil {
 				return nil, err
 			}
@@ -208,6 +208,12 @@ func (t *Transaction) Commit() error {
 			return nil, nil
 		})
 	if err == nil {
+		_, err = db.Transact(
+			func(tr fdb.Transaction) (interface{}, error) {
+				var mgr LockMgr
+				err := mgr.UnlockAll(tr, t.Database, t.Xid)
+				return nil, err
+			})
 		// 异步更新
 		// go t.CommitKV(XS_COMMIT)
 	}
