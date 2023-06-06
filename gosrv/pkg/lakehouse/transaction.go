@@ -115,7 +115,8 @@ func (t *Transaction) CheckWriteAble(tr fdb.Transaction) (*kv.Session, error) {
 	maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
 	err = kvOp.Read(maxTid, maxTid)
 	if err != nil {
-		return &session, err
+    // TODO check noexist
+		// return &session, err
 	}
 	maxTid.Max += 1
 	err = kvOp.Write(maxTid, maxTid)

@@ -2,7 +2,7 @@ package lakehouse
 
 import (
 	"errors"
-	"log"
+  "log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
@@ -18,7 +18,7 @@ func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction
 	//return L.LockWait(tr, lock, -1)
 	for i := 0; i < retryNum; i++ {
 		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-			err := L.LockWait(tr, lock, -1)
+			err := L.TryLockAndWatch(tr, lock)
 			if err != nil {
 				return nil, err
 			}
@@ -32,10 +32,10 @@ func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction
 }
 
 func (L *LockMgr) Lock(tr fdb.Transaction, lock *Lock) error {
-	return L.LockWait(tr, lock, -1)
+	return L.TryLockAndWatch(tr, lock)
 }
 
-func (L *LockMgr) LockWait(tr fdb.Transaction, lock *Lock, ms int) error {
+func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 	perfix, err := kv.MarshalRangePerfix(lock)
 	if err != nil {
 		return err
@@ -50,30 +50,35 @@ func (L *LockMgr) LockWait(tr fdb.Transaction, lock *Lock, ms int) error {
 		fdblock := &Lock{}
 		data, e := ri.Get()
 		if e != nil {
-			log.Printf("Unable to read next value: %v\n", e)
+			log.Printf("Unable to get locks: %v\n", e)
 			return e
 		}
 		err := kv.UnmarshalKey(data.Key, fdblock)
 		if err != nil {
+			log.Printf("Unable to UnmarshalKey: %v\n", e)
 			return err
 		}
 		err = kv.UnmarshalValue(data.Value, fdblock)
 		if err != nil {
+			log.Printf("Unable to UnmarshalKey: %v\n", e)
 			return err
 		}
 
 		// 支持重入
 		if fdblock.Xid == lock.Xid && fdblock.LockType == lock.LockType {
+			log.Printf("Unable to UnmarshalKey: %v\n", e)
 			return nil
 		}
 		if LockConflicts(fdblock.LockType, lock.LockType) {
 			fut := tr.Watch(data.Key)
+			log.Printf("LockConflicts Watch: %s\n", data.key)
 			tr.Commit()
 			fut.BlockUntilReady()
 			err := fut.Get()
 			if err != nil {
 				return err
 			}
+			log.Printf("Retry: %s\n", data.key)
 			return errors.New("Retry")
 		}
 	}

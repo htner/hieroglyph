@@ -16,9 +16,9 @@ service Lake {
 }
 
 message LakeFile {
-    std::string file_name = 1;
+    string file_name = 1;
     uint64 space = 2;
-    map[string]string meta = 3;
+    map<string, string> meta = 3;
 }
 
 message StartTransactionRequest {
@@ -57,7 +57,7 @@ enum LockType {
 message LockRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    relation rel = 3;
+    uint64 rel = 3;
     LockType lock_type = 4;
 }
 
@@ -67,7 +67,7 @@ message LockResponse {
 message UnockRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    relation rel = 3;
+    uint64 rel = 3;
     LockType lock_type = 4;
 }
 
@@ -77,7 +77,7 @@ message UnlockResponse {
 message PrepareInsertFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    relation rel = 3;
+    uint64 rel = 3;
     repeated string add_files = 4;
 }
 
@@ -87,7 +87,7 @@ message PrepareInsertFilesResponse {
 message UpdateFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    relation rel = 3;
+    uint64 rel = 3;
     repeated LakeFile add_files = 4;
     repeated LakeFile remove_files = 5;
 }
@@ -98,7 +98,7 @@ message UpdateFilesResponse {
 message GetFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    relation rel = 3;
+    uint64 rel = 3;
     uint64 slice_count = 4;
     uint64 slice_seg_index = 5;
 }
