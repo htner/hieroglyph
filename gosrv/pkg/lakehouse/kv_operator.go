@@ -2,6 +2,7 @@ package lakehouse
 
 import (
 	"errors"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
@@ -22,6 +23,7 @@ func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
 	}
 	fKey := fdb.Key(sKey)
 	sValue, err := kv.MarshalValue(value)
+	log.Printf("%s %d-%s %d", string(sKey), len(sKey), string(sValue), len(sValue))
 	if err != nil {
 		return err
 	}

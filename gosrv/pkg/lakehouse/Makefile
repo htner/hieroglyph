@@ -1,3 +1,3 @@
 
 test:
-	go test --v --parallel 3
+	go test --v --parallel 10

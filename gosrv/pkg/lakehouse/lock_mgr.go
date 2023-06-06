@@ -2,7 +2,7 @@ package lakehouse
 
 import (
 	"errors"
-  "log"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
@@ -64,6 +64,7 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 			return err
 		}
 
+		log.Printf("get other lock: %v\n", fdblock)
 		// 支持重入
 		if fdblock.Xid == lock.Xid && fdblock.LockType == lock.LockType {
 			log.Printf("Unable to UnmarshalKey: %v\n", e)
@@ -71,14 +72,14 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 		}
 		if LockConflicts(fdblock.LockType, lock.LockType) {
 			fut := tr.Watch(data.Key)
-			log.Printf("LockConflicts Watch: %s\n", data.key)
+			log.Printf("LockConflicts Watch: %s\n", data.Key)
 			tr.Commit()
 			fut.BlockUntilReady()
 			err := fut.Get()
 			if err != nil {
 				return err
 			}
-			log.Printf("Retry: %s\n", data.key)
+			log.Printf("Retry: %s\n", data.Key)
 			return errors.New("Retry")
 		}
 	}
