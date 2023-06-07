@@ -2,6 +2,7 @@ package kvpair
 
 import (
 	"bytes"
+	"log"
 	"encoding/binary"
 	"errors"
 )
@@ -53,8 +54,9 @@ func MarshalRangePerfix(key FdbRangeKey) ([]byte, error) {
 func UnmarshalKey(data []byte, key FdbKey) error {
 	var tag uint16
 	reader := bytes.NewReader(data)
-	err := binary.Read(reader, binary.LittleEndian, tag)
+	err := binary.Read(reader, binary.LittleEndian, &tag)
 	if err != nil {
+    log.Printf("read tag failure %d", reader.Len())
 		return err
 	}
 	if tag != key.Tag() {

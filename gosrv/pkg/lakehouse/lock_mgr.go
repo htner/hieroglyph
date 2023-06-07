@@ -22,67 +22,87 @@ func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction
 			if err != nil {
 				return nil, err
 			}
-			return f(tr)
+      return nil, nil
 		})
-		if err != nil {
-			return data, err
-		}
-	}
-	return data, err
+  }
+
+  if err == nil {
+		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+      return f(tr)
+    })
+  }
+  return data, err
 }
 
 func (L *LockMgr) Lock(tr fdb.Transaction, lock *Lock) error {
 	return L.TryLockAndWatch(tr, lock)
 }
 
+func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realType uint8) (lockBefore bool, err error) {
+  prefix, err := kv.MarshalRangePerfix(checkLock)
+  if err != nil {
+    return false, err
+  }
+  pr, err := fdb.PrefixRange(prefix)
+  //log.Println("read-prefix", checkLock)
+  //log.Println(pr)
+  // Read and process the range
+  kvs, err := tr.GetRange(pr, fdb.RangeOptions{}).GetSliceWithError()
+  //log.Println(prefix, kvs)
+
+    // Advance will return true until the iterator is exhausted
+  for _, data := range kvs {
+    fdblock := &Lock{}
+    err := kv.UnmarshalKey(data.Key, fdblock)
+    if err != nil {
+      log.Printf("Unable to UnmarshalKey: %v %v\n", data, err)
+      return false, err
+    }
+    err = kv.UnmarshalValue(data.Value, fdblock)
+    if err != nil {
+      log.Printf("Unable to UnmarshalValue: %v %v\n", data, err)
+      return false, err
+    }
+
+    // log.Printf("get other lock: %v\n", fdblock)
+    // 支持重入
+    if fdblock.Xid == checkLock.Xid && fdblock.LockType == realType {
+      log.Printf("reentry %v\n", checkLock)
+      return true, nil
+      }
+      if LockConflicts(fdblock.LockType, realType) {
+        fut := tr.Watch(data.Key)
+        log.Printf("LockConflicts Watch: %s\n", data.Key)
+        tr.Commit()
+        fut.BlockUntilReady()
+        err := fut.Get()
+        if err != nil {
+          return false, err
+        }
+        log.Printf("Retry, LockConflicts key: %s\n", data.Key)
+        return false, errors.New("Retry")
+      }
+    }
+    return false, nil
+}
+
 func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
-	perfix, err := kv.MarshalRangePerfix(lock)
-	if err != nil {
-		return err
-	}
+  var checkLock Lock
+  checkLock.Database = lock.Database
+  checkLock.Relation = lock.Relation
+  conflictsTypes := GetConflictsLocks(lock.LockType)  
 
-	rr := tr.GetRange(fdb.KeyRange{Begin: fdb.Key(perfix), End: fdb.Key{0xFF}},
-		fdb.RangeOptions{})
-	ri := rr.Iterator()
-
-	// Advance will return true until the iterator is exhausted
-	for ri.Advance() {
-		fdblock := &Lock{}
-		data, e := ri.Get()
-		if e != nil {
-			log.Printf("Unable to get locks: %v\n", e)
-			return e
-		}
-		err := kv.UnmarshalKey(data.Key, fdblock)
-		if err != nil {
-			log.Printf("Unable to UnmarshalKey: %v\n", e)
-			return err
-		}
-		err = kv.UnmarshalValue(data.Value, fdblock)
-		if err != nil {
-			log.Printf("Unable to UnmarshalKey: %v\n", e)
-			return err
-		}
-
-		log.Printf("get other lock: %v\n", fdblock)
-		// 支持重入
-		if fdblock.Xid == lock.Xid && fdblock.LockType == lock.LockType {
-			log.Printf("Unable to UnmarshalKey: %v\n", e)
-			return nil
-		}
-		if LockConflicts(fdblock.LockType, lock.LockType) {
-			fut := tr.Watch(data.Key)
-			log.Printf("LockConflicts Watch: %s\n", data.Key)
-			tr.Commit()
-			fut.BlockUntilReady()
-			err := fut.Get()
-			if err != nil {
-				return err
-			}
-			log.Printf("Retry: %s\n", data.Key)
-			return errors.New("Retry")
-		}
-	}
+  for _, conflictsType := range conflictsTypes {
+    checkLock.LockType = conflictsType
+    // log.Println(checkLock, conflictsTypes)
+    lockBefore, err := L.TryCheckConflicts(tr, &checkLock, lock.LockType)
+    if (err != nil) {
+      return err
+    }
+    if lockBefore {
+      return nil
+    }
+  }
 	kvOp := NewKvOperator(tr)
 	return kvOp.Write(lock, lock)
 }
@@ -96,22 +116,18 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid t
 	var lock Lock
 	lock.Database = database
 	kvOp := NewKvOperator(tr)
-	perfix, err := kv.MarshalRangePerfix(&lock)
+	prefix, err := kv.MarshalRangePerfix(&lock)
 	if err != nil {
 		return err
 	}
 
-	rr := tr.GetRange(fdb.KeyRange{Begin: fdb.Key(perfix), End: fdb.Key{0xFF}}, fdb.RangeOptions{})
-	ri := rr.Iterator()
+  pr, err := fdb.PrefixRange(prefix)
+	// Read and process the range
+	kvs, err := tr.GetRange(pr, fdb.RangeOptions{}).GetSliceWithError()
 
 	// Advance will return true until the iterator is exhausted
-	for ri.Advance() {
+  for _, data := range kvs {
 		fdblock := &Lock{}
-		data, e := ri.Get()
-		if e != nil {
-			log.Printf("Unable to read next value: %v\n", e)
-			return e
-		}
 		err := kv.UnmarshalKey(data.Key, fdblock)
 		if err != nil {
 			return err
@@ -121,7 +137,6 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid t
 			return err
 		}
 
-		// 支持重入
 		if fdblock.Xid == lock.Xid {
 			kvOp.Delete(fdblock)
 		}

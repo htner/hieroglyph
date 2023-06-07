@@ -61,6 +61,10 @@ github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYU
 github.com/apache/thrift v0.12.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
 github.com/apple/foundationdb/bindings/go v0.0.0-20221217231509-73f196a137f3 h1:73L/SJgIS/1dO65ngkuZE2Ts+Q4Ru4xSxUDpzFan0xE=
 github.com/apple/foundationdb/bindings/go v0.0.0-20221217231509-73f196a137f3/go.mod h1:w63jdZTFCtvdjsUj5yrdKgjxaAD5uXQX6hJ7EaiLFRs=
+github.com/apple/foundationdb/bindings/go v0.0.0-20230508183941-1098aa0251f4 h1:UG70EEUB0GTPbKdCd5GfEUJI5NJV/Y2uaf/qvX0UaDE=
+github.com/apple/foundationdb/bindings/go v0.0.0-20230508183941-1098aa0251f4/go.mod h1:w63jdZTFCtvdjsUj5yrdKgjxaAD5uXQX6hJ7EaiLFRs=
+github.com/apple/foundationdb/bindings/go v0.0.0-20230601025735-2734725382de h1:5PML/sEBXYoRwY4/ufdZA1rH05Xlxg6hgOMNVZG1UeQ=
+github.com/apple/foundationdb/bindings/go v0.0.0-20230601025735-2734725382de/go.mod h1:OMVSB21p9+xQUIqlGizHPZfjK+SHws1ht+ZytVDoz9U=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=

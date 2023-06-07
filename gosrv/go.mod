@@ -3,7 +3,7 @@ module github.com/htner/sdb/gosrv
 go 1.18
 
 require (
-	github.com/apple/foundationdb/bindings/go v0.0.0-20221217231509-73f196a137f3
+	github.com/apple/foundationdb/bindings/go v0.0.0-20230508183941-1098aa0251f4
 	github.com/sirupsen/logrus v1.9.0
 	go-micro.dev/v4 v4.10.2
 	google.golang.org/protobuf v1.30.0
