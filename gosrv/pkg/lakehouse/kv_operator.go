@@ -26,7 +26,7 @@ func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
 	if err != nil {
 		return err
 	}
-  // log.Println("write ", fKey, sKey, sValue)
+	// log.Println("write ", fKey, sKey, sValue)
 	t.t.Set(fKey, sValue)
 	return nil
 }

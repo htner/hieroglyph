@@ -17,7 +17,7 @@ type Lock struct {
 }
 
 const (
-  ALLLock    = 0
+	ALLLock    = 0
 	ReadLock   = 1
 	InsertLock = 2
 	UpdateLock = 3 // update / delete
@@ -25,18 +25,18 @@ const (
 )
 
 func GetConflictsLocks(T uint8) []uint8 {
-  switch T {
-  case ReadLock:
-    fallthrough
-  case InsertLock:
-    return []uint8{DDLLock};
-  case UpdateLock:
-    return []uint8{DDLLock, UpdateLock};
-  case DDLLock:
-    //return []uint8{DDLLock, UpdateLock, InsertLock, ReadLock};
-    return []uint8{ALLLock};
-  }
-  return []uint8{}
+	switch T {
+	case ReadLock:
+		fallthrough
+	case InsertLock:
+		return []uint8{DDLLock}
+	case UpdateLock:
+		return []uint8{DDLLock, UpdateLock}
+	case DDLLock:
+		//return []uint8{DDLLock, UpdateLock, InsertLock, ReadLock};
+		return []uint8{ALLLock}
+	}
+	return []uint8{}
 }
 
 func LockConflicts(T1, T2 uint8) bool {
@@ -59,7 +59,7 @@ func (K *Lock) EncFdbKey(buf *bytes.Buffer) error {
 		return err
 	}
 
-  err = binary.Write(buf, binary.LittleEndian, K.Relation)
+	err = binary.Write(buf, binary.LittleEndian, K.Relation)
 	if err != nil {
 		return err
 	}
@@ -76,18 +76,18 @@ func (V *Lock) EncFdbValue(buf *bytes.Buffer) error {
 }
 
 func (K *Lock) RangePerfix(buf *bytes.Buffer) error {
-  err := binary.Write(buf, binary.LittleEndian, K.Database)
+	err := binary.Write(buf, binary.LittleEndian, K.Database)
 	if err != nil {
 		return err
 	}
-  err = binary.Write(buf, binary.LittleEndian, K.Relation)
+	err = binary.Write(buf, binary.LittleEndian, K.Relation)
 	if err != nil {
 		return err
 	}
-  if K.LockType != ALLLock {
-    return binary.Write(buf, binary.LittleEndian, K.LockType)
-  }
-  return nil;
+	if K.LockType != ALLLock {
+		return binary.Write(buf, binary.LittleEndian, K.LockType)
+	}
+	return nil
 }
 
 func (K *Lock) DecFdbKey(buf *bytes.Reader) error {
@@ -100,8 +100,8 @@ func (K *Lock) DecFdbKey(buf *bytes.Reader) error {
 	if err != nil {
 		return err
 	}
-	
-  err = binary.Read(buf, binary.LittleEndian, &K.LockType)
+
+	err = binary.Read(buf, binary.LittleEndian, &K.LockType)
 	if err != nil {
 		return err
 	}

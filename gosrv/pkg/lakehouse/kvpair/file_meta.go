@@ -12,9 +12,9 @@ import (
 // key database/rel/filename->info
 type FileMeta struct {
 	Database types.DatabaseId
+	Relation types.RelId
 	Filename string
 
-	Relation  types.RelId
 	Xmin      types.TransactionId
 	Xmax      types.TransactionId
 	XminState types.XState
@@ -32,12 +32,20 @@ func (file *FileMeta) EncFdbKey(buf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+	err = binary.Write(buf, binary.LittleEndian, file.Relation)
+	if err != nil {
+		return err
+	}
 	_, err = buf.WriteString(file.Filename)
 	return err
 }
 
 func (file *FileMeta) DecFdbKey(reader *bytes.Reader) error {
-	err := binary.Read(reader, binary.LittleEndian, file.Database)
+	err := binary.Read(reader, binary.LittleEndian, &file.Database)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(reader, binary.LittleEndian, &file.Relation)
 	if err != nil {
 		return err
 	}
@@ -50,15 +58,15 @@ func (file *FileMeta) DecFdbKey(reader *bytes.Reader) error {
 }
 
 func (file *FileMeta) RangePerfix(buf *bytes.Buffer) error {
-	return binary.Write(buf, binary.LittleEndian, file.Database)
-}
-
-func (file *FileMeta) EncFdbValue(buf *bytes.Buffer) error {
-	err := binary.Write(buf, binary.LittleEndian, file.Relation)
+	err := binary.Write(buf, binary.LittleEndian, file.Database)
 	if err != nil {
 		return err
 	}
-	err = binary.Write(buf, binary.LittleEndian, file.Xmin)
+	return binary.Write(buf, binary.LittleEndian, file.Relation)
+}
+
+func (file *FileMeta) EncFdbValue(buf *bytes.Buffer) error {
+	err := binary.Write(buf, binary.LittleEndian, file.Xmin)
 	if err != nil {
 		return err
 	}
@@ -87,27 +95,23 @@ func (file *FileMeta) EncFdbValue(buf *bytes.Buffer) error {
 }
 
 func (file *FileMeta) DecFdbValue(reader *bytes.Reader) error {
-	err := binary.Read(reader, binary.LittleEndian, file.Relation)
+	err := binary.Read(reader, binary.LittleEndian, file.Xmin)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(reader, binary.LittleEndian, file.Database)
+	err = binary.Read(reader, binary.LittleEndian, file.Xmax)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(reader, binary.LittleEndian, file.Relation)
+	err = binary.Read(reader, binary.LittleEndian, file.XminState)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(reader, binary.LittleEndian, file.Database)
+	err = binary.Read(reader, binary.LittleEndian, file.XmaxState)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(reader, binary.LittleEndian, file.Relation)
-	if err != nil {
-		return err
-	}
-	err = binary.Read(reader, binary.LittleEndian, file.Database)
+	err = binary.Read(reader, binary.LittleEndian, file.Space)
 	if err != nil {
 		return err
 	}

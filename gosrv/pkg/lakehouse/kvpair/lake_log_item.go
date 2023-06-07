@@ -17,6 +17,7 @@ const (
 
 type LakeLogItem struct {
 	Database  types.DatabaseId
+	Rel       types.RelId
 	Xid       types.TransactionId
 	Filename  string
 	Action    int8
@@ -29,6 +30,10 @@ func (s *LakeLogItem) Tag() uint16 {
 
 func (item *LakeLogItem) EncFdbKey(buf *bytes.Buffer) error {
 	err := binary.Write(buf, binary.LittleEndian, item.Database)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(buf, binary.LittleEndian, item.Rel)
 	if err != nil {
 		return err
 	}
@@ -48,6 +53,9 @@ func (item *LakeLogItem) EncFdbValue(buf *bytes.Buffer) error {
 			return err
 		}
 		_, err = buf.Write(data)
+		if err != nil {
+			return err
+		}
 	}
 	return err
 }
@@ -57,11 +65,18 @@ func (item *LakeLogItem) DecFdbKey(buf *bytes.Reader) error {
 	if err != nil {
 		return err
 	}
+	err = binary.Read(buf, binary.LittleEndian, &item.Rel)
+	if err != nil {
+		return err
+	}
 	return binary.Read(buf, binary.LittleEndian, &item.Xid)
 }
 
 func (item *LakeLogItem) DecFdbValue(reader *bytes.Reader) error {
 	err := binary.Read(reader, binary.LittleEndian, &item.Action)
+	if err != nil {
+		return err
+	}
 	if item.Action == PreInsertMark {
 		var bytes []byte
 		bytes, err = ioutil.ReadAll(reader)

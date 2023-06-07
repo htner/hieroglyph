@@ -11,6 +11,7 @@ import (
 
 type LakeLog struct {
 	database types.DatabaseId
+	rel      types.RelId
 	xid      types.TransactionId
 	Inserts  []string `json:"inserts"`
 	Deletes  []string `json:"deletes"`
@@ -33,6 +34,10 @@ func (lakeLog *LakeLog) EncFdbKey(buf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+	err = binary.Write(buf, binary.LittleEndian, lakeLog.rel)
+	if err != nil {
+		return err
+	}
 	return binary.Write(buf, binary.LittleEndian, lakeLog.xid)
 }
 
@@ -47,6 +52,10 @@ func (lakeLog *LakeLog) EncFdbValue(buf *bytes.Buffer) error {
 
 func (lakeLog *LakeLog) DecFdbKey(reader *bytes.Reader) error {
 	err := binary.Read(reader, binary.LittleEndian, &lakeLog.database)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(reader, binary.LittleEndian, &lakeLog.rel)
 	if err != nil {
 		return err
 	}

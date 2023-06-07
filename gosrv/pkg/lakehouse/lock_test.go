@@ -10,7 +10,7 @@ import (
 
 const macfile string = ""
 
-var xid types.TransactionId = 1 
+var xid types.TransactionId = 1
 
 func StartLock(t *testing.T, lockType uint8, name string) {
 	var mgr LockMgr
@@ -20,20 +20,20 @@ func StartLock(t *testing.T, lockType uint8, name string) {
 		return
 	}
 
-  xid++
+	xid++
 
 	var fdblock Lock
 	fdblock.Database = 1
 	fdblock.Relation = 1
-  fdblock.Sid = 1
-  fdblock.Xid = xid 
-	fdblock.LockType = lockType 
+	fdblock.Sid = 1
+	fdblock.Xid = xid
+	fdblock.LockType = lockType
 
-	var retry int = 0 
+	var retry int = 0
 
 	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-    t.Logf("%s retry %d", name, retry)
-    retry++
+		t.Logf("%s retry %d", name, retry)
+		retry++
 		err := mgr.Lock(tr, &fdblock)
 		if err != nil {
 			t.Logf("%s lock error %s", name, err.Error())
@@ -60,76 +60,75 @@ func StartLock(t *testing.T, lockType uint8, name string) {
 	}
 }
 
-func TestParallel_0(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_0(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, InsertLock, "test_insert_0")
+	StartLock(t, InsertLock, "test_insert_0")
 }
 
-func TestParallel_1(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_1(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, InsertLock, "test_insert_1")
+	StartLock(t, InsertLock, "test_insert_1")
 }
 
-func TestParallel_2(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_2(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, InsertLock, "test_insert_2")
+	StartLock(t, InsertLock, "test_insert_2")
 }
 
-func TestParallel_3(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_3(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, InsertLock, "test_insert_3")
+	StartLock(t, InsertLock, "test_insert_3")
 }
 
-func TestParallel_4(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_4(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, UpdateLock, "test_update_0")
+	StartLock(t, UpdateLock, "test_update_0")
 }
 
-func TestParallel_5(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_5(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, UpdateLock, "test_update_1")
+	StartLock(t, UpdateLock, "test_update_1")
 }
 
-func TestParallel_6(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_6(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, UpdateLock, "test_update_2")
+	StartLock(t, UpdateLock, "test_update_2")
 }
 
-func TestParallel_7(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_7(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, UpdateLock, "test_update_3")
+	StartLock(t, UpdateLock, "test_update_3")
 }
 
-func TestParallel_8(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_8(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, UpdateLock, "test_update_4")
+	StartLock(t, UpdateLock, "test_update_4")
 }
 
-func TestParallel_9(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_9(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, ReadLock, "test_read_0")
+	StartLock(t, ReadLock, "test_read_0")
 }
 
-func TestParallel_10(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_10(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, ReadLock, "test_read_1")
+	StartLock(t, ReadLock, "test_read_1")
 }
 
-func TestParallel_11(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_11(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, ReadLock, "test_read_2")
+	StartLock(t, ReadLock, "test_read_2")
 }
 
-func TestParallel_12(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_12(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, ReadLock, "test_read_3")
+	StartLock(t, ReadLock, "test_read_3")
 }
 
-func TestParallel_13(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
+func TestLockParallel_13(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 	t.Parallel() // 调用Parallel函数，以并行方式运行测试用例
-  StartLock(t, ReadLock, "test_read_4")
+	StartLock(t, ReadLock, "test_read_4")
 }
-
 
 func TestMain(m *testing.M) {
 	fdb.MustAPIVersion(710)
