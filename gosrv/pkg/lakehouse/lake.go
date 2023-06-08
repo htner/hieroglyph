@@ -1,6 +1,7 @@
 package lakehouse
 
 import (
+	"errors"
 	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -165,7 +166,7 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMe
 
 	var session *kv.Session
 
-	fs, e := mgr.DoWithLock(db, &fdblock,
+	data, err := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			session, err = t.CheckReadAble(tr)
@@ -201,17 +202,26 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMe
 			}
 			return files, nil
 		}, 3)
-	// check session mvcc
-	if session != nil {
 
+  if err != nil {
+		return nil, InvaildTranscaton, err
 	}
-	return fs.([]*kv.FileMeta), InvaildTranscaton, e
+
+  if data == nil || session == nil {
+		return nil, InvaildTranscaton, errors.New("data is null")
+  }
+
+  files := data.([]*kv.FileMeta)
+	// check session mvcc
+  files = L.SatisfiesMvcc(files, session.ReadTranscationId)
+
+	return files, session.ReadTranscationId, err
 }
 
-func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, error) {
+func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.FileMeta) ([]*kv.FileMeta, types.TransactionId, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
-		return nil, err
+		return nil, InvaildTranscaton, err
 	}
 
 	var mgr LockMgr
@@ -222,7 +232,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 
 	var session *kv.Session
 
-	fs, err := mgr.DoWithLock(db, &fdblock,
+	data, err := mgr.DoWithLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			session, err = t.CheckWriteAble(tr)
@@ -258,9 +268,22 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 			}
 			return files, nil
 		}, 3)
-	// check session mvcc
-	if session != nil {
-
+  if err != nil || err == nil {
+		return nil, session.ReadTranscationId, err
 	}
-	return fs.([]*kv.FileMeta), err
+  files := data.([]*kv.FileMeta)
+	// check session mvcc
+  files = L.SatisfiesMvcc(files, session.ReadTranscationId)
+
+	return files, session.ReadTranscationId, err
+}
+
+func (L *LakeRelOperator) SatisfiesMvcc(files []*kv.FileMeta, currTid types.TransactionId) []*kv.FileMeta {
+  satisfiesFiles := make([]*kv.FileMeta, len(files))
+  for _, file := range files {
+    if (file.XminState == XS_COMMIT && file.XmaxState == XS_NULL) {
+
+    }
+  }
+  return satisfiesFiles
 }

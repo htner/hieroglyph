@@ -78,7 +78,7 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 
 		// log.Printf("get other lock: %v\n", fdblock)
 		// 支持重入
-		if fdblock.Xid == checkLock.Xid && fdblock.LockType == realType {
+		if fdblock.Sid == checkLock.Sid && fdblock.LockType == realType {
 			log.Printf("reentry %v\n", checkLock)
 			return true, nil
 		}
@@ -115,6 +115,13 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 			return nil
 		}
 	}
+
+  sessOp := NewSessionOperator(tr, lock.Sid)
+  _, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+  if err != nil {
+		return err
+	}
+  
 	kvOp := NewKvOperator(tr)
 	return kvOp.Write(lock, lock)
 }
@@ -124,7 +131,7 @@ func (M *LockMgr) Unlock(tr fdb.Transaction, lock *Lock) error {
 	return kvOp.Delete(lock)
 }
 
-func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid types.TransactionId) error {
+func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, sid types.SessionId, xid types.TransactionId) error {
 	var lock Lock
 	lock.Database = database
 	kvOp := NewKvOperator(tr)
@@ -155,8 +162,10 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, xid t
 			return err
 		}
 
-		if fdblock.Xid == lock.Xid {
-			kvOp.Delete(fdblock)
+		if fdblock.Sid == sid {
+      if fdblock.Xid == xid || xid == InvaildTranscaton {
+			  kvOp.Delete(fdblock)
+      }
 		}
 	}
 	return nil

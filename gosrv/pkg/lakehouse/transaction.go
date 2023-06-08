@@ -2,7 +2,7 @@ package lakehouse
 
 import (
 	"errors"
-	"time"
+	"fmt"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
@@ -41,15 +41,13 @@ func (t *Transaction) Start(autoCommit bool) error {
 		return err
 	}
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		kvOp := NewKvOperator(tr)
-		sess := kv.NewSession(t.Sid)
-		err := kvOp.Read(sess, sess)
-		if err != nil {
-			return nil, err
-		}
-		if sess.State != kv.SessionTransactionIdle {
-			return nil, errors.New("session in transaction")
-		}
+	  kvOp := NewKvOperator(tr)
+    sessOp := NewSessionOperator(tr, t.Sid)
+    sess, err := sessOp.CheckAndGet(kv.SessionTransactionIdle)
+    if err != nil {
+      return nil, err
+    }
+
 		sess.AutoCommit = autoCommit
 		sess.State = kv.SessionTransactionStart
 		err = kvOp.Write(sess, sess)
@@ -57,8 +55,9 @@ func (t *Transaction) Start(autoCommit bool) error {
 			return nil, err
 		}
 
-		tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
-		return nil, kvOp.Write(tick, tick)
+		//tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
+		//return nil, kvOp.Write(tick, tick)
+    return nil, nil
 	})
 	return e
 }
@@ -66,14 +65,13 @@ func (t *Transaction) Start(autoCommit bool) error {
 // 使用 fdb 的原则，事务不要超过一个函数
 func (t *Transaction) CheckReadAble(tr fdb.Transaction) (*kv.Session, error) {
 	kvOp := NewKvOperator(tr)
-	sess := kv.NewSession(t.Sid)
-	err := kvOp.Read(sess, sess)
-	if err != nil {
+
+  sessOp := NewSessionOperator(tr, t.Sid)
+  sess, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+  if err != nil {
 		return nil, err
 	}
-	if sess.State != kv.SessionTransactionStart {
-		return nil, errors.New("")
-	}
+
 	if sess.ReadTranscationId != 0 {
 		return sess, nil
 	}
@@ -96,20 +94,17 @@ func (t *Transaction) CheckWriteAble(tr fdb.Transaction) (*kv.Session, error) {
 	// 保证 session 是有效的
 	kvOp := NewKvOperator(tr)
 
-	var session kv.Session
-	session.Id = t.Sid
-	err := kvOp.Read(&session, &session)
-	if err != nil {
+  sessOp := NewSessionOperator(tr, t.Sid)
+  session, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+  if err != nil {
 		return nil, err
 	}
-	if session.State != kv.SessionTransactionStart {
-		return nil, errors.New("")
-	}
+
 	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
-		return nil, errors.New("")
+		return nil, fmt.Errorf("t.xid error %v-%v", t.Xid, session.WriteTranscationId)
 	}
 	if session.WriteTranscationId != InvaildTranscaton {
-		return &session, nil
+		return session, nil
 	}
 
 	maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
@@ -121,7 +116,7 @@ func (t *Transaction) CheckWriteAble(tr fdb.Transaction) (*kv.Session, error) {
 	maxTid.Max += 1
 	err = kvOp.Write(maxTid, maxTid)
 	if err != nil {
-		return &session, err
+		return session, err
 	}
 	session.WriteTranscationId = maxTid.Max
 	if session.ReadTranscationId == InvaildTranscaton {
@@ -133,27 +128,25 @@ func (t *Transaction) CheckWriteAble(tr fdb.Transaction) (*kv.Session, error) {
 		Status: XS_START}
 	err = kvOp.Write(clog, clog)
 	if err != nil {
-		return &session, err
+		return session, err
 	}
-	return &session, kvOp.Write(&session, &session)
+	return session, kvOp.Write(session, session)
 }
 
 func (t *Transaction) CheckVaild(tr fdb.Transaction) (*kv.TransactionCLog, error) {
 	// 保证 session 是有效的
 	kvOp := NewKvOperator(tr)
 
-	var session kv.Session
-	session.Id = t.Sid
-	err := kvOp.Read(&session, &session)
-	if err != nil {
+  sessOp := NewSessionOperator(tr, t.Sid)
+  session, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+  if err != nil {
 		return nil, err
 	}
-	if session.State != kv.SessionTransactionStart {
-		return nil, errors.New("")
-	}
+
 	if t.Xid != InvaildTranscaton && t.Xid != session.WriteTranscationId {
-		return nil, errors.New("")
+		return nil, errors.New("xid error")
 	}
+
 	if session.WriteTranscationId == InvaildTranscaton {
 		return nil, nil
 	}
@@ -170,7 +163,7 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) (*kv.TransactionCLog, error
 		return nil, err
 	}
 	if clog.Status != XS_START {
-		return nil, errors.New("")
+		return nil, errors.New("session not start")
 	}
 	return &clog, nil
 }
@@ -199,7 +192,7 @@ func (t *Transaction) Commit() error {
 		_, err = db.Transact(
 			func(tr fdb.Transaction) (interface{}, error) {
 				var mgr LockMgr
-				err := mgr.UnlockAll(tr, t.Database, t.Xid)
+				err := mgr.UnlockAll(tr, t.Database, t.Sid, t.Xid)
 				return nil, err
 			})
 		// 异步更新
