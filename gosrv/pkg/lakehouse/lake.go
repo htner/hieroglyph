@@ -28,15 +28,15 @@ func (L *LakeRelOperator) MarkFiles(rel types.RelId, files []string) error {
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = InsertLock
+	fdblock.Sid = L.T.Sid
 
-	_, e := mgr.DoWithLock(db, &fdblock,
+	_, e := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			_, err := t.CheckVaild(tr)
 			if err != nil {
 				return nil, err
 			}
-
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
 				item := &kv.LakeLogItem{
@@ -67,8 +67,9 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*kv.FileMeta) err
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = InsertLock
+	fdblock.Sid = L.T.Sid
 
-	_, e := mgr.DoWithLock(db, &fdblock,
+	_, e := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			_, err := t.CheckWriteAble(tr)
@@ -116,8 +117,9 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*kv.FileMeta) err
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = UpdateLock
+	fdblock.Sid = L.T.Sid
 
-	_, e := mgr.DoWithLock(db, &fdblock,
+	_, e := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			_, err := t.CheckWriteAble(tr)
@@ -166,7 +168,7 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMe
 
 	var session *kv.Session
 
-	data, err := mgr.DoWithLock(db, &fdblock,
+	data, err := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			session, err = t.CheckReadAble(tr)
@@ -203,17 +205,17 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, filemeta *kv.FileMe
 			return files, nil
 		}, 3)
 
-  if err != nil {
+	if err != nil {
 		return nil, InvaildTranscaton, err
 	}
 
-  if data == nil || session == nil {
+	if data == nil || session == nil {
 		return nil, InvaildTranscaton, errors.New("data is null")
-  }
+	}
 
-  files := data.([]*kv.FileMeta)
+	files := data.([]*kv.FileMeta)
 	// check session mvcc
-  files = L.SatisfiesMvcc(files, session.ReadTranscationId)
+	files = L.SatisfiesMvcc(files, session.ReadTranscationId)
 
 	return files, session.ReadTranscationId, err
 }
@@ -232,7 +234,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 
 	var session *kv.Session
 
-	data, err := mgr.DoWithLock(db, &fdblock,
+	data, err := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
 			session, err = t.CheckWriteAble(tr)
@@ -268,22 +270,22 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, filemeta *kv.File
 			}
 			return files, nil
 		}, 3)
-  if err != nil || err == nil {
+	if err != nil || err == nil {
 		return nil, session.ReadTranscationId, err
 	}
-  files := data.([]*kv.FileMeta)
+	files := data.([]*kv.FileMeta)
 	// check session mvcc
-  files = L.SatisfiesMvcc(files, session.ReadTranscationId)
+	files = L.SatisfiesMvcc(files, session.ReadTranscationId)
 
 	return files, session.ReadTranscationId, err
 }
 
 func (L *LakeRelOperator) SatisfiesMvcc(files []*kv.FileMeta, currTid types.TransactionId) []*kv.FileMeta {
-  satisfiesFiles := make([]*kv.FileMeta, len(files))
-  for _, file := range files {
-    if (file.XminState == XS_COMMIT && file.XmaxState == XS_NULL) {
+	satisfiesFiles := make([]*kv.FileMeta, len(files))
+	for _, file := range files {
+		if file.XminState == XS_COMMIT && file.XmaxState == XS_NULL {
 
-    }
-  }
-  return satisfiesFiles
+		}
+	}
+	return satisfiesFiles
 }
