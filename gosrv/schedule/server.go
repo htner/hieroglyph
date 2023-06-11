@@ -5,9 +5,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
-	"strconv"
+	"os"
+	"os/signal"
 
+	consulapi "github.com/hashicorp/consul/api"
+	"github.com/htner/sdb/gosrv/schedule/proto"
 	pb "github.com/htner/sdb/gosrv/schedule/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -17,7 +21,7 @@ import (
 // This is blocking, so it should be run in a goroutine
 // gRPC server is stopped when the context is cancelled
 // gRPC server is using reflection
-func rungRPC(ctx context.Context, port int) error {
+func rungRPC(done chan bool, port int) error {
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -25,10 +29,10 @@ func rungRPC(ctx context.Context, port int) error {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterScheduleServer(s, &server{port: port})
+	pb.RegisterScheduleServer(s, &ScheduleServer{port: port})
 	reflection.Register(s)
 
-	go stopWhenDone(ctx, s)
+	go stopWhenDone(done, s)
 
 	if err := s.Serve(lis); err != nil {
 		return fmt.Errorf("failed to serve: %w", err)
@@ -37,19 +41,21 @@ func rungRPC(ctx context.Context, port int) error {
 	return nil
 }
 
-func stopWhenDone(ctx context.Context, server *grpc.Server) {
-	<-ctx.Done()
+func stopWhenDone(done chan bool, server *grpc.Server) {
+	<-done
 	server.GracefulStop()
 }
 
 // server is used to implement proto.ScheduleServer
 type ScheduleServer struct {
+	proto.UnimplementedScheduleServer
 	port int
 }
 
 // Depart implements proto.ScheduleServer
 // It just returns commid
 func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*pb.ExecQueryReply, error) {
+	log.Printf("get request %s", in.Sql)
 	return &pb.ExecQueryReply{}, nil
 }
 
@@ -62,4 +68,41 @@ func findNextFreePort() (int, error) {
 
 	port := listener.Addr().(*net.TCPAddr).Port
 	return port, nil
+}
+
+func main() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, os.Kill)
+
+	done := make(chan bool, 1)
+	go rungRPC(done, 17000)
+	registerService("127.0.0.1:8500", "SchedulerServer", 17000)
+	<-c
+}
+
+func registerService(caddr, name string, port int) error {
+
+	config := consulapi.DefaultConfig()
+	config.Address = caddr
+
+	consul, err := consulapi.NewClient(config)
+	if err != nil {
+		log.Printf("Failed to create consul client: %v", err)
+	}
+
+	registration := &consulapi.AgentServiceRegistration{
+		Name:    name,
+		ID:      name + "-service-" + fmt.Sprintf("%d", port),
+		Port:    port,
+		Address: "localhost",
+		Tags:    []string{"public"},
+	}
+
+	err = consul.Agent().ServiceRegister(registration)
+	if err != nil {
+		log.Printf("Failed to register service: %v", err)
+	}
+
+	return nil
+
 }

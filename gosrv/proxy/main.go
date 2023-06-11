@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 )
 
 var options struct {
@@ -14,6 +15,10 @@ var options struct {
 }
 
 func main() {
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, os.Kill)
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage:  %s [options]\n", os.Args[0])
 		flag.PrintDefaults()
@@ -28,16 +33,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	for {
-		clientConn, err := ln.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
+	go func() {
+		for {
+			clientConn, err := ln.Accept()
+			if err != nil {
+				log.Fatal(err)
+			}
 
-		proxy := NewProxy(clientConn)
-		err = proxy.Run()
-		if err != nil {
-			log.Fatal(err)
+			proxy := NewProxy(clientConn)
+			err = proxy.Run()
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
-	}
+	}()
+	<-c
 }
