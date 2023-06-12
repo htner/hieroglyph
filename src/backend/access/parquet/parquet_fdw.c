@@ -25,7 +25,7 @@
 #include "utils/guc.h"
 #include "utils/elog.h"
 #include "nodes/execnodes.h"
-#include "parquet_s3_fdw.h"
+//#include "parquet_s3.h"
 
 PG_MODULE_MAGIC;
 

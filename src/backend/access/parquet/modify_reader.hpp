@@ -12,8 +12,8 @@
  */
 #pragma once
 
-#include "reader.hpp"
-#include "common.hpp"
+#include "backend/access/parquet/reader.hpp"
+#include "backend/access/parquet/common.hpp"
 
 /*
  * ModifyParquetReader

@@ -11,8 +11,8 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "exec_state.hpp"
-#include "heap.hpp"
+#include "backend/access/parquet/exec_state.hpp"
+#include "backend/access/parquet/heap.hpp"
 
 #include <sys/time.h>
 #include <functional>

@@ -11,8 +11,8 @@
  *-------------------------------------------------------------------------
  */
 
-#include "modify_reader.hpp"
-#include "common.hpp"
+#include "backend/access/parquet/modify_reader.hpp"
+#include "backend/access/parquet/common.hpp"
 
 #include "arrow/api.h"
 #include "arrow/io/api.h"

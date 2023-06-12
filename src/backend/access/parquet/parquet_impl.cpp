@@ -31,14 +31,14 @@
 #include "parquet/file_reader.h"
 #include "parquet/statistics.h"
 
-#include "parquet_s3_fdw.hpp"
-#include "heap.hpp"
-#include "exec_state.hpp"
-#include "reader.hpp"
-#include "common.hpp"
-#include "slvars.hpp"
-#include "modify_reader.hpp"
-#include "modify_state.hpp"
+#include "backend/access/parquet/parquet_s3.hpp"
+#include "backend/access/parquet/heap.hpp"
+#include "backend/access/parquet/exec_state.hpp"
+#include "backend/access/parquet/reader.hpp"
+#include "backend/access/parquet/common.hpp"
+#include "backend/access/parquet/slvars.hpp"
+#include "backend/access/parquet/modify_reader.hpp"
+#include "backend/access/parquet/modify_state.hpp"
 
 extern "C"
 {
@@ -116,12 +116,8 @@ extern "C"
 bool enable_multifile;
 bool enable_multifile_merge;
 
-
-static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2);
 static void destroy_parquet_state(void *arg);
-static void parse_function_signature(char *signature, std::string &funcname, std::vector<std::string> &param_names);
-static bool get_column_by_name(const char *name, TupleTableSlot *slot, Oid *type, Datum *value, bool *isnull);
-static List *parse_attributes_list(char *start);
+
 /*
  * Restriction
  */
@@ -143,7 +139,6 @@ struct RowGroupFilter
     bool        is_column;  /* for schemaless actual column `exist` operator */
 };
 
-static void get_filenames_in_dir(ParquetFdwPlanState *fdw_private);
 static void parquet_s3_extract_slcols(ParquetFdwPlanState *fpinfo, PlannerInfo *root, RelOptInfo *baserel, List *tlist);
 
 static int
@@ -1420,111 +1415,6 @@ get_table_options(Oid relid, ParquetFdwPlanState *fdw_private)
         fdw_private->filenames = get_filenames_from_userfunc(funcname, funcarg);
 }
 
-extern "C" void
-parquetGetForeignRelSize(PlannerInfo *root,
-                         RelOptInfo *baserel,
-                         Oid foreigntableid)
-{
-    ParquetFdwPlanState *fdw_private;
-    std::list<RowGroupFilter> filters;
-    RangeTblEntry  *rte;
-    Relation        rel;
-    TupleDesc       tupleDesc;
-    List           *filenames_orig;
-    ListCell       *lc;
-    uint64          matched_rows = 0;
-    uint64          total_rows = 0;
-
-    fdw_private = (ParquetFdwPlanState *) palloc0(sizeof(ParquetFdwPlanState));
-    get_table_options(foreigntableid, fdw_private);
-
-    /* For PGSpider. Overwrite. */
-    if (baserel->fdw_private != NIL)
-    {
-        fdw_private->filenames = (List *) list_nth((List *) baserel->fdw_private, FdwScanPrivateFileNames);
-        fdw_private->dirname = NULL;
-    }
-
-    if (IS_S3_PATH(fdw_private->dirname) || parquetIsS3Filenames(fdw_private->filenames))
-        fdw_private->s3client = parquetGetConnectionByTableid(foreigntableid);
-    else
-        fdw_private->s3client = NULL;
-    get_filenames_in_dir(fdw_private);
-
-    parquet_s3_get_schemaless_info(&fdw_private->slinfo, fdw_private->schemaless);
-
-    /* Analyze query clauses and extract ones that can be of interest to us*/
-    if (fdw_private->schemaless)
-        schemaless_extract_rowgroup_filters(baserel->baserestrictinfo, filters, &fdw_private->slinfo);
-    else
-        extract_rowgroup_filters(baserel->baserestrictinfo, filters);
-
-    rte = root->simple_rte_array[baserel->relid];
-#if PG_VERSION_NUM < 120000
-    rel = heap_open(rte->relid, AccessShareLock);
-#else
-    rel = table_open(rte->relid, AccessShareLock);
-#endif
-    tupleDesc = RelationGetDescr(rel);
-
-    /*
-     * Extract list of row groups that match query clauses. Also calculate
-     * approximate number of rows in result set based on total number of tuples
-     * in those row groups. It isn't very precise but it is best we got.
-     */
-    filenames_orig = fdw_private->filenames;
-    fdw_private->filenames = NIL;
-    foreach (lc, filenames_orig)
-    {
-        char *filename = strVal((Node *)lfirst(lc));
-        List *rowgroups = extract_rowgroups_list(filename, fdw_private->dirname, fdw_private->s3client, 
-                                                 tupleDesc, filters, &matched_rows, &total_rows, fdw_private->schemaless);
-
-        if (rowgroups)
-        {
-            fdw_private->rowgroups = lappend(fdw_private->rowgroups, rowgroups);
-            fdw_private->filenames = lappend(fdw_private->filenames, lfirst(lc));
-        }
-    }
-#if PG_VERSION_NUM < 120000
-    heap_close(rel, AccessShareLock);
-#else
-    table_close(rel, AccessShareLock);
-#endif
-    list_free(filenames_orig);
-
-    baserel->fdw_private = fdw_private;
-    baserel->tuples = total_rows;
-    baserel->rows = fdw_private->matched_rows = matched_rows;
-}
-
-static void
-estimate_costs(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost,
-               Cost *run_cost, Cost *total_cost)
-{
-    auto    fdw_private = (ParquetFdwPlanState *) baserel->fdw_private;
-    double  ntuples;
-
-    ntuples = baserel->tuples *
-        clauselist_selectivity(root,
-                               baserel->baserestrictinfo,
-                               0,
-                               JOIN_INNER,
-                               NULL);
-
-    /*
-     * Here we assume that parquet tuple cost is the same as regular tuple cost
-     * even though this is probably not true in many cases. Maybe we'll come up
-     * with a smarter idea later. Also we use actual number of rows in selected
-     * rowgroups to calculate cost as we need to process those rows regardless
-     * of whether they're gonna be filtered out or not.
-     */
-    *run_cost = fdw_private->matched_rows * cpu_tuple_cost;
-	*startup_cost = baserel->baserestrictcost.startup;
-	*total_cost = *startup_cost + *run_cost;
-
-    baserel->rows = ntuples;
-}
 
 static void
 extract_used_attributes(RelOptInfo *baserel)
@@ -2237,7 +2127,7 @@ ParquetBeginScan(Relation relation,
 	seginfo = GetAllFileSegInfo(relation,
 								snapshot, &segfile_count, NULL);
 
-	parquet_desc = parquet_beginrangescan_internal(relation,
+	parquet_desc = ParquetBeginRangeScanInternal(relation,
 												snapshot,
 												// appendOnlyMetaDataSnapshot,
 												seginfo,
@@ -2251,7 +2141,7 @@ ParquetBeginScan(Relation relation,
 }
 
 extern "C" bool		
-ParquetGetNextSlot (TableScanDesc scan,
+ParquetGetNextSlot(TableScanDesc scan,
 					ScanDirection direction,
 					TupleTableSlot *slot) {
     ParquetS3FdwExecutionState   *festate = (ParquetS3FdwExecutionState *) scan->state;
@@ -2272,7 +2162,7 @@ ParquetGetNextSlot (TableScanDesc scan,
 }
 
 extern "C" void
-ParquetEndScan (TableScanDesc scan) {
+ParquetEndScan(TableScanDesc scan) {
 
 }
 

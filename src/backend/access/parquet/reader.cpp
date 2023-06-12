@@ -22,8 +22,8 @@
 #include "parquet/file_reader.h"
 #include "parquet/statistics.h"
 
-#include "common.hpp"
-#include "reader.hpp"
+#include "backend/access/parquet/common.hpp"
+#include "backend/access/parquet/reader.hpp"
 
 extern "C"
 {

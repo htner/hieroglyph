@@ -17,7 +17,7 @@
 #include <set>
 #include <vector>
 
-#include "modify_reader.hpp"
+#include "backend/access/parquet/modify_reader.hpp"
 
 extern "C"
 {
