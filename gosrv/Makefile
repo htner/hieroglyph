@@ -16,7 +16,7 @@ ifeq ($(UNAME), Linux)
 XARGS += -r
 endif
 XARGS += rm -r
-PROGRAMS = schedule
+PROGRAMS = proxy #schedule
 
 bins=$(patsubst %,bin/%,$(PROGRAMS) )
 

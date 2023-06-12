@@ -2,6 +2,7 @@ package lakehouse
 
 import (
 	"errors"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
@@ -50,6 +51,7 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	future := t.t.Get(fKey)
 
 	v, e := future.Get()
+	log.Println("v e", key, v, e)
 	if e != nil {
 		return errors.New("kv not found")
 	}

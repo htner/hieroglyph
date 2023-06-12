@@ -2,6 +2,7 @@ package lakehouse
 
 import (
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -14,19 +15,23 @@ var ErrorRetry = errors.New("retry")
 type LockMgr struct {
 }
 
-func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
+func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
 	//return L.LockWait(tr, lock, -1)
 	for i := 0; i < retryNum; i++ {
 		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			err := L.TryLockAndWatch(tr, lock)
-			if err != nil {
-				return nil, err
+			fmt.Println(db, tr, lock, i)
+			if i != 0 {
+				log.Printf("do with auto lock retry")
 			}
-			return nil, nil
+			return nil, err
 		})
+		fmt.Printf("xxx %v", err)
+		//fmt.Printf("xxx %v", err)
 	}
 
 	if err == nil {
+		//fmt.Printf("xxx %v", err)
 		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			return f(tr)
 		})
@@ -36,6 +41,7 @@ func (L *LockMgr) DoWithLock(db fdb.Database, lock *Lock, f func(fdb.Transaction
 		_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			return nil, L.Unlock(tr, lock)
 		})
+		//fmt.Printf("xxx %v", err)
 	}
 	return data, err
 }
@@ -99,6 +105,14 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 }
 
 func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
+	sessOp := NewSessionOperator(tr, lock.Sid)
+	sess, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+	if err != nil {
+		log.Printf("CheckAndGet error %v", err)
+		return err
+	}
+	log.Printf("lock in session %v", sess)
+
 	var checkLock Lock
 	checkLock.Database = lock.Database
 	checkLock.Relation = lock.Relation
@@ -112,16 +126,11 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 			return err
 		}
 		if lockBefore {
+			log.Printf("lockBefore, do not need write")
 			return nil
 		}
 	}
 
-  sessOp := NewSessionOperator(tr, lock.Sid)
-  _, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
-  if err != nil {
-		return err
-	}
-  
 	kvOp := NewKvOperator(tr)
 	return kvOp.Write(lock, lock)
 }
@@ -163,9 +172,9 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, sid t
 		}
 
 		if fdblock.Sid == sid {
-      if fdblock.Xid == xid || xid == InvaildTranscaton {
-			  kvOp.Delete(fdblock)
-      }
+			if fdblock.Xid == xid || xid == InvaildTranscaton {
+				kvOp.Delete(fdblock)
+			}
 		}
 	}
 	return nil
