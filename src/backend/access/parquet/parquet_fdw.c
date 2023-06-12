@@ -27,100 +27,23 @@
 #include "nodes/execnodes.h"
 #include "parquet_s3_fdw.h"
 
-
 PG_MODULE_MAGIC;
 
-void		_PG_init(void);
+void _PG_init(void);
 extern void parquet_s3_init();
 extern void parquet_s3_shutdown();
 
-/* FDW routines */
-extern void parquetGetForeignRelSize(PlannerInfo *root,
-									 RelOptInfo *baserel,
-									 Oid foreigntableid);
-extern void parquetGetForeignPaths(PlannerInfo *root,
-								   RelOptInfo *baserel,
-								   Oid foreigntableid);
-extern ForeignScan *parquetGetForeignPlan(PlannerInfo *root,
-										  RelOptInfo *baserel,
-										  Oid foreigntableid,
-										  ForeignPath *best_path,
-										  List *tlist,
-										  List *scan_clauses,
-										  Plan *outer_plan);
-extern TupleTableSlot *parquetIterateForeignScan(ForeignScanState *node);
-extern void parquetBeginForeignScan(ForeignScanState *node, int eflags);
-extern void parquetEndForeignScan(ForeignScanState *node);
-extern void parquetReScanForeignScan(ForeignScanState *node);
-extern void parquetAddForeignUpdateTargets(
-#if (PG_VERSION_NUM >= 140000)
-											 PlannerInfo *root,
-											 Index rtindex,
-#else
-											 Query *parsetree,
-#endif
-											 RangeTblEntry *target_rte,
-											 Relation target_relation);
-extern List* parquetPlanForeignModify(PlannerInfo *root,
-									  ModifyTable *plan,
-									  Index resultRelation,
-									  int subplan_index);
-extern void parquetBeginForeignModify(ModifyTableState *mtstate,
-									  ResultRelInfo *resultRelInfo,
-									  List *fdw_private,
-									  int subplan_index,
-									  int eflags);
-extern void parquetEndForeignModify(EState *estate,
-									ResultRelInfo *resultRelInfo);
-extern TupleTableSlot *parquetExecForeignUpdate(EState *estate,
-												ResultRelInfo *resultRelInfo,
-												TupleTableSlot *slot,
-												TupleTableSlot *planSlot);
-extern TupleTableSlot *parquetExecForeignInsert(EState *estate,
-												ResultRelInfo *resultRelInfo,
-												TupleTableSlot *slot,
-												TupleTableSlot *planSlot);
-extern TupleTableSlot *parquetExecForeignDelete(EState *estate,
-												ResultRelInfo *resultRelInfo,
-												TupleTableSlot *slot,
-												TupleTableSlot *planSlot);
-extern int	parquetAcquireSampleRowsFunc(Relation relation, int elevel,
-										 HeapTuple *rows, int targrows,
-										 double *totalrows,
-										 double *totaldeadrows);
-extern bool parquetAnalyzeForeignTable(Relation relation,
-									   AcquireSampleRowsFunc *func,
-									   BlockNumber *totalpages);
-extern void parquetExplainForeignScan(ForeignScanState *node, ExplainState *es);
-extern bool parquetIsForeignScanParallelSafe(PlannerInfo *root, RelOptInfo *rel,
-											 RangeTblEntry *rte);
-extern Size parquetEstimateDSMForeignScan(ForeignScanState *node,
-										  ParallelContext *pcxt);
-extern void parquetInitializeDSMForeignScan(ForeignScanState *node,
-											ParallelContext *pcxt,
-											void *coordinate);
-extern void parquetReInitializeDSMForeignScan(ForeignScanState *node,
-											  ParallelContext *pcxt,
-											  void *coordinate);
-extern void parquetInitializeWorkerForeignScan(ForeignScanState *node,
-											   shm_toc *toc,
-											   void *coordinate);
-extern void parquetShutdownForeignScan(ForeignScanState *node);
-extern List *parquetImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
-extern Datum parquet_fdw_validator_impl(PG_FUNCTION_ARGS);
-
 /* GUC variable */
-extern bool parquet_fdw_use_threads;
-extern bool enable_multifile;
-extern bool enable_multifile_merge;
+bool parquet_use_threads;
+bool enable_multifile;
+bool enable_multifile_merge;
 
-void
-_PG_init(void)
+void _PG_init(void)
 {
 	DefineCustomBoolVariable("parquet_s3_fdw.use_threads",
 							 "Enables use_thread option",
 							 NULL,
-							 &parquet_fdw_use_threads,
+							 &parquet_use_threads,
 							 true,
 							 PGC_USERSET,
 							 0,
@@ -132,81 +55,394 @@ _PG_init(void)
 
 	on_proc_exit(&parquet_s3_shutdown, PointerGetDatum(NULL));
 	DefineCustomBoolVariable("parquet_fdw.enable_multifile",
-							"Enables Multifile reader",
-							NULL,
-							&enable_multifile,
-							true,
-							PGC_USERSET,
-							0,
-							NULL,
-							NULL,
-							NULL);
+							 "Enables Multifile reader",
+							 NULL,
+							 &enable_multifile,
+							 true,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 
 	DefineCustomBoolVariable("parquet_fdw.enable_multifile_merge",
-							"Enables Multifile Merge reader",
-							NULL,
-							&enable_multifile_merge,
-							true,
-							PGC_USERSET,
-							0,
-							NULL,
-							NULL,
-							NULL);
+							 "Enables Multifile Merge reader",
+							 NULL,
+							 &enable_multifile_merge,
+							 true,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 }
 
-PG_FUNCTION_INFO_V1(parquet_s3_fdw_validator);
-PG_FUNCTION_INFO_V1(parquet_s3_fdw_version);
-
-Datum
-parquet_s3_fdw_version(PG_FUNCTION_ARGS)
-{
-	PG_RETURN_INT32(CODE_VERSION);
-}
-
-Datum
-parquet_s3_fdw_validator(PG_FUNCTION_ARGS)
-{
-	return parquet_fdw_validator_impl(fcinfo);
-}
+// PG_FUNCTION_INFO_V1(parquet_s3_fdw_validator);
+// PG_FUNCTION_INFO_V1(parquet_s3_fdw_version);
 
 PG_FUNCTION_INFO_V1(parquet_s3_fdw_handler);
 
-Datum
-parquet_s3_fdw_handler(PG_FUNCTION_ARGS)
+/*
+ * Appendonly access method uses virtual tuples
+ */
+static const TupleTableSlotOps *
+ParquetSlotCallbacks(Relation relation)
 {
-	FdwRoutine *fdwroutine = makeNode(FdwRoutine);
-
-	fdwroutine->GetForeignRelSize = parquetGetForeignRelSize;
-	fdwroutine->GetForeignPaths = parquetGetForeignPaths;
-	fdwroutine->GetForeignPlan = parquetGetForeignPlan;
-	fdwroutine->BeginForeignScan = parquetBeginForeignScan;
-	fdwroutine->IterateForeignScan = parquetIterateForeignScan;
-	fdwroutine->ReScanForeignScan = parquetReScanForeignScan;
-	fdwroutine->EndForeignScan = parquetEndForeignScan;
-	fdwroutine->AnalyzeForeignTable = parquetAnalyzeForeignTable;
-	fdwroutine->ExplainForeignScan = parquetExplainForeignScan;
-	fdwroutine->IsForeignScanParallelSafe = parquetIsForeignScanParallelSafe;
-	fdwroutine->EstimateDSMForeignScan = parquetEstimateDSMForeignScan;
-	fdwroutine->InitializeDSMForeignScan = parquetInitializeDSMForeignScan;
-	fdwroutine->ReInitializeDSMForeignScan = parquetReInitializeDSMForeignScan;
-	fdwroutine->InitializeWorkerForeignScan = parquetInitializeWorkerForeignScan;
-	fdwroutine->ShutdownForeignScan = parquetShutdownForeignScan;
-	fdwroutine->ImportForeignSchema = parquetImportForeignSchema;
-	fdwroutine->AddForeignUpdateTargets = parquetAddForeignUpdateTargets;
-	fdwroutine->PlanForeignModify = parquetPlanForeignModify;
-	fdwroutine->BeginForeignModify = parquetBeginForeignModify;
-	fdwroutine->ExecForeignUpdate = parquetExecForeignUpdate;
-	fdwroutine->ExecForeignInsert = parquetExecForeignInsert;
-	fdwroutine->ExecForeignDelete = parquetExecForeignDelete;
-	fdwroutine->EndForeignModify = parquetEndForeignModify;
-
-	PG_RETURN_POINTER(fdwroutine);
+	return &TTSOpsVirtual;
 }
+
+extern TableScanDesc
+ParquetBeginScan(Relation relation,
+				 Snapshot snapshot,
+				 int nkeys, struct ScanKeyData *key,
+				 ParallelTableScanDesc pscan,
+				 uint32 flags);
+
+extern TableScanDesc
+ParquetBeginScanExtractColumns(Relation rel,
+							   Snapshot snapshot,
+							   List *targetlist,
+							   List *qual,
+							   bool *proj,
+							   List *constraintList,
+							   uint32 flags);
+
+/*
+ * GPDB: Extract columns for scan from targetlist and quals,
+ * stored in key as struct ScanKeyData. This is mainly
+ * for AOCS tables.
+ */
+extern TableScanDesc
+ParquetBeginScanExtractColumnsBM(Relation rel, Snapshot snapshot,
+								 List *targetList, List *quals,
+								 List *bitmapqualorig,
+								 uint32 flags);
+
+extern void
+ParquetEndScan(TableScanDesc scan);
+
+extern void
+ParquetRescan(TableScanDesc scan, ScanKey key,
+			  bool set_params, bool allow_strat,
+			  bool allow_sync, bool allow_pagemode);
+
+extern bool
+ParquetGetNextSlot(TableScanDesc scan,
+				   ScanDirection direction,
+				   TupleTableSlot *slot);
+
+static Size
+ParquetParallelScanEstimate(Relation rel)
+{
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
+
+static Size
+ParquetParallelScanInitialize(Relation rel, ParallelTableScanDesc pscan)
+{
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
+
+static void
+ParquetparallelScanReinitialize(Relation rel, ParallelTableScanDesc pscan)
+{
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
+
+static IndexFetchTableData *
+ParquetIndexFetchBegin(Relation rel)
+{
+	elog(ERROR, "not implemented for Parquet tables");
+	return NULL;
+}
+
+static void
+ParquetIndexFetchReset(IndexFetchTableData *scan)
+{
+	return;
+}
+
+static void
+ParquetIndexFetchEnd(IndexFetchTableData *scan)
+{
+}
+
+static bool
+ParquetIndexFetchTuple(struct IndexFetchTableData *scan,
+					   ItemPointer tid,
+					   Snapshot snapshot,
+					   TupleTableSlot *slot,
+					   bool *call_again, bool *all_dead)
+{
+	return false;
+}
+
+static bool
+ParquetIndexFetchTupleVisible(struct IndexFetchTableData *scan,
+							  ItemPointer tid,
+							  Snapshot snapshot)
+{
+	return true;
+}
+
+static bool
+ParquetIndexUniqueCheck(Relation rel,
+						ItemPointer tid,
+						Snapshot snapshot,
+						bool *all_dead)
+{
+	return true;
+}
+
+extern void
+ParquetDmlInit(Relation rel);
+
+extern void
+ParquetDmlFinish(Relation rel);
+
+extern void
+ParquetTupleInsert(Relation relation, TupleTableSlot *slot, CommandId cid,
+				   int options, BulkInsertState bistate);
+
+extern void ParquetTupleInsertSpeculative(Relation relation, TupleTableSlot *slot,
+										  CommandId cid, int options,
+										  BulkInsertState bistate, uint32 specToken);
+
+extern void
+ParquetTupleCompleteSpeculative(Relation relation, TupleTableSlot *slot,
+								uint32 specToken, bool succeeded);
+
+extern void
+ParquetMultiInsert(Relation relation, TupleTableSlot **slots, int ntuples,
+				   CommandId cid, int options, BulkInsertState bistate);
+
+extern TM_Result
+ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
+				   Snapshot snapshot, Snapshot crosscheck, bool wait,
+				   TM_FailureData *tmfd, bool changingPart);
+
+extern TM_Result
+ParquetTupleUpdate(Relation relation, ItemPointer otid, TupleTableSlot *slot,
+				   CommandId cid, Snapshot snapshot, Snapshot crosscheck,
+				   bool wait, TM_FailureData *tmfd,
+				   LockTupleMode *lockmode, bool *update_indexes);
+
+extern TM_Result
+ParquetTupleLock(Relation relation, ItemPointer tid, Snapshot snapshot,
+				 TupleTableSlot *slot, CommandId cid, LockTupleMode mode,
+				 LockWaitPolicy wait_policy, uint8 flags,
+				 TM_FailureData *tmfd)
+{
+	return TM_Ok;
+}
+
+extern void
+ParquetFinishBulkInsert(Relation relation, int options);
+
+static bool
+ParquetFetchRowVersion(Relation relation,
+					   ItemPointer tid,
+					   Snapshot snapshot,
+					   TupleTableSlot *slot)
+{
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("feature not supported on appendoptimized relations")));
+}
+
+static void
+ParquetGetLatestTid(TableScanDesc sscan,
+					ItemPointer tid)
+{
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("feature not supported on appendoptimized relations")));
+}
+
+static bool
+ParquetTupleTidValid(TableScanDesc scan, ItemPointer tid)
+{
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("feature not supported on appendoptimized relations")));
+}
+
+static bool
+ParquetTupleSatisfiesSnapshot(Relation rel, TupleTableSlot *slot,
+							  Snapshot snapshot)
+{
+	/*
+	 * AO table dose not support unique and tidscan yet.
+	 */
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("feature not supported on appendoptimized relations")));
+}
+
+static TransactionId
+ParquetComputeXidHorizonForTuples(Relation rel,
+								  ItemPointerData *tids,
+								  int nitems)
+{
+	/*
+	 * This API is only useful for hot standby snapshot conflict resolution
+	 * (for eg. see btree_xlog_delete()), in the context of index page-level
+	 * vacuums (aka page-level cleanups). This operation is only done when
+	 * IndexScanDesc->kill_prior_tuple is true, which is never for AO/CO tables
+	 * (we always return all_dead = false in the index_fetch_tuple() callback
+	 * as we don't support HOT)
+	 */
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("feature not supported on appendoptimized relations")));
+}
+
+/* ------------------------------------------------------------------------
+ * DDL related callbacks for appendonly AM.
+ * ------------------------------------------------------------------------
+ */
+static void
+ParquetRelationSetNewFilenode(Relation rel,
+							  const RelFileNode *newrnode,
+							  char persistence,
+							  TransactionId *freezeXid,
+							  MultiXactId *minmulti)
+{
+}
+
+static void
+ParquetRelationNontransactionalTruncate(Relation rel)
+{
+}
+
+static void
+ParquetRelationCopyData(Relation rel, const RelFileNode *newrnode)
+{
+}
+
+static void
+ParquetRelationCopyForCluster(Relation OldHeap, Relation NewHeap,
+							  Relation OldIndex, bool use_sort,
+							  TransactionId OldestXmin,
+							  TransactionId *xid_cutoff,
+							  MultiXactId *multi_cutoff,
+							  double *num_tuples,
+							  double *tups_vacuumed,
+							  double *tups_recently_dead)
+{
+}
+
+static void
+ParquetVacuumRel(Relation onerel, VacuumParams *params,
+				 BufferAccessStrategy bstrategy)
+{
+}
+
+static bool
+ParquetScanAnalyzeNextBlock(TableScanDesc scan, BlockNumber blockno,
+							BufferAccessStrategy bstrategy)
+{
+	return false;
+}
+
+static bool
+ParquetScanAnalyzeNextTuple(TableScanDesc scan, TransactionId OldestXmin,
+							double *liverows, double *deadrows,
+							TupleTableSlot *slot)
+{
+	return false;
+}
+
+static double
+ParquetIndexBuildRangeScan(Relation heapRelation,
+						   Relation indexRelation,
+						   IndexInfo *indexInfo,
+						   bool allow_sync,
+						   bool anyvisible,
+						   bool progress,
+						   BlockNumber start_blockno,
+						   BlockNumber numblocks,
+						   IndexBuildCallback callback,
+						   void *callback_state,
+						   TableScanDesc scan)
+{
+	return 0.0;
+}
+
+static void
+ParquetIndexValidateScan(Relation heapRelation,
+						 Relation indexRelation,
+						 IndexInfo *indexInfo,
+						 Snapshot snapshot,
+						 ValidateIndexState *state)
+{
+}
+
+/* FDW routines */
+extern uint64_t
+ParquetRelationSize(PlannerInfo *root,
+					RelOptInfo *baserel,
+					Oid foreigntableid);
+
+static BlockSequence *
+ParquetRelationGetBlockSequences(Relation rel,
+								 int *numSequences)
+{
+}
+
+static void
+ParquetRelationGetBlockSequence(Relation rel,
+								BlockNumber blkNum,
+								BlockSequence *sequence)
+{
+}
+
+static bool
+ParquetRelationNeedsToastTable(Relation rel)
+{
+	return false;
+}
+
+static void
+ParquetEstimateRelSize(Relation rel, int32 *attr_widths,
+					   BlockNumber *pages, double *tuples,
+					   double *allvisfrac)
+{
+}
+
+static bool
+ParquetScanBitmapNextBlock(TableScanDesc scan,
+						   TBMIterateResult *tbmres)
+{
+}
+
+static bool
+ParquetScanBitmapNextTuple(TableScanDesc scan,
+						   TBMIterateResult *tbmres,
+						   TupleTableSlot *slot)
+{
+}
+
+static bool
+ParquetScanSampleNextBlock(TableScanDesc scan, SampleScanState *scanstate)
+{
+}
+
+static bool
+ParquetScanSampleNextTuple(TableScanDesc scan, SampleScanState *scanstate,
+						   TupleTableSlot *slot)
+{
+}
+/*
+ * Release resources and deallocate scan. If TableScanDesc.temp_snap,
+ * TableScanDesc.rs_snapshot needs to be unregistered.
+ */
+extern void (*scan_end)(TableScanDesc scan);
 
 static const TableAmRoutine parquet_row_methods = {
 	.type = T_TableAmRoutine,
 
-	.slot_callbacks = Parquetslot_callbacks,
+	.slot_callbacks = ParquetSlotCallbacks,
 
 	.scan_begin = ParquetBeginScan,
 	.scan_begin_extractcolumns = ParquetBeginScanExtractColumns,
@@ -215,60 +451,58 @@ static const TableAmRoutine parquet_row_methods = {
 	.scan_rescan = ParquetRescan,
 	.scan_getnextslot = ParquetGetNextSlot,
 
-	.parallelscan_estimate = Parquetparallelscan_estimate,
-	.parallelscan_initialize = Parquetparallelscan_initialize,
-	.parallelscan_reinitialize = Parquetparallelscan_reinitialize,
+	.parallelscan_estimate = ParquetParallelScanEstimate,
+	.parallelscan_initialize = ParquetParallelScanInitialize,
+	.parallelscan_reinitialize = ParquetparallelScanReinitialize,
 
-	.index_fetch_begin = Parquetindex_fetch_begin,
-	.index_fetch_reset = Parquetindex_fetch_reset,
-	.index_fetch_end = Parquetindex_fetch_end,
-	.index_fetch_tuple = Parquetindex_fetch_tuple,
-	.index_fetch_tuple_visible = Parquetindex_fetch_tuple_visible,
-	.index_unique_check = Parquetindex_unique_check,
+	.index_fetch_begin = ParquetIndexFetchBegin,
+	.index_fetch_reset = ParquetIndexFetchReset,
+	.index_fetch_end = ParquetIndexFetchEnd,
+	.index_fetch_tuple = ParquetIndexFetchTuple,
+	.index_fetch_tuple_visible = ParquetIndexFetchTupleVisible,
+	.index_unique_check = ParquetIndexUniqueCheck,
 
-	.dml_init = Parquetdml_init,
-	.dml_finish = Parquetdml_finish,
+	.dml_init = ParquetDmlInit,
+	.dml_finish = ParquetDmlFinish,
 
-	.tuple_insert = Parquettuple_insert,
-	.tuple_insert_speculative = Parquettuple_insert_speculative,
-	.tuple_complete_speculative = Parquettuple_complete_speculative,
-	.multi_insert = Parquetmulti_insert,
-	.tuple_delete = Parquettuple_delete,
-	.tuple_update = Parquettuple_update,
-	.tuple_lock = Parquettuple_lock,
-	.finish_bulk_insert = Parquetfinish_bulk_insert,
+	.tuple_insert = ParquetTupleInsert,
+	.tuple_insert_speculative = ParquetTupleInsertSpeculative,
+	.tuple_complete_speculative = ParquetTupleCompleteSpeculative,
+	.multi_insert = ParquetMultiInsert,
+	.tuple_delete = ParquetTupleDelete,
+	.tuple_update = ParquetTupleUpdate,
+	.tuple_lock = ParquetTupleLock,
+	.finish_bulk_insert = ParquetFinishBulkInsert,
 
-	.tuple_fetch_row_version = Parquetfetch_row_version,
-	.tuple_get_latest_tid = Parquetget_latest_tid,
-	.tuple_tid_valid = Parquettuple_tid_valid,
-	.tuple_satisfies_snapshot = Parquettuple_satisfies_snapshot,
-	.compute_xid_horizon_for_tuples = Parquetcompute_xid_horizon_for_tuples,
+	.tuple_fetch_row_version = ParquetFetchRowVersion,
+	.tuple_get_latest_tid = ParquetGetLatestTid,
+	.tuple_tid_valid = ParquetTupleTidValid,
+	.tuple_satisfies_snapshot = ParquetTupleSatisfiesSnapshot,
+	.compute_xid_horizon_for_tuples = ParquetComputeXidHorizonForTuples,
 
-	.relation_set_new_filenode = Parquetrelation_set_new_filenode,
-	.relation_nontransactional_truncate = Parquetrelation_nontransactional_truncate,
-	.relation_copy_data = Parquetrelation_copy_data,
-	.relation_copy_for_cluster = Parquetrelation_copy_for_cluster,
-	.relation_vacuum = Parquetvacuum_rel,
-	.scan_analyze_next_block = Parquetscan_analyze_next_block,
-	.scan_analyze_next_tuple = Parquetscan_analyze_next_tuple,
-	.index_build_range_scan = Parquetindex_build_range_scan,
-	.index_validate_scan = Parquetindex_validate_scan,
+	.relation_set_new_filenode = ParquetRelationSetNewFilenode,
+	.relation_nontransactional_truncate = ParquetRelationNontransactionalTruncate,
+	.relation_copy_data = ParquetRelationCopyData,
+	.relation_copy_for_cluster = ParquetRelationCopyForCluster,
+	.relation_vacuum = ParquetVacuumRel,
+	.scan_analyze_next_block = ParquetScanAnalyzeNextBlock,
+	.scan_analyze_next_tuple = ParquetScanAnalyzeNextTuple,
+	.index_build_range_scan = ParquetIndexBuildRangeScan,
+	.index_validate_scan = ParquetIndexValidateScan,
 
-	.relation_size = Parquetrelation_size,
-	.relation_get_block_sequences = Parquetrelation_get_block_sequences,
-	.relation_get_block_sequence = Parquetrelation_get_block_sequence,
-	.relation_needs_toast_table = Parquetrelation_needs_toast_table,
+	.relation_size = ParquetRelationSize,
+	.relation_get_block_sequences = ParquetRelationGetBlockSequences,
+	.relation_get_block_sequence = ParquetRelationGetBlockSequence,
+	.relation_needs_toast_table = ParquetRelationNeedsToastTable,
 
-	.relation_estimate_size = Parquetestimate_rel_size,
+	.relation_estimate_size = ParquetEstimateRelSize,
 
-	.scan_bitmap_next_block = Parquetscan_bitmap_next_block,
-	.scan_bitmap_next_tuple = Parquetscan_bitmap_next_tuple,
-	.scan_sample_next_block = Parquetscan_sample_next_block,
-	.scan_sample_next_tuple = Parquetscan_sample_next_tuple
-};
+	.scan_bitmap_next_block = ParquetScanBitmapNextBlock,
+	.scan_bitmap_next_tuple = ParquetScanBitmapNextTuple,
+	.scan_sample_next_block = ParquetScanSampleNextBlock,
+	.scan_sample_next_tuple = ParquetScanSampleNextTuple};
 
-Datum
-parquet_row_tableam_handler(PG_FUNCTION_ARGS)
+Datum parquet_row_tableam_handler(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_POINTER(&parquet_row_methods);
 }

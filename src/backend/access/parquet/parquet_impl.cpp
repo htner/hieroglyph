@@ -143,65 +143,6 @@ struct RowGroupFilter
     bool        is_column;  /* for schemaless actual column `exist` operator */
 };
 
-/*
- * Indexes of FDW-private information stored in fdw_private lists.
- *
- * These items are indexed with the enum FdwScanPrivateIndex, so an item
- * can be fetched with list_nth().  For example, to get the filenames:
- *		sql = strVal(list_nth(fdw_private, FdwScanPrivateFileNames));
- */
-enum FdwScanPrivateIndex
-{
-    /* List of paths to Parquet files */
-	FdwScanPrivateFileNames,
-    /* List of Attributes actually used in query */
-	FdwScanPrivateAttributesUsed,
-    /* List of columns that Parquet files are presorted by */
-    FdwScanPrivateAttributesSorted,
-    /* use_mmap flag (as an integer Value node) */
-    FdwScanPrivateUseMmap,
-    /* use_threads flag (as an integer Value node) */
-    FdwScanPrivateUse_Threads,
-    /* ReaderType of Parquet files */
-    FdwScanPrivateType,
-    /* The limit for the number of Parquet files open simultaneously. */
-    FdwScanPrivateMaxOpenFiles,
-    /* List of Lists (per filename) */
-    FdwScanPrivateRowGroups,
-    /* Schemaless Options */
-    FdwScanPrivateSchemalessOpt,
-    /* Schemaless Columns */
-    FdwScanPrivateSchemalessColumn,
-    /* Path to directory having Parquet files to read */
-    FdwScanPrivateDirName,
-    /* Foreign Table Id */
-    FdwScanPrivateForeignTableId
-};
-
-/*
- * Plain C struct for fdw_state
- */
-struct ParquetFdwPlanState
-{
-    List       *filenames;
-    List       *attrs_sorted;
-    Bitmapset  *attrs_used;     /* attributes actually used in query */
-    bool        use_mmap;
-    bool        use_threads;
-    int32       max_open_files;
-    bool        files_in_order;
-    List       *rowgroups;      /* List of Lists (per filename) */
-    uint64      matched_rows;
-    ReaderType  type;
-    char       *dirname;
-    bool        schemaless;     /* In schemaless mode or not */
-    schemaless_info slinfo;     /* Schemaless information */
-    List       *slcols;         /* List actual column for schemaless mode */
-    Aws::S3::S3Client *s3client;
-    char       *selector_function_name;
-    List       *key_columns;
-};
-
 static void get_filenames_in_dir(ParquetFdwPlanState *fdw_private);
 static void parquet_s3_extract_slcols(ParquetFdwPlanState *fpinfo, PlannerInfo *root, RelOptInfo *baserel, List *tlist);
 
@@ -2309,6 +2250,30 @@ ParquetBeginScan(Relation relation,
 	return (TableScanDesc) parquet_desc;
 }
 
+extern "C" bool		
+ParquetGetNextSlot (TableScanDesc scan,
+					ScanDirection direction,
+					TupleTableSlot *slot) {
+    ParquetS3FdwExecutionState   *festate = (ParquetS3FdwExecutionState *) scan->state;
+    TupleTableSlot             *slot = scan->ss_ScanTupleSlot;
+    std::string                 error;
+
+    ExecClearTuple(slot);
+    try {
+        festate->next(slot);
+    } catch (std::exception &e) {
+        error = e.what();
+    }
+    if (!error.empty()) {
+        elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+    }
+
+    return slot;                
+}
+
+extern "C" void
+ParquetEndScan (TableScanDesc scan) {
+
 }
 
 extern "C" void
@@ -3815,6 +3780,71 @@ parquetPlanForeignModify(PlannerInfo *root,
     return list_make2(targetAttrs, keyAttrs);
 }
 
+// single table test
+static ParquetS3FdwModifyState *fmstate = NULL;
+
+extern "C" void
+ParquetDmlInit(Relation rel) {
+    Oid    foreignTableId = InvalidOid;
+    TupleDesc               tupleDesc;
+    MemoryContextCallback  *callback;
+    std::string             error;
+    arrow::Status           status;
+    std::set<std::string>   sorted_cols;
+    std::set<std::string>   key_attrs;
+    std::set<int>           target_attrs;
+    MemoryContextCallback  *callback;
+    bool use_threads = true;
+    bool schemaless = true;
+
+    tableId = RelationGetRelid(rel);
+    tupleDesc = RelationGetDescr(rel);
+
+    std::vector<std::string> filenames;
+
+    foreach(lc, tupleDesc->natts)
+        target_attrs.insert(lfirst_int(lc));
+
+    char dirname[100];
+    sprintf(dirname, "%d/%d/", rel->rd_node.dbNode, rel->rd_node.relNode);
+
+    try {
+        fmstate = create_parquet_modify_state(temp_cxt, dirname, s3client, tupleDesc,
+                                                 target_attrs, key_attrs, NULL, use_threads,
+                                                 use_threads, schemaless, sorted_cols);
+
+        fmstate->set_rel_name(RelationGetRelationName(rel));
+        for (size_t i = 0; i < filenames.size(); ++i) {
+            fmstate->add_file(filenames[i].data());
+        }
+
+        //if (plstate->selector_function_name)
+        //    fmstate->set_user_defined_func(plstate->selector_function_name);
+    } catch(std::exception &e) {
+        error = e.what();
+    }
+    if (!error.empty()) {
+        elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+    }
+
+    /*
+     * Enable automatic execution state destruction by using memory context
+     * callback
+     */
+    callback = (MemoryContextCallback *) palloc(sizeof(MemoryContextCallback));
+    callback->func = destroy_parquet_modify_state;
+    callback->arg = (void *) fmstate;
+    MemoryContextRegisterResetCallback(estate->es_query_cxt, callback);
+}
+
+extern "C" void
+ParquetDmlFinish(Relation rel) {
+    ParquetS3FdwModifyState *fmstate = NULL;
+
+    Oid                     foreignTableId = InvalidOid;
+    foreignTableId = RelationGetRelid(rel);
+}
+
 /*
  * parquetBeginForeignModify
  *      Begin an insert/update/delete operation on a foreign table
@@ -3858,7 +3888,7 @@ parquetBeginForeignModify(ModifyTableState *mtstate,
     plstate = (ParquetFdwPlanState *) palloc0(sizeof(ParquetFdwPlanState));
     get_table_options(foreignTableId, plstate);
 
-    /*
+    /* 
      * Do nothing in EXPLAIN (no ANALYZE) case.  resultRelInfo->ri_FdwState
      * stays NULL.
      */
@@ -3969,6 +3999,15 @@ parquetBeginForeignModify(ModifyTableState *mtstate,
     resultRelInfo->ri_FdwState = fmstate;
 }
 
+extern "C" void
+ParquetTupleInsert(Relation rel, TupleTableSlot *slot,
+				   CommandId cid, int options,
+				   struct BulkInsertStateData *bistate)
+{
+    fmstate->exec_in1sert(slot);
+    return slot;
+}
+
 /*
  * parquetExecForeignInsert
  *      Insert one row into a foreign table
@@ -3986,6 +4025,27 @@ parquetExecForeignInsert(EState *estate,
     return slot;
 }
 
+
+/*
+ * parquetExecForeignUpdate
+ *      Update one row in a foreign table
+ */
+extern "C" TM_Result
+ParquetTupleUpdate(Relation rel,
+                    ItemPointer otid,
+                    TupleTableSlot *slot,
+                    CommandId cid,
+                    Snapshot snapshot,
+                    Snapshot crosscheck,
+                    bool wait,
+                    TM_FailureData *tmfd,
+                    LockTupleMode *lockmode,
+                    bool *update_indexes)
+{
+    fmstate->exec_update(slot, planSlot);
+
+    return slot;
+}
 /*
  * parquetExecForeignUpdate
  *      Update one row in a foreign table
