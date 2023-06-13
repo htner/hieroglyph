@@ -35,53 +35,10 @@ extern void parquet_s3_init();
 extern void parquet_s3_shutdown();
 
 /* GUC variable */
-bool parquet_use_threads;
-bool enable_multifile;
-bool enable_multifile_merge;
+bool parquet_use_threads = true;
+bool enable_multifile = true;
+bool enable_multifile_merge = true;
 
-void _PG_init(void)
-{
-	DefineCustomBoolVariable("parquet_s3_fdw.use_threads",
-							 "Enables use_thread option",
-							 NULL,
-							 &parquet_use_threads,
-							 true,
-							 PGC_USERSET,
-							 0,
-							 NULL,
-							 NULL,
-							 NULL);
-
-	parquet_s3_init();
-
-	on_proc_exit(&parquet_s3_shutdown, PointerGetDatum(NULL));
-	DefineCustomBoolVariable("parquet_fdw.enable_multifile",
-							 "Enables Multifile reader",
-							 NULL,
-							 &enable_multifile,
-							 true,
-							 PGC_USERSET,
-							 0,
-							 NULL,
-							 NULL,
-							 NULL);
-
-	DefineCustomBoolVariable("parquet_fdw.enable_multifile_merge",
-							 "Enables Multifile Merge reader",
-							 NULL,
-							 &enable_multifile_merge,
-							 true,
-							 PGC_USERSET,
-							 0,
-							 NULL,
-							 NULL,
-							 NULL);
-}
-
-// PG_FUNCTION_INFO_V1(parquet_s3_fdw_validator);
-// PG_FUNCTION_INFO_V1(parquet_s3_fdw_version);
-
-PG_FUNCTION_INFO_V1(parquet_s3_fdw_handler);
 
 /*
  * Appendonly access method uses virtual tuples
@@ -128,12 +85,10 @@ ParquetBeginScanExtractColumnsBM(Relation rel, Snapshot snapshot,
 extern void
 ParquetEndScan(TableScanDesc scan);
 
-static void
+extern void
 ParquetRescan(TableScanDesc scan, ScanKey key,
 			  bool set_params, bool allow_strat,
-			  bool allow_sync, bool allow_pagemode) {
-	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-}
+			  bool allow_sync, bool allow_pagemode);
 
 extern bool
 ParquetGetNextSlot(TableScanDesc scan,
@@ -239,29 +194,22 @@ ParquetMultiInsert(Relation relation, TupleTableSlot **slots, int ntuples,
 	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 }
 
-static TM_Result
+extern TM_Result
 ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
 				   Snapshot snapshot, Snapshot crosscheck, bool wait,
-				   TM_FailureData *tmfd, bool changingPart) {
-	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-	return TM_Ok;
-}
+				   TM_FailureData *tmfd, bool changingPart);
 
-static TM_Result
+extern TM_Result
 ParquetTupleUpdate(Relation relation, ItemPointer otid, TupleTableSlot *slot,
 				   CommandId cid, Snapshot snapshot, Snapshot crosscheck,
 				   bool wait, TM_FailureData *tmfd,
-				   LockTupleMode *lockmode, bool *update_indexes) {
-	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-	return TM_Ok;
-}
+				   LockTupleMode *lockmode, bool *update_indexes);
 
-static TM_Result
+extern TM_Result
 ParquetTupleLock(Relation relation, ItemPointer tid, Snapshot snapshot,
 				 TupleTableSlot *slot, CommandId cid, LockTupleMode mode,
 				 LockWaitPolicy wait_policy, uint8 flags,
-				 TM_FailureData *tmfd)
-{
+				 M_FailureData *tmfd) {
 	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return TM_Ok;
 }

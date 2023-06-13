@@ -42,7 +42,7 @@
     } while(0)
 
 
-class TrivialExecutionStateS3 : public ParquetS3FdwExecutionState
+class TrivialExecutionStateS3 : public ParquetS3AccessState
 {
 public:
     bool next(TupleTableSlot *, bool)
@@ -66,7 +66,7 @@ public:
 };
 
 
-class SingleFileExecutionStateS3 : public ParquetS3FdwExecutionState
+class SingleFileExecutionStateS3 : public ParquetS3AccessState
 {
 private:
     ParquetReader      *reader;
@@ -160,7 +160,7 @@ public:
     }
 };
 
-class MultifileExecutionStateS3 : public ParquetS3FdwExecutionState
+class MultifileExecutionStateS3 : public ParquetS3AccessState
 {
 private:
     struct FileRowgroups
@@ -322,7 +322,7 @@ public:
     }
 };
 
-class MultifileMergeExecutionStateBaseS3 : public ParquetS3FdwExecutionState
+class MultifileMergeExecutionStateBaseS3 : public ParquetS3AccessState
 {
 protected:
     struct ReaderSlot
@@ -849,7 +849,7 @@ public:
     }
 };
 
-ParquetS3FdwExecutionState *create_parquet_execution_state(ReaderType reader_type,
+ParquetS3AccessState *create_parquet_execution_state(ReaderType reader_type,
                                                          MemoryContext reader_cxt,
                                                          const char *dirname,
                                                          Aws::S3::S3Client *s3_client,

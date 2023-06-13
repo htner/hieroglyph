@@ -26,7 +26,7 @@ extern "C"
 #include "executor/tuptable.h"
 }
 
-class ParquetS3FdwModifyState
+class ParquetS3ModifyState
 {
 private:
     /* list parquet reader of target files */
@@ -65,7 +65,7 @@ protected:
     bool is_key_column(std::string name);
 
 public:
-    ParquetS3FdwModifyState(MemoryContext reader_cxt,
+    ParquetS3ModifyState(MemoryContext reader_cxt,
                             const char *dirname,
                             Aws::S3::S3Client *s3_client,
                             TupleDesc tuple_desc,
@@ -76,7 +76,7 @@ public:
                             bool use_mmap,
                             bool schemaless,
                             std::set<std::string> sorted_cols);
-    ~ParquetS3FdwModifyState();
+    ~ParquetS3ModifyState();
 
     /* create reader for `filename` and add to list file */
     void add_file(const char *filename);
@@ -101,7 +101,7 @@ public:
     void set_rel_name(char *name);
 };
 
-ParquetS3FdwModifyState *create_parquet_modify_state(MemoryContext reader_cxt,
+ParquetS3ModifyState *create_parquet_modify_state(MemoryContext reader_cxt,
                                                      const char *dirname,
                                                      Aws::S3::S3Client *s3_client,
                                                      TupleDesc tuple_desc,

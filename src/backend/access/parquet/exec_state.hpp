@@ -36,10 +36,10 @@ enum ReaderType
     RT_CACHING_MULTI_MERGE
 };
 
-class ParquetS3FdwExecutionState
+class ParquetS3AccessState
 {
 public:
-    virtual ~ParquetS3FdwExecutionState() {};
+    virtual ~ParquetS3AccessState() {};
     virtual bool next(TupleTableSlot *slot, bool fake=false) = 0;
     virtual void rescan(void) = 0;
     virtual void add_file(const char *filename, List *rowgroups) = 0;
@@ -48,7 +48,7 @@ public:
     virtual void init_coord() = 0;
 };
 
-ParquetS3FdwExecutionState *create_parquet_execution_state(ReaderType reader_type,
+ParquetS3AccessState *create_parquet_execution_state(ReaderType reader_type,
                                                          MemoryContext reader_cxt,
                                                          const char *dirname,
                                                          Aws::S3::S3Client *s3_client,
