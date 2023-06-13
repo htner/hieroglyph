@@ -252,6 +252,7 @@ ParquetS3FdwModifyState::exec_insert(TupleTableSlot *slot)
 
     if (this->user_defined_func)
     {
+		/*
         user_selects_file = get_selected_file_from_userfunc(user_defined_func, slot, this->dirname);
         if (IS_S3_PATH(user_selects_file))
         {
@@ -261,10 +262,10 @@ ParquetS3FdwModifyState::exec_insert(TupleTableSlot *slot)
                 if (pch == NULL || pch != user_selects_file)
                     elog(ERROR, "parquet_s3_fdw: %s file does not belong to directory %s.", user_selects_file, dirname);
 
-                /* remove directory path in file path */
                 user_selects_file += strlen(dirname);
             }
         }
+		*/
     }
 
     /* loop over parquet reader */

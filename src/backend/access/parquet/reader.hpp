@@ -20,7 +20,7 @@
 #include <vector>
 #include <math.h>
 
-#include "backend/access/parquet/parquet_s3.hpp"
+#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 
 #include "arrow/api.h"
 #include "parquet/arrow/reader.h"

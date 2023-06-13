@@ -2460,6 +2460,9 @@ CTranslatorRelcacheToDXL::RetrieveRelStorageType(Relation rel)
 		case AO_ROW_TABLE_AM_OID:
 			rel_storage_type = IMDRelation::ErelstorageAppendOnlyRows;
 			break;
+		case PARQUET_TABLE_AM_OID:
+			rel_storage_type = IMDRelation::ErelstorageParquet;
+			break;
 		case 0:
 
 			if (rel->rd_rel->relkind == RELKIND_COMPOSITE_TYPE)

@@ -15,6 +15,7 @@
 #include "fmgr.h"
 
 #include "access/reloptions.h"
+#include "access/heapam.h"
 #include "catalog/pg_foreign_table.h"
 #include "commands/defrem.h"
 #include "commands/explain.h"
@@ -27,9 +28,9 @@
 #include "nodes/execnodes.h"
 //#include "parquet_s3.h"
 
-PG_MODULE_MAGIC;
+//PG_MODULE_MAGIC;
 
-void _PG_init(void);
+//void _PG_init(void);
 extern void parquet_s3_init();
 extern void parquet_s3_shutdown();
 
@@ -98,33 +99,41 @@ ParquetBeginScan(Relation relation,
 				 ParallelTableScanDesc pscan,
 				 uint32 flags);
 
-extern TableScanDesc
+static TableScanDesc
 ParquetBeginScanExtractColumns(Relation rel,
 							   Snapshot snapshot,
 							   List *targetlist,
 							   List *qual,
 							   bool *proj,
 							   List *constraintList,
-							   uint32 flags);
+							   uint32 flags) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+	return NULL;
+}
 
 /*
  * GPDB: Extract columns for scan from targetlist and quals,
  * stored in key as struct ScanKeyData. This is mainly
  * for AOCS tables.
  */
-extern TableScanDesc
+static TableScanDesc
 ParquetBeginScanExtractColumnsBM(Relation rel, Snapshot snapshot,
 								 List *targetList, List *quals,
 								 List *bitmapqualorig,
-								 uint32 flags);
+								 uint32 flags) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+	return NULL;
+}
 
 extern void
 ParquetEndScan(TableScanDesc scan);
 
-extern void
+static void
 ParquetRescan(TableScanDesc scan, ScanKey key,
 			  bool set_params, bool allow_strat,
-			  bool allow_sync, bool allow_pagemode);
+			  bool allow_sync, bool allow_pagemode) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
 
 extern bool
 ParquetGetNextSlot(TableScanDesc scan,
@@ -159,12 +168,14 @@ ParquetIndexFetchBegin(Relation rel)
 static void
 ParquetIndexFetchReset(IndexFetchTableData *scan)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return;
 }
 
 static void
 ParquetIndexFetchEnd(IndexFetchTableData *scan)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 }
 
 static bool
@@ -174,6 +185,7 @@ ParquetIndexFetchTuple(struct IndexFetchTableData *scan,
 					   TupleTableSlot *slot,
 					   bool *call_again, bool *all_dead)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return false;
 }
 
@@ -182,6 +194,7 @@ ParquetIndexFetchTupleVisible(struct IndexFetchTableData *scan,
 							  ItemPointer tid,
 							  Snapshot snapshot)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return true;
 }
 
@@ -191,6 +204,7 @@ ParquetIndexUniqueCheck(Relation rel,
 						Snapshot snapshot,
 						bool *all_dead)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return true;
 }
 
@@ -204,40 +218,58 @@ extern void
 ParquetTupleInsert(Relation relation, TupleTableSlot *slot, CommandId cid,
 				   int options, BulkInsertState bistate);
 
-extern void ParquetTupleInsertSpeculative(Relation relation, TupleTableSlot *slot,
-										  CommandId cid, int options,
-										  BulkInsertState bistate, uint32 specToken);
+static void 
+ParquetTupleInsertSpeculative(Relation relation, TupleTableSlot *slot,
+							  CommandId cid, int options,
+							  BulkInsertState bistate, uint32 specToken) {
 
-extern void
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
+
+static void
 ParquetTupleCompleteSpeculative(Relation relation, TupleTableSlot *slot,
-								uint32 specToken, bool succeeded);
+								uint32 specToken, bool succeeded) {
 
-extern void
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
+
+static void
 ParquetMultiInsert(Relation relation, TupleTableSlot **slots, int ntuples,
-				   CommandId cid, int options, BulkInsertState bistate);
+				   CommandId cid, int options, BulkInsertState bistate) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
 
-extern TM_Result
+static TM_Result
 ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
 				   Snapshot snapshot, Snapshot crosscheck, bool wait,
-				   TM_FailureData *tmfd, bool changingPart);
+				   TM_FailureData *tmfd, bool changingPart) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+	return TM_Ok;
+}
 
-extern TM_Result
+static TM_Result
 ParquetTupleUpdate(Relation relation, ItemPointer otid, TupleTableSlot *slot,
 				   CommandId cid, Snapshot snapshot, Snapshot crosscheck,
 				   bool wait, TM_FailureData *tmfd,
-				   LockTupleMode *lockmode, bool *update_indexes);
+				   LockTupleMode *lockmode, bool *update_indexes) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+	return TM_Ok;
+}
 
-extern TM_Result
+static TM_Result
 ParquetTupleLock(Relation relation, ItemPointer tid, Snapshot snapshot,
 				 TupleTableSlot *slot, CommandId cid, LockTupleMode mode,
 				 LockWaitPolicy wait_policy, uint8 flags,
 				 TM_FailureData *tmfd)
 {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return TM_Ok;
 }
 
 extern void
-ParquetFinishBulkInsert(Relation relation, int options);
+ParquetFinishBulkInsert(Relation relation, int options) {
+	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
+}
 
 static bool
 ParquetFetchRowVersion(Relation relation,
@@ -333,7 +365,7 @@ ParquetRelationCopyForCluster(Relation OldHeap, Relation NewHeap,
 }
 
 static void
-ParquetVacuumRel(Relation onerel, VacuumParams *params,
+ParquetVacuumRel(Relation onerel, struct VacuumParams *params,
 				 BufferAccessStrategy bstrategy)
 {
 }
@@ -374,20 +406,22 @@ ParquetIndexValidateScan(Relation heapRelation,
 						 Relation indexRelation,
 						 IndexInfo *indexInfo,
 						 Snapshot snapshot,
-						 ValidateIndexState *state)
+						 struct ValidateIndexState *state)
 {
 }
 
 /* FDW routines */
-extern uint64_t
-ParquetRelationSize(PlannerInfo *root,
-					RelOptInfo *baserel,
-					Oid foreigntableid);
+static uint64_t
+ParquetRelationSize(Relation rel,
+					ForkNumber num) {
+	return 0;
+}
 
 static BlockSequence *
 ParquetRelationGetBlockSequences(Relation rel,
 								 int *numSequences)
 {
+	return NULL;
 }
 
 static void
@@ -414,6 +448,7 @@ static bool
 ParquetScanBitmapNextBlock(TableScanDesc scan,
 						   TBMIterateResult *tbmres)
 {
+	return true;
 }
 
 static bool
@@ -421,17 +456,20 @@ ParquetScanBitmapNextTuple(TableScanDesc scan,
 						   TBMIterateResult *tbmres,
 						   TupleTableSlot *slot)
 {
+	return false;
 }
 
 static bool
 ParquetScanSampleNextBlock(TableScanDesc scan, SampleScanState *scanstate)
 {
+	return false;
 }
 
 static bool
 ParquetScanSampleNextTuple(TableScanDesc scan, SampleScanState *scanstate,
 						   TupleTableSlot *slot)
 {
+	return false;
 }
 /*
  * Release resources and deallocate scan. If TableScanDesc.temp_snap,
@@ -439,7 +477,7 @@ ParquetScanSampleNextTuple(TableScanDesc scan, SampleScanState *scanstate,
  */
 extern void (*scan_end)(TableScanDesc scan);
 
-static const TableAmRoutine parquet_row_methods = {
+static const TableAmRoutine parquet_methods = {
 	.type = T_TableAmRoutine,
 
 	.slot_callbacks = ParquetSlotCallbacks,
@@ -500,10 +538,10 @@ static const TableAmRoutine parquet_row_methods = {
 	.scan_bitmap_next_block = ParquetScanBitmapNextBlock,
 	.scan_bitmap_next_tuple = ParquetScanBitmapNextTuple,
 	.scan_sample_next_block = ParquetScanSampleNextBlock,
-	.scan_sample_next_tuple = ParquetScanSampleNextTuple};
+	.scan_sample_next_tuple = ParquetScanSampleNextTuple
+};
 
-Datum parquet_row_tableam_handler(PG_FUNCTION_ARGS)
+static Datum parquet_tableam_handler(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_POINTER(&parquet_row_methods);
-}
+	PG_RETURN_POINTER(&parquet_methods);
 }

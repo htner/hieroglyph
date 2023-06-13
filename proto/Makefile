@@ -9,7 +9,7 @@ subdir = proto
 top_builddir = ..
 include ${top_builddir}/src/Makefile.global
 
-SUBDIRS = transaction optimizer worker schedule
+SUBDIRS = optimizer worker schedule
 
 include ${top_builddir}/src/backend/common.mk
 

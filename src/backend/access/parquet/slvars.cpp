@@ -18,9 +18,9 @@ extern "C"
 #include "parser/parse_oper.h"
 #include "parser/parse_type.h"
 #include "utils/builtins.h"
-#include "parquet_s3_fdw.h"
+#include "backend/access/parquet/parquet_s3/parquet_s3.h"
 }
-#include "slvars.hpp"
+#include "backend/access/parquet/slvars.hpp"
 
 /*
  * Context for schemaless vars walker
