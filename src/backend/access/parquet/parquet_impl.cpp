@@ -898,7 +898,7 @@ struct UsedColumnsContext {
 };
 
 static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
-  Aws::S3::S3Client *s3client = NULL;
+  Aws::S3::S3Client *s3client = s3_client_open("", "", true, "127.0.0.1:9000", "us");
   return s3client;
 }
 
@@ -1183,7 +1183,8 @@ ParquetTupleUpdate(Relation rel, ItemPointer otid,
                                         bool wait, TM_FailureData *tmfd,
                                         LockTupleMode *lockmode,
                                         bool *update_indexes) {
-  fmstate->exec_update(slot, NULL);
+  fmstate->exec_delete(tid);                              
+  fmstate->exec_insert(slot);
 
   return TM_Ok;
 }
@@ -1192,6 +1193,6 @@ extern "C" TM_Result
 ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
 				   Snapshot snapshot, Snapshot crosscheck, bool wait,
 				   TM_FailureData *tmfd, bool changingPart) {
-	fmstate->exec_delete(tid, NULL);
+	fmstate->exec_delete(tid);
 	return TM_Ok;
 }

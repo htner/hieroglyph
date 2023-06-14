@@ -30,7 +30,9 @@ class ParquetS3ModifyState
 {
 private:
     /* list parquet reader of target files */
-    std::vector<ModifyParquetReader *> readers;
+    std::shared_ptr<ModifyParquetReader> inserter;
+    std::map<uint64_t, std::shared_ptr<ModifyParquetReader>> updates;
+    std::list<std::shared_ptr<ModifyParquetReader>> uploads;
     /* memory context of reader */
     MemoryContext       cxt;
     /* target directory name */
@@ -39,49 +41,32 @@ private:
     Aws::S3::S3Client  *s3_client;
     /* foreign table desc */
     TupleDesc           tuple_desc;
-    /* list attnum of needed modify attributes */
-    std::set<int>       target_attrs;
-    /* list column key names */
-    std::set<std::string> key_names;
-    /* List of junk attributes */
-    AttrNumber         *junk_idx;
     /* parquet reader option */
     bool                use_threads;
     bool                use_mmap;
     /* schemaless mode flag */
     bool                schemaless;
-    /* sorted column list */
-    std::set<std::string> sorted_cols;
-    /* insert_file_selector function name */
-    char               *user_defined_func;
     /* foreign table name */
     char               *rel_name;
 
+    std::shared_ptr<arrow::Schema> file_schema_;
+
 public:
     MemoryContext       fmstate_cxt;
-
-protected:
-    /* true if `name` is the name of a key column */
-    bool is_key_column(std::string name);
 
 public:
     ParquetS3ModifyState(MemoryContext reader_cxt,
                             const char *dirname,
                             Aws::S3::S3Client *s3_client,
                             TupleDesc tuple_desc,
-                            std::set<int> target_attrs,
-                            std::set<std::string> key_attrs,
-                            AttrNumber *junk_idx,
                             bool use_threads,
-                            bool use_mmap,
-                            bool schemaless,
-                            std::set<std::string> sorted_cols);
+                            bool use_mmap);
     ~ParquetS3ModifyState();
 
     /* create reader for `filename` and add to list file */
-    void add_file(const char *filename);
+    void add_file(uint64_t blockid, const char *filename);
     /* create new file and its temporary cache data */
-    ModifyParquetReader * add_new_file(const char *filename, TupleTableSlot *slot);
+    ModifyParquetReader * new_inserter(const char *filename, TupleTableSlot *slot);
     /* execute insert `*slot` to cache data */
     bool exec_insert(TupleTableSlot *slot);
     /* execute update */
@@ -95,22 +80,15 @@ public:
 
     /* create schema for new file */
     std::shared_ptr<arrow::Schema> create_new_file_schema(TupleTableSlot *slot);
-    std::shared_ptr<arrow::Schema> schemaless_create_new_file_schema(TupleTableSlot *slot);
 
-    void set_user_defined_func(char *func_name);
     void set_rel_name(char *name);
 };
 
-ParquetS3ModifyState *create_parquet_modify_state(MemoryContext reader_cxt,
+ParquetS3ModifyState* create_parquet_modify_state(MemoryContext reader_cxt,
                                                      const char *dirname,
                                                      Aws::S3::S3Client *s3_client,
                                                      TupleDesc tuple_desc,
-                                                     std::set<int> target_attrs,
-                                                     std::set<std::string> key_attrs,
-                                                     AttrNumber *junk_idx,
                                                      bool use_threads,
-                                                     bool use_mmap,
-                                                     bool schemaless,
-                                                     std::set<std::string> sorted_cols);
+                                                     bool use_mmap);
 
 #endif

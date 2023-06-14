@@ -31,25 +31,15 @@ extern "C" {
  * @param dirname directory path
  * @param s3_client aws s3 client
  * @param tuple_desc tuple descriptor
- * @param target_attrs target attribute
- * @param key_attrs key attribute
- * @param junk_idx junk column index
  * @param use_threads use_thread option
  * @param use_mmap use_mmap option
- * @param schemaless schemaless flag
- * @param sorted_cols sorted column list
  * @return ParquetS3FdwModifyState* parquet modify state object
  */
 ParquetS3ModifyState *create_parquet_modify_state(
     MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
-    TupleDesc tuple_desc, std::set<int> target_attrs,
-    std::set<std::string> key_attrs, AttrNumber *junk_idx, bool use_threads,
-    bool use_mmap, bool schemaless, std::set<std::string> sorted_cols)
-
-{
-  return new ParquetS3ModifyState(
-      reader_cxt, dirname, s3_client, tuple_desc, target_attrs, key_attrs,
-      junk_idx, use_threads, use_mmap, schemaless, sorted_cols);
+    TupleDesc tuple_desc, bool use_threads, bool use_mmap) {
+  return new ParquetS3ModifyState(reader_cxt, dirname, s3_client, tuple_desc,
+                                  use_threads, use_mmap);
 }
 
 /**
@@ -60,54 +50,39 @@ ParquetS3ModifyState *create_parquet_modify_state(
  * @param dirname directory path
  * @param s3_client aws s3 client
  * @param tuple_desc tuple descriptor
- * @param target_attrs target attribute
- * @param key_attrs key attribute
- * @param junk_idx junk column index
  * @param use_threads use_thread option
  * @param use_mmap use_mmap option
- * @param schemaless schemaless flag
- * @param sorted_cols sorted column list
  */
-ParquetS3ModifyState::ParquetS3ModifyState(
-    MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
-    TupleDesc tuple_desc, std::set<int> target_attrs,
-    std::set<std::string> key_attrs, AttrNumber *junk_idx, bool use_threads,
-    bool use_mmap, bool schemaless, std::set<std::string> sorted_cols)
+ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
+                                           const char *dirname,
+                                           Aws::S3::S3Client *s3_client,
+                                           TupleDesc tuple_desc,
+                                           bool use_threads, bool use_mmap)
     : cxt(reader_cxt),
       dirname(dirname),
       s3_client(s3_client),
       tuple_desc(tuple_desc),
-      target_attrs(target_attrs),
-      key_names(key_attrs),
-      junk_idx(junk_idx),
       use_threads(use_threads),
       use_mmap(use_mmap),
-      schemaless(schemaless),
-      sorted_cols(sorted_cols),
-      user_defined_func(NULL) {}
+      schemaless(schemaless) {}
 
 /**
  * @brief Destroy the Parquet S 3 Fdw Modify State:: Parquet S3 Fdw Modify State
  * object
  */
-ParquetS3ModifyState::~ParquetS3ModifyState() {
-  for (auto reader : readers) delete reader;
-
-  readers.clear();
-}
+ParquetS3ModifyState::~ParquetS3ModifyState() {}
 
 /**
  * @brief add a parquet file
  *
  * @param filename file path
  */
-void ParquetS3ModifyState::add_file(const char *filename) {
-  ModifyParquetReader *reader = create_modify_parquet_reader(filename, cxt);
+void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename) {
+  std::shared_ptr<ModifyParquetReader> reader =
+      create_modify_parquet_reader(filename, cxt);
 
-  if (s3_client)
-    reader->open(dirname, s3_client);
-  else
-    reader->open();
+  reader->open(dirname, s3_client);
+  ;
 
   reader->set_schemaless(schemaless);
   reader->set_sorted_col_list(sorted_cols);
@@ -115,7 +90,7 @@ void ParquetS3ModifyState::add_file(const char *filename) {
   reader->set_options(use_threads, use_mmap);
   reader->set_keycol_names(key_names);
 
-  readers.push_back(reader);
+  updates[blockid] = reader;
 }
 
 /**
@@ -125,17 +100,14 @@ void ParquetS3ModifyState::add_file(const char *filename) {
  * @param slot tuple table slot data
  * @return ModifyParquetReader* reader to new file
  */
-ModifyParquetReader *ParquetS3ModifyState::add_new_file(
-    const char *filename, TupleTableSlot *slot) {
-  std::shared_ptr<arrow::Schema> new_file_schema;
+ModifyParquetReader *ParquetS3ModifyState::new_inserter(const char *filename,
+                                                        TupleTableSlot *slot) {
   ModifyParquetReader *reader;
+  if (file_schema_ == nullptr) {
+    file_schema_ = create_new_file_schema(slot);
+  }
 
-  if (schemaless)
-    new_file_schema = schemaless_create_new_file_schema(slot);
-  else
-    new_file_schema = create_new_file_schema(slot);
-
-  reader = create_modify_parquet_reader(filename, cxt, new_file_schema, true);
+  reader = create_modify_parquet_reader(filename, cxt, file_schema_, true);
   reader->set_sorted_col_list(sorted_cols);
   reader->set_schemaless(schemaless);
   reader->set_options(use_threads, use_mmap);
@@ -144,8 +116,8 @@ ModifyParquetReader *ParquetS3ModifyState::add_new_file(
   /* create temporary file */
   reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   reader->create_new_file_temp_cache();
+  reader->prepare_upload();
 
-  readers.push_back(reader);
   return reader;
 }
 
@@ -155,7 +127,9 @@ ModifyParquetReader *ParquetS3ModifyState::add_new_file(
  * @return true if s3_client is existed
  */
 bool ParquetS3ModifyState::has_s3_client() {
-  if (this->s3_client) return true;
+  if (this->s3_client) {
+    return true;
+  }
   return false;
 }
 
@@ -163,23 +137,21 @@ bool ParquetS3ModifyState::has_s3_client() {
  * @brief upload all cached data on readers list
  */
 void ParquetS3ModifyState::upload() {
-  for (auto reader : readers) {
-    reader->upload(dirname, s3_client);
+  for (auto update : updates) {
+    update->upload(dirname, s3_client);
+    uploads.push_back(update);
   }
-}
+  updates.clear();
 
-/**
- * @brief check whether given column name is existed on key columns list
- *
- * @param name column name
- * @return true if given column name is existed on key columns list
- */
-bool ParquetS3ModifyState::is_key_column(std::string name) {
-  for (std::string key_name : this->key_names) {
-    if (key_name == name) return true;
+  if (insert != nullptr) {
+    inserter->upload(dirname, s3_client);
+    uploads.push_back(inserter);
+    insert = nullptr;
   }
 
-  return false;
+  for (auto upload : uploads) {
+    update->wait_upload_finish(dirname, s3_client);
+  }
 }
 
 /**
@@ -196,188 +168,40 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
   char *user_selects_file = NULL;
 
   /* get value from slot to corresponding vector */
-  for (int attnum : target_attrs) {
-    char pg_colname[NAMEDATALEN];
+  for (int attnum = 0; i < slot->tts_tupleDescriptor->natts; ++attnum) {
+
     bool is_null;
     Datum attr_value = 0;
     Oid attr_type;
-
-    tolowercase(
-        NameStr(TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname),
-        pg_colname);
+;
     attr_value = slot_getattr(slot, attnum, &is_null);
     attr_type = TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid;
 
-    if (this->schemaless == true) {
-      /* get first jsonb value */
-      if (attr_type != JSONBOID) continue;
-
-      if (is_null)
-        elog(ERROR, "parquet_s3_fdw: schemaless column %s must not be null",
-             pg_colname);
-    } else {
-      if (is_key_column(pg_colname) && is_null)
-        elog(ERROR, "parquet_s3_fdw: key column %s must not be NULL.",
-             pg_colname);
-    }
-
     attrs.push_back(attnum - 1);
     values.push_back(attr_value);
     is_nulls.push_back(is_null);
     types.push_back(attr_type);
   }
 
-  if (this->schemaless == true && attrs.size() == 0)
+  if (attrs.size() == 0)
     elog(ERROR, "parquet_s3_fdw: can not find any record for schemaless mode.");
 
-  if (this->user_defined_func) {
-    /*
-user_selects_file = get_selected_file_from_userfunc(user_defined_func, slot,
-this->dirname); if (IS_S3_PATH(user_selects_file))
-{
-if (dirname)
-{
-    const char *pch = strstr(user_selects_file, dirname);
-    if (pch == NULL || pch != user_selects_file)
-        elog(ERROR, "parquet_s3_fdw: %s file does not belong to directory %s.",
-user_selects_file, dirname);
-
-    user_selects_file += strlen(dirname);
-}
-}
-    */
+  if (inserter->data_size() > 100 * 1024 * 0124) {
+    inserter->upload();
+    inserter.push_back(inserter);
+    inserter = nullptr;
   }
 
-  /* loop over parquet reader */
-  for (auto reader : readers) {
-    if (user_selects_file == NULL ||
-        reader->compare_filename(user_selects_file)) {
-      if (reader->exec_insert(attrs, values, is_nulls)) {
-        return true;
-      } else if (user_selects_file != NULL) {
-        elog(
-            ERROR,
-            "parquet_s3_fdw: schema of %s file is not match with insert value.",
-            user_selects_file);
-      }
-    }
+  if (inserter == nullptr) {
+    char uuid[1024];
+    static uint32_t local_index = 0;
+    uint64_t worker_uuid = 1;
+    sprintf(uuid, "%d_%d.parquet", worker_uuid, local_index++);
+    inserter = new_inserter(uuid, slot);
   }
-
-  /* create new file to hold this value */
-  if (user_selects_file) {
-    return add_new_file(user_selects_file, slot)
-        ->exec_insert(attrs, values, is_nulls);
-  } else if (dirname != NULL) {
-    /* create file name base on syntax: [foreign table name]-[data time].parquet
-     */
-    char *timeString = NULL;
-    Oid typOutput = InvalidOid;
-    bool typIsVarlena = false;
-    std::string new_file;
-
-    getTypeOutputInfo(TIMESTAMPOID, &typOutput, &typIsVarlena);
-    timeString = OidOutputFunctionCall(typOutput, GetCurrentTimestamp());
-    new_file = "/" + std::string(this->rel_name) + "-" +
-               std::string(timeString) + ".parquet";
-
-    /* only add directory name for local file */
-    if (s3_client == NULL) new_file = std::string(dirname) + new_file;
-
-    return add_new_file(new_file.c_str(), slot)
-        ->exec_insert(attrs, values, is_nulls);
-  } else {
-    elog(ERROR, "parquet_s3_fdw: can not find modify target file");
+  if (inserter != nullptr) {
+    return inserter->exec_insert(attrs, values, is_nulls);
   }
-  return false;
-}
-
-/**
- * @brief update a record in list parquet file by key column
- *
- * @param slot updated values
- * @param planSlot junk values
- * @return true if update successfully
- */
-bool ParquetS3ModifyState::exec_update(TupleTableSlot *slot,
-                                          TupleTableSlot *planSlot) {
-  std::vector<int> key_attrs;
-  std::vector<Datum> key_values;
-  std::vector<Oid> key_types;
-  std::vector<int> attrs;
-  std::vector<Datum> values;
-  std::vector<Oid> types;
-  std::vector<bool> is_nulls;
-
-  Assert(this->key_names.size() > 0);
-
-  /* get value from slot to corresponding vector */
-  for (int attnum : target_attrs) {
-    char pg_colname[NAMEDATALEN];
-    bool is_null;
-    Datum attr_value = 0;
-    Oid attr_type;
-    Form_pg_attribute attr =
-        TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1);
-
-    tolowercase(NameStr(attr->attname), pg_colname);
-    attr_value = slot_getattr(slot, attnum, &is_null);
-    attr_type = attr->atttypid;
-
-    if (this->schemaless == true) {
-      /* get first jsonb value */
-      if (attr_type != JSONBOID) continue;
-    } else {
-      if (is_key_column(pg_colname) && is_null)
-        elog(ERROR, "parquet_s3_fdw: key column %s must not be NULL.",
-             pg_colname);
-    }
-
-    attrs.push_back(attnum - 1);
-    values.push_back(attr_value);
-    is_nulls.push_back(is_null);
-    types.push_back(attr_type);
-  }
-
-  /* Get column key data from retrieve->cond_attrs */
-  for (int i = 0; i < slot->tts_tupleDescriptor->natts; i++) {
-    Form_pg_attribute att = TupleDescAttr(slot->tts_tupleDescriptor, i);
-    Datum value;
-    bool is_null = false;
-
-    /* look for the "key" option on this column */
-    if (this->junk_idx[i] == InvalidAttrNumber) continue;
-
-    value = ExecGetJunkAttribute(planSlot, this->junk_idx[i], &is_null);
-    if (this->schemaless) {
-      /* get first jsonb value */
-      if (att->atttypid != JSONBOID) continue;
-
-      if (is_null)
-        elog(ERROR, "parquet_s3_fdw: schemaless column %s must not be null",
-             att->attname.data);
-
-      key_attrs.push_back(i);
-      key_values.push_back(value);
-      key_types.push_back(att->atttypid);
-    } else {
-      if (is_key_column(att->attname.data)) {
-        if (is_null)
-          elog(ERROR, "parquet_s3_fdw: key column %s must not be null",
-               att->attname.data);
-
-        key_attrs.push_back(i);
-        key_values.push_back(value);
-        key_types.push_back(att->atttypid);
-      }
-    }
-  }
-
-  /* loop over parquet reader */
-  for (auto reader : readers) {
-    if (reader->exec_update(key_attrs, key_values, attrs, values, is_nulls))
-      return true;
-  }
-
   return false;
 }
 
@@ -388,48 +212,12 @@ bool ParquetS3ModifyState::exec_update(TupleTableSlot *slot,
  * @param planSlot junk values
  * @return true if delete successfully
  */
-bool ParquetS3ModifyState::exec_delete(TupleTableSlot *slot,
-                                          TupleTableSlot *planSlot) {
-  std::vector<int> key_attrs;
-  std::vector<Datum> key_values;
-  std::vector<Oid> key_types;
-
-  /* Get column key data from retrieve->cond_attrs */
-  for (int i = 0; i < slot->tts_tupleDescriptor->natts; i++) {
-    Form_pg_attribute att = TupleDescAttr(slot->tts_tupleDescriptor, i);
-    Datum value;
-    bool is_null = false;
-
-    /* look for the "key" option on this column */
-    if (this->junk_idx[i] == InvalidAttrNumber) continue;
-
-    value = ExecGetJunkAttribute(planSlot, this->junk_idx[i], &is_null);
-
-    if (this->schemaless) {
-      if (att->atttypid != JSONBOID) continue;
-
-      key_attrs.push_back(i);
-      key_values.push_back(value);
-      key_types.push_back(att->atttypid);
-    } else {
-      if (is_key_column(att->attname.data)) {
-        if (is_null) elog(ERROR, "parquet_s3_fdw: key column must not be null");
-
-        key_attrs.push_back(i);
-        key_values.push_back(value);
-        key_types.push_back(att->atttypid);
-      }
-    }
+bool ParquetS3ModifyState::exec_delete(ItemPointer tic) {
+  uint64_t block_id = ItemPointerGetBlockNumber(tid);
+  auto it = updates.find(block_id);
+  if (it != updates.end()) {
+    return it->exec_delete(tid->ip_posid);
   }
-
-  if (key_attrs.size() == 0)
-    elog(ERROR, "parquet_s3_fdw: delete failed: all key columns are null");
-
-  /* loop over parquet reader */
-  for (auto reader : readers) {
-    if (reader->exec_delete(key_attrs, key_values)) return true;
-  }
-
   return false;
 }
 
@@ -438,18 +226,7 @@ bool ParquetS3ModifyState::exec_delete(TupleTableSlot *slot,
  *
  * @param name relation name
  */
-void ParquetS3ModifyState::set_rel_name(char *name) {
-  this->rel_name = name;
-}
-
-/**
- * @brief set user defined function name
- *
- * @param func_name user defined function name
- */
-void ParquetS3ModifyState::set_user_defined_func(char *func_name) {
-  this->user_defined_func = func_name;
-}
+void ParquetS3ModifyState::set_rel_name(char *name) { this->rel_name = name; }
 
 /**
  * @brief get arrow::DataType from given arrow type id
@@ -551,8 +328,7 @@ static void parse_jsonb_column(Datum attr_value,
  * @return std::shared_ptr<arrow::Schema> new file schema
  */
 std::shared_ptr<arrow::Schema>
-ParquetS3ModifyState::schemaless_create_new_file_schema(
-    TupleTableSlot *slot) {
+ParquetS3ModifyState::schemaless_create_new_file_schema(TupleTableSlot *slot) {
   arrow::FieldVector fields;
   std::vector<std::string> column_names;
   std::vector<Datum> values;
