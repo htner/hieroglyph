@@ -205,16 +205,16 @@ ParquetTupleUpdate(Relation relation, ItemPointer otid, TupleTableSlot *slot,
 				   bool wait, TM_FailureData *tmfd,
 				   LockTupleMode *lockmode, bool *update_indexes);
 
-extern TM_Result
+static TM_Result
 ParquetTupleLock(Relation relation, ItemPointer tid, Snapshot snapshot,
 				 TupleTableSlot *slot, CommandId cid, LockTupleMode mode,
 				 LockWaitPolicy wait_policy, uint8 flags,
-				 M_FailureData *tmfd) {
+				 TM_FailureData *tmfd) {
 	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 	return TM_Ok;
 }
 
-extern void
+static void
 ParquetFinishBulkInsert(Relation relation, int options) {
 	elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 }

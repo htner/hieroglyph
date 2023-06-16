@@ -66,13 +66,13 @@ public:
     /* create reader for `filename` and add to list file */
     void add_file(uint64_t blockid, const char *filename);
     /* create new file and its temporary cache data */
-    ModifyParquetReader * new_inserter(const char *filename, TupleTableSlot *slot);
+    std::shared_ptr<ModifyParquetReader> new_inserter(const char *filename, TupleTableSlot *slot);
     /* execute insert `*slot` to cache data */
     bool exec_insert(TupleTableSlot *slot);
     /* execute update */
     bool exec_update(TupleTableSlot *slot, TupleTableSlot *planSlot);
     /* execute delete */
-    bool exec_delete(TupleTableSlot *slot, TupleTableSlot *planSlot);
+    bool exec_delete(ItemPointer tic);
     /* upload modified parquet file to storage system (local/S3) */
     void upload();
     /* true if s3_client is set */

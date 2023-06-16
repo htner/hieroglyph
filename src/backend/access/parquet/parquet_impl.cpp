@@ -109,8 +109,8 @@ extern "C" {
 #define IS_KEY_COLUMN(A) \
   ((strcmp(def->defname, "key") == 0) && (defGetBoolean(def) == true))
 
-bool enable_multifile;
-bool enable_multifile_merge;
+extern bool enable_multifile;
+extern bool enable_multifile_merge;
 
 static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2);
 static void destroy_parquet_state(void *arg);
@@ -135,6 +135,8 @@ struct RowGroupFilter {
                       In non-schemaless NULL is expectation  */
   bool is_column; /* for schemaless actual column `exist` operator */
 };
+
+static ParquetS3ModifyState *fmstate = NULL;
 
 static Const *convert_const(Const *c, Oid dst_oid) {
   Oid funcid;
@@ -943,7 +945,8 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
     std::list<std::string> filenames, int nkeys, ScanKey key,
     ParallelTableScanDesc parallel_scan, List *targetlist, List *qual,
     List *bitmapqualorig, uint32 flags, struct DynamicBitmapContext *bmCxt) {
-  ParquetS3FdwExecutionState *state = NULL;
+
+  ParquetS3AccessState *state = NULL;
   ParquetScanDesc scan;
 
   std::set<int> attrs_used;
@@ -1035,7 +1038,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
 extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
                                    TupleTableSlot *slot) {
   ParquetScanDesc pscan = (ParquetScanDesc)scan;
-  ParquetS3FdwExecutionState *festate = pscan->state;
+  ParquetS3AccessState *festate = pscan->state;
   // TupleTableSlot             *slot = pscan->ss_ScanTupleSlot;
   std::string error;
 
@@ -1075,11 +1078,12 @@ extern "C" void
 ParquetRescan(TableScanDesc scan, ScanKey key,
 			  bool set_params, bool allow_strat,
 			  bool allow_sync, bool allow_pagemode) {
+  ParquetScanDesc pscan = (ParquetScanDesc)scan;
+  ParquetS3AccessState *festate = pscan->state;
   festate->rescan();
 }
 
 // single table test
-static ParquetS3ModifyState *fmstate = NULL;
 
 extern "C" void ParquetDmlInit(Relation rel) {
   // Oid    foreignTableId = InvalidOid;
@@ -1115,12 +1119,11 @@ extern "C" void ParquetDmlInit(Relation rel) {
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
     fmstate = create_parquet_modify_state(
-        temp_cxt, dirname, s3client, tupleDesc, target_attrs, key_attrs, NULL,
-        use_threads, use_threads, schemaless, sorted_cols);
+        temp_cxt, dirname, s3client, tupleDesc, use_threads, true);
 
     fmstate->set_rel_name(RelationGetRelationName(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
-      fmstate->add_file(filenames[i].data());
+      fmstate->add_file(i, filenames[i].data());
     }
 
     // if (plstate->selector_function_name)
@@ -1183,7 +1186,7 @@ ParquetTupleUpdate(Relation rel, ItemPointer otid,
                                         bool wait, TM_FailureData *tmfd,
                                         LockTupleMode *lockmode,
                                         bool *update_indexes) {
-  fmstate->exec_delete(tid);                              
+  fmstate->exec_delete(otid);                              
   fmstate->exec_insert(slot);
 
   return TM_Ok;

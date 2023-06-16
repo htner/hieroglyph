@@ -124,10 +124,6 @@ static void check_conn_params(const char **keywords, const char **values,
                               UserMapping *user);
 static void parquet_fdw_inval_callback(Datum arg, int cacheid,
                                        uint32 hashvalue);
-static Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
-                                         bool use_minio, const char *endpoint,
-                                         const char *awsRegion);
-static void s3_client_close(Aws::S3::S3Client *s3_client);
 
 extern "C" void parquet_s3_init() {
   aws_sdk_options = new Aws::SDKOptions();
@@ -455,7 +451,7 @@ static void parquet_fdw_inval_callback(Datum arg, int cacheid,
 /*
  * Create S3 handle.
  */
-static Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
+Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
                                          bool use_minio, const char *endpoint,
                                          const char *awsRegion) {
   const Aws::String access_key_id = user;
@@ -488,7 +484,7 @@ static Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
 /*
  * Close S3 handle.
  */
-static void s3_client_close(Aws::S3::S3Client *s3_client) { delete s3_client; }
+extern void s3_client_close(Aws::S3::S3Client *s3_client) { delete s3_client; }
 
 /*
  * Get S3 handle by foreign table id from connection cache.
@@ -703,7 +699,9 @@ List *parquetGetDirFileList(List *filelist, const char *path) {
  */
 List *parquetImportForeignSchemaS3(ImportForeignSchemaStmt *stmt,
                                    Oid serverOid) {
+
   List *cmds = NIL;
+	/*
   Aws::S3::S3Client *s3client;
   List *objects;
   ListCell *cell;
@@ -730,10 +728,6 @@ List *parquetImportForeignSchemaS3(ImportForeignSchemaStmt *stmt,
 
     if (filename[0] == '/') filename++;
 
-    /*
-     * Set terminal symbol to be able to run strcmp on filename
-     * without file extension
-     */
     *ext = '\0';
 
     foreach (lc, stmt->table_list) {
@@ -768,6 +762,7 @@ List *parquetImportForeignSchemaS3(ImportForeignSchemaStmt *stmt,
     cmds = lappend(cmds, query);
     elog(DEBUG1, "parquet_s3_fdw: %s", query);
   }
+*/
 
   return cmds;
 }

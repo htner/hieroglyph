@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------
- *
+
  * modify_reader.hpp
  *        FDW routines for parquet_s3_fdw
  *
@@ -160,18 +160,30 @@ class ModifyParquetReader : ParquetReader {
   /* get all parquet column type */
   void get_columns_type(std::shared_ptr<arrow::Schema> schema);
 
+  void append_value_to_column(void ***column, 
+                              bool **isnulls, 
+                              size_t* reserve_len, 
+                              size_t* column_len, 
+                              TypeInfo &column_type, 
+                              Datum value, 
+                              bool value_null);
+
  public:
   ModifyParquetReader(const char *filename, MemoryContext cxt,
                       std::shared_ptr<arrow::Schema> schema = nullptr,
                       bool is_new_file = false, int reader_id = -1);
   ~ModifyParquetReader();
 
+  size_t data_size() {
+      return cache_data->data_size;
+  }
+
   /* execute insert a postgres slot */
   bool exec_insert(std::vector<int> attrs, std::vector<Datum> values,
                    std::vector<bool> is_nulls);
 
   /* delete a record by key column values */
-  bool exec_delete(std::vector<int> key_attrs, std::vector<Datum> key_values);
+  bool exec_delete(size_t pos);
 
   /* create new parquet file and overwrite to storage system */
   void upload(const char *dirname, Aws::S3::S3Client *s3_client);

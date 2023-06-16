@@ -82,13 +82,8 @@ void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename) {
       create_modify_parquet_reader(filename, cxt);
 
   reader->open(dirname, s3_client);
-  ;
-
-  reader->set_schemaless(schemaless);
-  reader->set_sorted_col_list(sorted_cols);
-  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  // reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   reader->set_options(use_threads, use_mmap);
-  reader->set_keycol_names(key_names);
 
   updates[blockid] = reader;
 }
@@ -100,21 +95,17 @@ void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename) {
  * @param slot tuple table slot data
  * @return ModifyParquetReader* reader to new file
  */
-ModifyParquetReader *ParquetS3ModifyState::new_inserter(const char *filename,
+std::shared_ptr<ModifyParquetReader> ParquetS3ModifyState::new_inserter(const char *filename,
                                                         TupleTableSlot *slot) {
-  ModifyParquetReader *reader;
   if (file_schema_ == nullptr) {
     file_schema_ = create_new_file_schema(slot);
   }
 
-  reader = create_modify_parquet_reader(filename, cxt, file_schema_, true);
-  reader->set_sorted_col_list(sorted_cols);
-  reader->set_schemaless(schemaless);
+  auto reader = create_modify_parquet_reader(filename, cxt, file_schema_, true);
   reader->set_options(use_threads, use_mmap);
-  reader->set_keycol_names(key_names);
 
   /* create temporary file */
-  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  // reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   reader->create_new_file_temp_cache();
   reader->prepare_upload();
 
@@ -138,19 +129,19 @@ bool ParquetS3ModifyState::has_s3_client() {
  */
 void ParquetS3ModifyState::upload() {
   for (auto update : updates) {
-    update->upload(dirname, s3_client);
-    uploads.push_back(update);
+    update.second->upload(dirname, s3_client);
+    uploads.push_back(update.second);
   }
   updates.clear();
 
-  if (insert != nullptr) {
+  if (inserter != nullptr) {
     inserter->upload(dirname, s3_client);
     uploads.push_back(inserter);
-    insert = nullptr;
+    inserter = nullptr;
   }
 
   for (auto upload : uploads) {
-    update->wait_upload_finish(dirname, s3_client);
+    upload->commit_upload();
   }
 }
 
@@ -168,7 +159,7 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
   char *user_selects_file = NULL;
 
   /* get value from slot to corresponding vector */
-  for (int attnum = 0; i < slot->tts_tupleDescriptor->natts; ++attnum) {
+  for (int attnum = 0; attnum < slot->tts_tupleDescriptor->natts; ++attnum) {
 
     bool is_null;
     Datum attr_value = 0;
@@ -187,8 +178,8 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
     elog(ERROR, "parquet_s3_fdw: can not find any record for schemaless mode.");
 
   if (inserter->data_size() > 100 * 1024 * 0124) {
-    inserter->upload();
-    inserter.push_back(inserter);
+    inserter->upload(dirname, s3_client);
+    uploads.push_back(inserter);
     inserter = nullptr;
   }
 
@@ -212,11 +203,11 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
  * @param planSlot junk values
  * @return true if delete successfully
  */
-bool ParquetS3ModifyState::exec_delete(ItemPointer tic) {
+bool ParquetS3ModifyState::exec_delete(ItemPointer tid) {
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
   auto it = updates.find(block_id);
   if (it != updates.end()) {
-    return it->exec_delete(tid->ip_posid);
+    return it->second->exec_delete(tid->ip_posid);
   }
   return false;
 }
@@ -318,121 +309,6 @@ static void parse_jsonb_column(Datum attr_value,
     types.push_back(col_types[col_idx]);
   }
 }
-
-/**
- * @brief for schemaless mode only
- *      - Create base on column of inserted record and existed columns.
- *      - If column is not exist on any file, create schema by mapping type.
- *
- * @param slot tuple table slot
- * @return std::shared_ptr<arrow::Schema> new file schema
- */
-std::shared_ptr<arrow::Schema>
-ParquetS3ModifyState::schemaless_create_new_file_schema(TupleTableSlot *slot) {
-  arrow::FieldVector fields;
-  std::vector<std::string> column_names;
-  std::vector<Datum> values;
-  std::vector<bool> is_nulls;
-  std::vector<jbvType> types;
-
-  /* Get jsonb column */
-  for (int i = 0; i < this->tuple_desc->natts; i++) {
-    Form_pg_attribute att = TupleDescAttr(this->tuple_desc, i);
-    Datum att_val;
-    bool att_isnull;
-
-    if (att->attisdropped || att->atttypid != JSONBOID) continue;
-
-    att_val = slot_getattr(slot, att->attnum, &att_isnull);
-
-    /* try to get not null jsonb col */
-    if (att_isnull) continue;
-
-    parse_jsonb_column(att_val, column_names, values, is_nulls, types);
-  }
-
-  if (column_names.size() == 0)
-    elog(ERROR, "parquet_s3_fdw: can not find any record for schemaless mode.");
-
-  bool *founds = (bool *)palloc0(sizeof(bool) * column_names.size());
-
-  /* try to get existed column info */
-  for (size_t i = 0; i < column_names.size(); i++) {
-    if (founds[i] == true) continue;
-
-    for (auto reader : readers) {
-      auto schema = reader->get_file_schema();
-      char pg_colname[NAMEDATALEN];
-
-      tolowercase(column_names[i].c_str(), pg_colname);
-      auto field = schema->GetFieldByName(pg_colname);
-
-      if (field != nullptr) {
-        founds[i] = true;
-        fields.push_back(field);
-        break;
-      }
-    }
-  }
-
-  /* column can not be found in any file */
-  for (size_t i = 0; i < column_names.size(); i++) {
-    if (founds[i] == true) continue;
-
-    switch (types[i]) {
-      case jbvNumeric:
-        fields.push_back(
-            arrow::field(column_names[i].c_str(), arrow::float64()));
-        break;
-      case jbvBool:
-        fields.push_back(
-            arrow::field(column_names[i].c_str(), arrow::boolean()));
-        break;
-      case jbvNull:
-      case jbvString:
-        fields.push_back(arrow::field(column_names[i].c_str(), arrow::utf8()));
-        break;
-      case jbvArray:
-      case jbvObject:
-      case jbvBinary: {
-        Jsonb *jb = DatumGetJsonbP(values[i]);
-        Datum *cols;
-        Datum *col_vals;
-        jbvType *col_types;
-        bool *col_isnulls;
-        size_t len;
-
-        parquet_parse_jsonb(&jb->root, &cols, &col_vals, &col_types,
-                            &col_isnulls, &len);
-
-        if (JsonContainerIsArray(&jb->root)) {
-          /* get type of first element only */
-          fields.push_back(arrow::field(
-              column_names[i].c_str(),
-              arrow::list(jbvType_to_primitive_DataType(col_types[0]))));
-        } else if (JsonContainerIsObject(&jb->root)) {
-          fields.push_back(arrow::field(
-              column_names[i].c_str(),
-              arrow::map(arrow::utf8(),
-                         jbvType_to_primitive_DataType(col_types[0]))));
-        } else
-          elog(ERROR,
-               "parquet_s3_fdw: can not create parquet mapping type for jsonb "
-               "type: %d.",
-               types[i]);
-        break;
-      }
-      default:
-        elog(ERROR,
-             "parquet_s3_fdw: can not create parquet mapping type for jsonb "
-             "type: %d.",
-             types[i]);
-        break;
-    }
-  }
-  return arrow::schema(fields);
-}
-
 /**
  * @brief Create base on column of inserted record and existed columns.
  *        If column is not exist on any file, create schema by mapping type.
@@ -445,7 +321,8 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
   arrow::FieldVector fields;
   int natts = this->tuple_desc->natts;
   bool *founds = (bool *)palloc0(sizeof(bool) * natts);
-
+	
+/*
   memset(founds, false, natts);
   for (auto reader : readers) {
     auto schema = reader->get_file_schema();
@@ -464,6 +341,7 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
       }
     }
   }
+  */
 
   for (int i = 0; i < natts; i++) {
     Form_pg_attribute att = TupleDescAttr(this->tuple_desc, i);

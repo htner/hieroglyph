@@ -98,6 +98,12 @@ extern void parquet_disconnect_s3_server();
 extern bool parquet_upload_file_to_s3(const char *dirname, Aws::S3::S3Client *s3_client, const char *filename, const char *local_file);
 extern char *get_selected_file_from_userfunc(char *funcname, TupleTableSlot *slot, const char *dirname);
 
+extern Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
+                                         bool use_minio, const char *endpoint,
+                                         const char *awsRegion);
+
+extern void s3_client_close(Aws::S3::S3Client *s3_client);
+
 #define IS_S3_PATH(str) (str != NULL && strncmp(str, "s3://", 5) == 0)
 
 #endif /* __PARQUET_FDW_S3_HPP__ */

@@ -1071,14 +1071,16 @@ void ModifyParquetReader::add_value_to_column(void ***column, bool **isnulls, si
  * @param value_null whether inserted value is null
  */
 void ModifyParquetReader::append_value_to_column(void ***column, 
-bool **isnulls, 
-size_t* reserve_len, 
-size_t* column_len, 
-TypeInfo &column_type, 
-Datum value, 
-bool value_null, 
-size_t idx)
+												 bool **isnulls, 
+												 size_t* reserve_len_ptr, 
+												 size_t* column_len_ptr, 
+												 TypeInfo &column_type, 
+												 Datum value, 
+												 bool value_null)
 {
+	size_t reserve_len = *reserve_len_ptr;
+	size_t column_len = *column_len_ptr;
+
     if (reserve_len <= column_len) {
         size_t new_col_len = reserve_len > 4096 ?  (reserve_len + 1024) : reserve_len * 2;
         void **new_col = (void **)palloc0(sizeof(void *) * new_col_len);
@@ -1087,8 +1089,7 @@ size_t idx)
         bool *old_isnulls = *isnulls;
 
         /* copy to new array */
-        if (column_len != 0)
-        {
+        if (column_len != 0) {
             memcpy(new_col, *column, (sizeof(void *)) * column_len);
             memcpy(new_isnulls, *isnulls, sizeof(bool) * column_len);
         }
@@ -1099,36 +1100,26 @@ size_t idx)
 
         *column = new_col;
         *isnulls = new_isnulls;
+		*reserve_len_ptr = new_col_len;
     }
 
     size_t type_size = get_arrow_type_size(column_type.arrow.type_id);
-    void *new_value = palloc0(type_size)
-    new_isnulls[column_len] = value_null;
-    new_col[column_len] = new_value;
+    void *new_value = palloc0(type_size);
+    (*isnulls)[column_len] = value_null;
+    (*column)[column_len] = new_value;
+	++(*column_len_ptr);
 
-    if (!value_null)
-    {
-        switch (column_type.arrow.type_id)
-        {
-        case arrow::Type::MAP:
-        {
+    if (!value_null) {
+        switch (column_type.arrow.type_id) {
+        case arrow::Type::MAP: {
             Jsonb *jb = DatumGetJsonbP(value);
 
             *((parquet_map_value *)new_value) = Jsonb_to_MAP(jb, column_type);
             break;
         }
-        case arrow::Type::LIST:
-        {
-            if (this->schemaless)
-            {
-                Jsonb *jb = DatumGetJsonbP(value);
-                *((parquet_list_value *)new_value) = Jsonb_to_LIST(jb, column_type);
-            }
-            else
-            {
-                ArrayType *arr = DatumGetArrayTypeP(value);
-                *((parquet_list_value *)new_value) = Array_to_LIST(arr, column_type);
-            }
+        case arrow::Type::LIST: {
+			ArrayType *arr = DatumGetArrayTypeP(value);
+            *((parquet_list_value *)new_value) = Array_to_LIST(arr, column_type);
             break;
         }
         default:
@@ -1452,11 +1443,11 @@ void ModifyParquetReader::upload(const char *dirname, Aws::S3::S3Client *s3_clie
                 }
                 cache_data->columnsValue[column_idx][cur - cur_dels] =  
                     cache_data->columnsValue[column_idx][cur];
-                cache_data->columnsValue[columnsNulls][cur - cur_dels] =  
-                    cache_data->columnsValue[columnsNulls][cur];
+                cache_data->columnsValue[column_idx][cur - cur_dels] =  
+                    cache_data->columnsValue[column_idx][cur];
             }
             cache_data->row_num -= deletes.size();
-            deletes.clean();
+            deletes.clear();
         }
      }
 
@@ -1742,13 +1733,10 @@ void ModifyParquetReader::exec_cast(std::vector<int> attrs, std::vector<Datum> &
  */
 bool ModifyParquetReader::exec_insert(std::vector<int> attrs, std::vector<Datum> row_values, std::vector<bool> is_nulls)
 {
-    size_t insert_idx;
-
     Assert(attrs.size() == row_values.size());
     Assert(attrs.size() == is_nulls.size());
 
-    try
-    {
+    try {
         //if (!schema_check(attrs, is_nulls))
         //    return false;
 
@@ -1759,21 +1747,15 @@ bool ModifyParquetReader::exec_insert(std::vector<int> attrs, std::vector<Datum>
         /* do cast if needed */
         exec_cast(attrs, row_values, is_nulls);
 
-        /* default insert_idx is last row index */
-        insert_idx = this->cache_data->row_num;
-
-        for (size_t column_idx = 0; column_idx < this->cache_data->columnNames.size(); column_idx++)
-        {
+        for (size_t column_idx = 0; column_idx < this->cache_data->columnNames.size(); column_idx++) {
             append_value_to_column(&(this->cache_data->columnsValue[column_idx]), &(this->cache_data->columnsNulls[column_idx]),
-                                this->cache_data->row_num, this->types[column_idx],
+                                &this->cache_data->row_num, &this->cache_data->reveser_num, this->types[column_idx],
                                 row_values[column_idx], is_nulls[column_idx]);
 
         }
         this->cache_data->row_num++;
         this->modified = true;
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         elog(ERROR, "parquet_s3_fdw: %s", e.what());
     }
     return true;
@@ -1898,10 +1880,8 @@ column_remove_idx(void ***column_value, bool **isnulls, size_t len, size_t idx)
  *
  * @param idx removed column index
  */
-void ModifyParquetReader::remove_row(size_t idx)
-{
-    for (size_t column_idx = 0; column_idx < cache_data->column_num; column_idx++)
-    {
+void ModifyParquetReader::remove_row(size_t idx) {
+    for (size_t column_idx = 0; column_idx < cache_data->column_num; column_idx++) {
         column_remove_idx(&cache_data->columnsValue[column_idx], &cache_data->columnsNulls[column_idx], cache_data->row_num, idx);
     }
     cache_data->row_num -= 1;
@@ -1914,8 +1894,7 @@ void ModifyParquetReader::remove_row(size_t idx)
  * @param key_values key attributes
  * @return true if delete successfully
  */
-bool ModifyParquetReader::exec_delete(size_t pos)
-{
+bool ModifyParquetReader::exec_delete(size_t pos) {
     Assert(key_attrs.size() == key_values.size());
 
     try {
@@ -1940,67 +1919,11 @@ bool ModifyParquetReader::exec_delete(size_t pos)
        deletes.insert(pos);
        this->modified = true;
        return true;
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         elog(ERROR, "parquet_s3_fdw: %s", e.what());
     }
 
     return false;
-}
-
-/**
- * @brief update row by index
- *
- * @param row_idx row index
- * @param attrs updated attributes
- * @param values updated attributes values
- * @param is_nulls updated attributes values is null
- */
-void ModifyParquetReader::update_row(size_t row_idx, std::vector<int> attrs, std::vector<Datum> values, std::vector<bool> is_nulls)
-{
-    for (size_t attr_idx = 0; attr_idx < attrs.size(); attr_idx++)
-    {
-        int col_idx = this->map[attrs[attr_idx]];
-        void **col = cache_data->columnsValue[col_idx];
-        bool *col_isnull = cache_data->columnsNulls[col_idx];
-        TypeInfo &col_type = types[col_idx];
-
-        if (is_nulls[attr_idx] == true)
-        {
-            col_isnull[row_idx] = true;
-            continue;
-        }
-
-        col_isnull[row_idx] = false;
-
-        switch (col_type.arrow.type_id)
-        {
-        case arrow::Type::MAP:
-        {
-            Jsonb *jb = DatumGetJsonbP(values[attr_idx]);
-
-            *((parquet_map_value *)col[row_idx]) = Jsonb_to_MAP(jb, col_type);
-            break;
-        }
-        case arrow::Type::LIST:
-        {
-            if (this->schemaless)
-            {
-                Jsonb *jb = DatumGetJsonbP(values[attr_idx]);
-                *((parquet_list_value *)col[row_idx]) = Jsonb_to_LIST(jb, col_type);
-            }
-            else
-            {
-                ArrayType *arr = DatumGetArrayTypeP(values[attr_idx]);
-                *((parquet_list_value *)col[row_idx]) = Array_to_LIST(arr, col_type);
-            }
-            break;
-        }
-        default:
-            postgres_val_to_voidp(col_type, values[attr_idx], &col[row_idx]);
-        }
-    }
 }
 
 /**
@@ -2167,40 +2090,6 @@ void ModifyParquetReader::get_columns_type(std::shared_ptr<arrow::Schema> schema
 }
 
 /**
- * @brief schemaless_create_column_mapping: override
- *      - get column names and types
- *
- * @param schema target file schema
- */
-void ModifyParquetReader::schemaless_create_column_mapping(std::shared_ptr<arrow::Schema> schema)
-{
-    for (size_t arrow_col_idx = 0; arrow_col_idx < schema->fields().size(); arrow_col_idx++)
-    {
-        auto schema_field = schema->fields()[arrow_col_idx];
-        std::string field_name = schema_field->name();
-        char arrow_colname[NAMEDATALEN];
-
-        if (field_name.length() > NAMEDATALEN - 1)
-            throw Error("parquet column name '%s' is too long (max: %d)",
-                        field_name.c_str(), NAMEDATALEN - 1);
-        tolowercase(field_name.c_str(), arrow_colname);
-
-        this->column_names.push_back(arrow_colname);
-
-        /* arrow column index */
-        this->map[arrow_col_idx] = arrow_col_idx;
-
-        /* index of last element */
-        this->column_name_map.insert({arrow_colname, arrow_col_idx});
-
-        /* create mapping between sorted attributes and parquet column index */
-        size_t sorted_col_idx = std::distance(sorted_cols.begin(), sorted_cols.find(arrow_colname));
-        if (sorted_col_idx < sorted_cols.size())
-            this->sorted_col_map[sorted_col_idx] = arrow_col_idx;
-    }
-}
-
-/**
  * @brief get element type information from postgres type
  *
  * @param[in] type postgres array type
@@ -2226,6 +2115,7 @@ void ModifyParquetReader::get_element_type_info(Oid type, const char *colname, T
 }
 
 void ModifyParquetReader::prepare_upload() {
+/*
 // A Channel represents a communication line to a Server. Notice that 
 	// Channel is thread-safe and can be shared by all threads in your program.
 	channel_ = std::make_unique<brpc::Channel>();
@@ -2234,7 +2124,7 @@ void ModifyParquetReader::prepare_upload() {
 	brpc::ChannelOptions options;
 	options.protocol = brpc::PROTOCOL_BAIDU_STD;
 	options.connection_type = "pooled";
-	options.timeout_ms = 10000/*milliseconds*/;
+	options.timeout_ms = 10000//milliseconds;
 	options.max_retry = 5;
 	if (channel_->Init(server_addr.c_str(), NULL) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
@@ -2276,6 +2166,7 @@ void ModifyParquetReader::prepare_upload() {
 		LOG(ERROR) << "Fail to connect stream";
 	}
 	return response.succ();
+	*/
 }
 
 void ModifyParquetReader::commit_upload() {
