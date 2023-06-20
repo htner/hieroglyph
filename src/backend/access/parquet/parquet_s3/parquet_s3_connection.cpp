@@ -855,8 +855,11 @@ ReaderCacheEntry *parquetGetFileReader(Aws::S3::S3Client *s3client, char *dname,
     arrow::Status status =
         parquet::arrow::OpenFile(input, entry->pool, &reader);
 
-    if (!status.ok())
-      throw Error("failed to open Parquet file %s", status.message().c_str());
+    if (!status.ok()) {
+			int *i = 0;
+			*i = 0;
+      throw Error("parquetGetFileReader: failed to open Parquet file %s", status.message().c_str());
+	}
 
     if (!entry->file_reader) entry->file_reader = new FileReaderCache();
     entry->file_reader->reader = std::move(reader);

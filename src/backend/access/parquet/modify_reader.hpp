@@ -27,7 +27,7 @@ enum Lake2PCState {
     LAKE2PC_COMMIT_WRITE = 2,
 };
 
-class ModifyParquetReader : ParquetReader {
+class ModifyParquetReader : public ParquetReader {
  private:
   /* represent a MAP */
   typedef struct parquet_map_value {
@@ -208,6 +208,8 @@ class ModifyParquetReader : ParquetReader {
 
   void prepare_upload();
   void commit_upload();
+
+  void create_column_mapping(TupleDesc tupleDesc, const std::set<int> &attrs_used);
   
   ReadStatus next(TupleTableSlot *slot, bool fake = false) override {
     elog(

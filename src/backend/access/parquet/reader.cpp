@@ -374,7 +374,8 @@ void ParquetReader::create_column_mapping(TupleDesc tupleDesc, const std::set<in
     std::shared_ptr<arrow::Schema>  a_schema;
     parquet::arrow::SchemaManifest  manifest;
     auto    p_schema = this->reader->parquet_reader()->metadata()->schema();
-    bool have_wholerow = (attrs_used.find(0 - FirstLowInvalidHeapAttributeNumber) != attrs_used.end());
+    //bool have_wholerow = (attrs_used.find(0 - FirstLowInvalidHeapAttributeNumber) != attrs_used.end());
+    bool have_wholerow = true;
 
     if (!parquet::arrow::SchemaManifest::Make(p_schema, nullptr, props, &manifest).ok())
         throw std::runtime_error("parquet_s3_fdw: error creating arrow schema");
@@ -1169,7 +1170,7 @@ public:
                         parquet::ParquetFileReader::OpenFile(filename, use_mmap),
                         &reader);
         if (!status.ok())
-            throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+            throw Error("parquet reader: failed to open Parquet file %s",
                                  status.message().c_str());
         this->reader = std::move(reader);
 
@@ -1572,7 +1573,7 @@ public:
                         parquet::ParquetFileReader::OpenFile(filename, use_mmap),
                         &reader);
         if (!status.ok())
-            throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+            throw Error("cache parquet reader: failed to open Parquet file %s",
                                  status.message().c_str());
         this->reader = std::move(reader);
 

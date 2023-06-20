@@ -38,8 +38,8 @@ extern "C" {
 
 ParquetS3ModifyState *create_parquet_modify_state(
     MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
-    TupleDesc tuple_desc, bool use_threads, bool use_mmap) {
-  return new ParquetS3ModifyState(reader_cxt, dirname, s3_client, tuple_desc,
+    TupleDesc tuple_desc, std::set<int> target_attrs, bool use_threads, bool use_mmap) {
+  return new ParquetS3ModifyState(reader_cxt, dirname, s3_client, tuple_desc, target_attrs,
                                   use_threads, use_mmap);
 }
 
@@ -58,11 +58,13 @@ ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
                                            const char *dirname,
                                            Aws::S3::S3Client *s3_client,
                                            TupleDesc tuple_desc,
+										   std::set<int> target_attrs,
                                            bool use_threads, bool use_mmap)
     : cxt(reader_cxt),
       dirname(dirname),
       s3_client(s3_client),
       tuple_desc(tuple_desc),
+      target_attrs(target_attrs),
       use_threads(use_threads),
       use_mmap(use_mmap),
       schemaless(schemaless) {}
@@ -70,9 +72,7 @@ ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
 /**
  * @brief Destroy the Parquet S 3 Fdw Modify State:: Parquet S3 Fdw Modify State
  * object
- */
-ParquetS3ModifyState::~ParquetS3ModifyState() {}
-
+ */ ParquetS3ModifyState::~ParquetS3ModifyState() {}
 /**
  * @brief add a parquet file
  *
@@ -80,10 +80,10 @@ ParquetS3ModifyState::~ParquetS3ModifyState() {}
  */
 void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename) {
   std::shared_ptr<ModifyParquetReader> reader =
-      create_modify_parquet_reader(filename, cxt);
+      create_modify_parquet_reader(filename, cxt, file_schema_, false);
 
   reader->open(dirname, s3_client);
-  // reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   reader->set_options(use_threads, use_mmap);
 
   updates[blockid] = reader;
@@ -103,11 +103,13 @@ std::shared_ptr<ModifyParquetReader> ParquetS3ModifyState::new_inserter(const ch
   }
 
   auto reader = create_modify_parquet_reader(filename, cxt, file_schema_, true);
+  //reader->open(filename, s3_client);
   reader->set_options(use_threads, use_mmap);
 
   /* create temporary file */
-  // reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   reader->create_new_file_temp_cache();
+
   reader->prepare_upload();
 
   return reader;
@@ -395,6 +397,12 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
       }
     } else {
       Oid elemtyp = get_element_type(att->atttypid);
+	
+      if (elemtyp == InvalidOid) {
+				// FIXME_SDB
+			elemtyp = att->atttypid;
+	  }
+
       if (elemtyp != InvalidOid) {
         arrow::Type::type elem_type_id = postgres_to_arrow_type(elemtyp);
         if (elem_type_id != arrow::Type::NA)
@@ -402,13 +410,14 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
               arrow::field(att->attname.data,
                            arrow::list(to_primitive_DataType(elem_type_id))));
       } else {
-        elog(ERROR,
+        elog(PANIC,
              "parquet_s3_fdw: Can not create parquet mapping type for type "
              "OID: %d, column: %s.",
              att->atttypid, att->attname.data);
       }
     }
   }
+  elog(WARNING, "create_new_file_schem, schema size: %d ", fields.size());
 
   return arrow::schema(fields);
 }

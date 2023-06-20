@@ -64,7 +64,7 @@ ModifyParquetReader::ModifyParquetReader(const char *filename,
     this->initialized = false;
     this->schemaless = false;
     this->modified = false;
-    this->data_is_cached = false;
+    this->data_is_cached = is_new_file;
     this->file_schema = schema;
     this->is_new_file = is_new_file;
     this->lake_2pc_state = LAKE2PC_NULL;
@@ -234,7 +234,7 @@ void ModifyParquetReader::open()
         parquet::ParquetFileReader::OpenFile(filename, use_mmap),
         &reader);
     if (!status.ok())
-        throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+        throw Error("modify parquet reader: failed to open Parquet file %s",
                     status.message().c_str());
     this->reader = std::move(reader);
     /* Enable parallel columns decoding/decompression if needed */
@@ -2089,7 +2089,121 @@ void ModifyParquetReader::get_columns_type(std::shared_ptr<arrow::Schema> schema
         this->types.push_back(std::move(typinfo));
     }
 }
+/**
+ * @brief [override]
+ *        Create mapping between tuple descriptor and parquet columns.
+ *        Create cast for postgres column type -> parquet mapped type.
+ *
+ * @param tupleDesc tuple descriptor
+ * @param attrs_used attribute in used (unused for ModifyParquetReader)
+ */
 
+void
+ModifyParquetReader::create_column_mapping(TupleDesc tupleDesc, const std::set<int> &attrs_used)
+{
+    std::shared_ptr<arrow::Schema>  schema;
+
+    if (!this->is_new_file)
+    {
+        parquet::ArrowReaderProperties  props;
+        parquet::arrow::SchemaManifest  manifest;
+        auto    p_schema = this->reader->parquet_reader()->metadata()->schema();
+
+        if (!parquet::arrow::SchemaManifest::Make(p_schema, nullptr, props, &manifest).ok())
+            throw std::runtime_error("parquet_s3_fdw: error creating arrow schema");
+
+        parquet::arrow::FromParquetSchema(p_schema, &this->file_schema);
+    }
+
+    schema = this->file_schema;
+
+    this->sorted_col_map.resize(this->sorted_cols.size(), -1);
+
+    /*
+     * Modify feature required all columns type information to cache data.
+     */
+    get_columns_type(schema);
+
+    this->map.resize(tupleDesc->natts);
+
+    for (int i = 0; i < tupleDesc->natts; i++)
+    {
+        char        pg_colname[NAMEDATALEN];
+        const char *attname = NameStr(TupleDescAttr(tupleDesc, i)->attname);
+
+        this->map[i] = -1;
+
+        tolowercase(NameStr(TupleDescAttr(tupleDesc, i)->attname), pg_colname);
+
+        for (size_t arrow_col_idx = 0; arrow_col_idx < schema->fields().size(); arrow_col_idx++)
+        {
+            auto        schema_field = schema->fields()[arrow_col_idx];
+            std::string field_name = schema_field->name();
+            char        arrow_colname[NAMEDATALEN];
+
+            if (field_name.length() > NAMEDATALEN - 1)
+                throw Error("parquet column name '%s' is too long (max: %d)",
+                            field_name.c_str(), NAMEDATALEN - 1);
+            tolowercase(field_name.c_str(), arrow_colname);
+
+            /*
+             * Compare postgres attribute name to the column name in arrow
+             * schema.
+             */
+            if (strcmp(pg_colname, arrow_colname) == 0)
+            {
+                auto           &typinfo = this->types[arrow_col_idx];
+                size_t          sorted_col_idx;
+
+                /* mapping founded */
+                this->column_names.push_back(arrow_colname);
+
+                /* create mapping between slot attributes and parquet column index */
+                this->map[i] = arrow_col_idx;
+
+                /* create mapping between sorted column list and parquet column index */
+                sorted_col_idx = std::distance(sorted_cols.begin(), sorted_cols.find(arrow_colname));
+                if (sorted_col_idx < sorted_cols.size())
+                    this->sorted_col_map[sorted_col_idx] = arrow_col_idx;
+
+                /* init cast and slot attributes type information */
+                typinfo.pg.oid = TupleDescAttr(tupleDesc, i)->atttypid;
+
+                if (typinfo.arrow.type_id == arrow::Type::LIST)
+                {
+                    Oid     elem_type;
+                    bool    error(false);
+
+                    PG_TRY();
+                    {
+                        elem_type = get_element_type(typinfo.pg.oid);
+                    }
+                    PG_CATCH();
+                    {
+                        error = true;
+                    }
+                    PG_END_TRY();
+                    if (error)
+                        throw Error("failed to get type length (column '%s')",
+                                    pg_colname);
+
+                    if (!OidIsValid(elem_type))
+                        throw Error("cannot convert parquet column of type "
+                                    "LIST to scalar type of postgres column '%s'",
+                                    pg_colname);
+
+                    /* init cast for list's element */
+                    get_element_type_info(elem_type, pg_colname, typinfo.children[0]);
+                    initialize_postgres_to_parquet_cast(typinfo.children[0], pg_colname);
+                }
+                else
+                    initialize_postgres_to_parquet_cast(typinfo, attname);
+
+                break;
+            }
+        }
+    }
+}
 /**
  * @brief get element type information from postgres type
  *

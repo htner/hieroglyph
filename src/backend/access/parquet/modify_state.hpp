@@ -51,6 +51,9 @@ private:
 
     std::shared_ptr<arrow::Schema> file_schema_;
 
+     /* list attnum of needed modify attributes */
+    std::set<int>       target_attrs;
+
 public:
     MemoryContext       fmstate_cxt;
 
@@ -59,6 +62,7 @@ public:
                             const char *dirname,
                             Aws::S3::S3Client *s3_client,
                             TupleDesc tuple_desc,
+                            std::set<int> target_attrs,
                             bool use_threads,
                             bool use_mmap);
     ~ParquetS3ModifyState();
@@ -88,6 +92,7 @@ ParquetS3ModifyState* create_parquet_modify_state(MemoryContext reader_cxt,
                                                      const char *dirname,
                                                      Aws::S3::S3Client *s3_client,
                                                      TupleDesc tuple_desc,
+                                                     std::set<int> target_attrs,
                                                      bool use_threads,
                                                      bool use_mmap);
 

@@ -162,8 +162,9 @@ CreateParquetModifyState(Relation rel,
 	if (fmstate != NULL) {
 		return fmstate;
 	}
+	std::set<int> attrs;
     fmstate = create_parquet_modify_state(
-        ctx, dirname, s3client, tuple_desc, use_threads, true);
+        ctx, dirname, s3client, tuple_desc, attrs, use_threads, true);
 	fmstates[oid] = fmstate;
 	return fmstate;
 }
@@ -383,7 +384,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
     }
 
     if (!status.ok())
-      throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+      throw Error("parquet_impl extract_rowgroups_list: failed to open Parquet file %s",
                   status.message().c_str());
 
     auto meta = reader->parquet_reader()->metadata();
@@ -576,7 +577,7 @@ List *extract_parquet_fields(const char *path, const char *dirname,
           parquet::ParquetFileReader::OpenFile(path, false), &reader);
     }
     if (!status.ok())
-      throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+      throw Error("parquet_impl extract_parquet_fields: failed to open Parquet file %s",
                   status.message().c_str());
 
     auto p_schema = reader->parquet_reader()->metadata()->schema();
@@ -839,7 +840,7 @@ static void schemaless_get_sorted_column_type(Aws::S3::S3Client *s3_client,
       }
 
       if (!status.ok())
-        throw Error("parquet_s3_fdw: failed to open Parquet file %s",
+        throw Error("parquet_impl schemaless_get_sorted_column_type: failed to open Parquet file %s",
                     status.message().c_str());
 
       auto meta = reader->parquet_reader()->metadata();
