@@ -884,6 +884,13 @@
   proname => 'ao_column_tableam_handler', provolatile => 'v',
   prorettype => 'table_am_handler', proargtypes => 'internal',
   prosrc => 'ao_column_tableam_handler' },
+{ oid => '4189', oid_symbol => 'PARQUET_TABLE_AM_HANDLER_OID',
+  descr => 'parquet table access method handler',
+  proname => 'parquet_tableam_handler', provolatile => 'v',
+  prorettype => 'table_am_handler', proargtypes => 'internal',
+  prosrc => 'parquet_tableam_handler' },
+
+
 
 # Index access method handlers
 { oid => '330', descr => 'btree index access method handler',
