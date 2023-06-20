@@ -890,8 +890,6 @@
   prorettype => 'table_am_handler', proargtypes => 'internal',
   prosrc => 'parquet_tableam_handler' },
 
-
-
 # Index access method handlers
 { oid => '330', descr => 'btree index access method handler',
   proname => 'bthandler', provolatile => 'v', prorettype => 'index_am_handler',

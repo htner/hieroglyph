@@ -19,6 +19,7 @@
 
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "access/htup_details.h"
 #include "access/tableam.h"
 #include "access/xact.h"
@@ -829,13 +830,19 @@ InsertOneTuple(void)
 	TupleDesc	tupDesc;
 	int			i;
 
-	elog(DEBUG4, "inserting row with %d columns", numattr);
+	elog(WARNING, "inserting row with %d columns", numattr);
 
 	tupDesc = CreateTupleDesc(numattr, attrtypes);
 	tuple = heap_form_tuple(tupDesc, values, Nulls);
 	pfree(tupDesc);				/* just free's tupDesc, not the attrtypes */
 
-	simple_heap_insert(boot_reldesc, tuple);
+	if (boot_reldesc->rd_rel->relam == HEAP_TABLE_AM_OID) {
+		simple_heap_insert(boot_reldesc, tuple);
+		elog(WARNING, "inserting row to heap");
+	} else if (boot_reldesc->rd_rel->relam == PARQUET_TABLE_AM_OID) {
+		simple_parquet_insert(boot_reldesc, tuple);
+		elog(WARNING, "inserting row to parquet");
+	}
 	heap_freetuple(tuple);
 	elog(DEBUG4, "row inserted");
 
@@ -975,7 +982,7 @@ gettype(char *type)
 		table_close(rel, NoLock);
 		return gettype(type);
 	}
-	elog(ERROR, "unrecognized type \"%s\"", type);
+	elog(PANIC, "unrecognized type \"%s\"", type);
 	/* not reached, here to make compiler happy */
 	return 0;
 }

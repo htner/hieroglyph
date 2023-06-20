@@ -314,8 +314,13 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 	 */
 	estate = CreateExecutorState();
 	queryDesc->estate = estate;
-	if (queryDesc->ddesc) {
+	if (queryDesc->ddesc != NULL) 
+	{
 		estate->task = queryDesc->ddesc->task;
+	} 
+	else 
+	{
+		estate->task = NULL;
 	}
 
 	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);

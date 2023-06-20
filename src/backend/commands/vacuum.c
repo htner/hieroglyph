@@ -123,6 +123,8 @@ static void vac_update_relstats_from_list(VacuumStatsContext *stats_context);
 void
 ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel, bool auto_stats)
 {
+	// FIXME_SDB
+	return;
 	VacuumParams params;
 	bool		verbose = false;
 	bool		skip_locked = false;

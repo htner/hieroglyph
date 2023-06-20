@@ -227,7 +227,7 @@ Boot_CreateStmt:
 												   shared_relation ? GLOBALTABLESPACE_OID : 0,
 												   $3,
 												   InvalidOid,
-												   PARQUET_TABLE_AM_OID,
+												   HEAP_TABLE_AM_OID,
 												   tupdesc,
 												   RELKIND_RELATION,
 												   RELPERSISTENCE_PERMANENT,
@@ -237,6 +237,7 @@ Boot_CreateStmt:
 												   &relfrozenxid,
 												   &relminmxid);
 						elog(DEBUG4, "bootstrap relation created");
+						elog(WARNING, "bootstrap relation created");
 					}
 					else
 					{

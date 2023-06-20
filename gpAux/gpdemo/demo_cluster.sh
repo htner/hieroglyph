@@ -400,40 +400,48 @@ echo ""
 echo "======================================================================"
 echo "CLUSTER_CONFIG_POSTGRES_ADDONS: ${CLUSTER_CONFIG_POSTGRES_ADDONS}"
 echo "----------------------------------------------------------------------"
-cat ${CLUSTER_CONFIG_POSTGRES_ADDONS}
+cat ${CLUSTER_CONFIG_POSTGRES_ADDONS}$GPHOME/bin/pg_ctl -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/qddir/demoDataDir-1 -l /home/gpadmin/sdb/gpAux/gpdemo/datadirs/qddir/demoDataDir-1/log/startup.log -w -t 600 -o " -c gp_role=dispatch " start
 echo "======================================================================"
 echo ""
 
 echo "=========================================================================================="
 echo "executing:"
-echo "  $GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} \"$@\""
+
+#echo " $GPHOME/bin/pg_ctl -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0 -l /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0/log/startup.log -w -t 600 start"
+# echo "  $GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} gpfdists
 echo "=========================================================================================="
 echo ""
-$GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} "$@"
-RETURN=$?
+#$GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} "$@"
+#
+#########$GPPATH/postgres -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0 
+#$GPPATH/postgres -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0 
+#$GPHOME/bin/pg_ctl -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0 -l /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0/log/startup.log -w -t 600  start
 
 echo "========================================"
-echo "gpinitsystem returned: ${RETURN}"
+#echo "postgres returned: ${RETURN}"
 echo "========================================"
 echo ""
 
-if [ "$enable_gpfdist" = "yes" ] && [ "$with_openssl" = "yes" ]; then
-	echo "======================================================================"
-	echo "Generating SSL certificates for gpfdists:"
-	echo "======================================================================"
-	echo ""
 
-	./generate_certs.sh >> generate_certs.log
+RETURN=$?
 
-	cp -r certificate/gpfdists $QDDIR/$SEG_PREFIX-1/
+echo "=========================================================================================="
+echo "executing:"
 
-	for (( i=1; i<=$NUM_PRIMARY_MIRROR_PAIRS; i++ ))
-	do
-		cp -r certificate/gpfdists $DATADIRS/dbfast$i/${SEG_PREFIX}$((i-1))/
-		cp -r certificate/gpfdists $DATADIRS/dbfast_mirror$i/${SEG_PREFIX}$((i-1))/
-	done
-	echo ""
-fi
+echo "$GPHOME/bin/initdb -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0"
+# echo "  $GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} gpfdists
+echo "=========================================================================================="
+echo ""
+#
+
+$GPHOME/bin/initdb -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0
+
+echo "========================================"
+echo "initdb returned: ${RETURN}"
+echo "========================================"
+echo ""
+
+exit 0
 
 OPTIMIZER=$(psql -t -p ${COORDINATOR_DEMO_PORT} -d template1 -c "show optimizer"   2>&1)
 
