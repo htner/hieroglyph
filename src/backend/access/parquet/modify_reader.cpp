@@ -1752,6 +1752,7 @@ bool ModifyParquetReader::exec_insert(std::vector<int> attrs, std::vector<Datum>
                                 &this->cache_data->row_num, &this->cache_data->reveser_num, this->types[column_idx],
                                 row_values[column_idx], is_nulls[column_idx]);
 
+		//elog(PANIC, "parquet insert finish: %s 3", error.c_str());
         }
         this->cache_data->row_num++;
         this->modified = true;

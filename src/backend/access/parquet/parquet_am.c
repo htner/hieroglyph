@@ -16,6 +16,7 @@
 
 #include "access/reloptions.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "catalog/pg_foreign_table.h"
 #include "commands/defrem.h"
 #include "commands/explain.h"
@@ -55,6 +56,10 @@ ParquetBeginScan(Relation relation,
 				 int nkeys, struct ScanKeyData *key,
 				 ParallelTableScanDesc pscan,
 				 uint32 flags);
+
+extern void ParquetInsert(Relation rel, HeapTuple* tuple,
+						  CommandId cid, int options,
+						  struct BulkInsertStateData *bistate, TransactionId xid);
 
 static TableScanDesc
 ParquetBeginScanExtractColumns(Relation rel,
@@ -419,6 +424,23 @@ ParquetScanSampleNextTuple(TableScanDesc scan, SampleScanState *scanstate,
 {
 	return false;
 }
+
+void simple_parquet_insert(Relation relation, HeapTuple tup)
+{
+	ParquetInsert(relation, tup, 0, 0, NULL,
+				0);
+}
+
+void simple_parquet_delete(Relation relation, ItemPointer tid)
+{
+
+}
+
+void simple_parquet_update(Relation relation, ItemPointer otid,
+							   HeapTuple tup)
+{
+
+}
 /*
  * Release resources and deallocate scan. If TableScanDesc.temp_snap,
  * TableScanDesc.rs_snapshot needs to be unregistered.
@@ -489,7 +511,7 @@ static const TableAmRoutine parquet_methods = {
 	.scan_sample_next_tuple = ParquetScanSampleNextTuple
 };
 
-static Datum parquet_tableam_handler(PG_FUNCTION_ARGS)
+Datum parquet_tableam_handler(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_POINTER(&parquet_methods);
 }

@@ -125,12 +125,12 @@ static void check_conn_params(const char **keywords, const char **values,
 static void parquet_fdw_inval_callback(Datum arg, int cacheid,
                                        uint32 hashvalue);
 
-extern "C" void parquet_s3_init() {
+extern void parquet_s3_init() {
   aws_sdk_options = new Aws::SDKOptions();
   Aws::InitAPI(*aws_sdk_options);
 }
 
-extern "C" void parquet_s3_shutdown() {
+extern void parquet_s3_shutdown() {
   Aws::ShutdownAPI(*aws_sdk_options);
   aws_sdk_options = NULL;
 }

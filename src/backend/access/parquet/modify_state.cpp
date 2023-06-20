@@ -35,6 +35,7 @@ extern "C" {
  * @param use_mmap use_mmap option
  * @return ParquetS3FdwModifyState* parquet modify state object
  */
+
 ParquetS3ModifyState *create_parquet_modify_state(
     MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
     TupleDesc tuple_desc, bool use_threads, bool use_mmap) {
@@ -165,7 +166,10 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
     Datum attr_value = 0;
     Oid attr_type;
 ;
-    attr_value = slot_getattr(slot, attnum, &is_null);
+    //attr_value = slot_getattr(slot, attnum, &is_null);
+	is_null = slot->tts_isnull[attnum];
+	attr_value = slot->tts_values[attnum];
+
     attr_type = TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid;
 
     attrs.push_back(attnum - 1);
@@ -177,7 +181,7 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
   if (attrs.size() == 0)
     elog(ERROR, "parquet_s3_fdw: can not find any record for schemaless mode.");
 
-  if (inserter->data_size() > 100 * 1024 * 0124) {
+  if (inserter != nullptr && inserter->data_size() > 100 * 1024 * 0124) {
     inserter->upload(dirname, s3_client);
     uploads.push_back(inserter);
     inserter = nullptr;

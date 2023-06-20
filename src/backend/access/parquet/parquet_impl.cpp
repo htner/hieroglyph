@@ -112,6 +112,8 @@ extern "C" {
 extern bool enable_multifile;
 extern bool enable_multifile_merge;
 
+extern void parquet_s3_init();
+
 static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2);
 static void destroy_parquet_state(void *arg);
 static List *parse_attributes_list(char *start);
@@ -136,7 +138,35 @@ struct RowGroupFilter {
   bool is_column; /* for schemaless actual column `exist` operator */
 };
 
-static ParquetS3ModifyState *fmstate = NULL;
+static std::unordered_map<Oid, ParquetS3ModifyState*> fmstates;
+
+ParquetS3ModifyState*
+GetModifyState(Relation rel) {
+	Oid oid = rel->rd_id;
+	auto it = fmstates.find(oid);
+	if (it != fmstates.end()) {
+		return it->second;
+	}
+	return nullptr;
+}
+
+ParquetS3ModifyState*
+CreateParquetModifyState(Relation rel,
+						 MemoryContext ctx, 
+						 char* dirname, 
+						 Aws::S3::S3Client* s3client,
+						 TupleDesc tuple_desc,
+						 bool use_threads) {
+	Oid oid = rel->rd_id;
+	auto fmstate = GetModifyState(rel);	
+	if (fmstate != NULL) {
+		return fmstate;
+	}
+    fmstate = create_parquet_modify_state(
+        ctx, dirname, s3client, tuple_desc, use_threads, true);
+	fmstates[oid] = fmstate;
+	return fmstate;
+}
 
 static Const *convert_const(Const *c, Oid dst_oid) {
   Oid funcid;
@@ -900,7 +930,12 @@ struct UsedColumnsContext {
 };
 
 static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
-  Aws::S3::S3Client *s3client = s3_client_open("", "", true, "127.0.0.1:9000", "us");
+	static bool init_s3sdk = false;
+	if (!init_s3sdk) {
+		parquet_s3_init();
+		init_s3sdk = true;
+	}
+  Aws::S3::S3Client *s3client = s3_client_open("minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
   return s3client;
 }
 
@@ -1097,7 +1132,6 @@ extern "C" void ParquetDmlInit(Relation rel) {
   MemoryContext temp_cxt;
 
   bool use_threads = true;
-  bool schemaless = true;
   // ListCell lc;
 
   // Oid tableId = RelationGetRelid(rel);
@@ -1118,8 +1152,8 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
-    fmstate = create_parquet_modify_state(
-        temp_cxt, dirname, s3client, tupleDesc, use_threads, true);
+    auto fmstate = CreateParquetModifyState(rel,
+        temp_cxt, dirname, s3client, tupleDesc, use_threads);
 
     fmstate->set_rel_name(RelationGetRelationName(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
@@ -1140,44 +1174,82 @@ extern "C" void ParquetDmlInit(Relation rel) {
    * callback
    */
   callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
-  callback->func = destroy_parquet_modify_state;
-  callback->arg = (void *)fmstate;
+  // callback->func = destroy_parquet_modify_state;
+  // callback->arg = //(void *)fmstate;
   // MemoryContextRegisterResetCallback(estate->es_query_cxt, callback);
 }
 
 extern "C" void ParquetDmlFinish(Relation rel) {
-    if (fmstate != NULL) fmstate->upload();
+	auto fmstate = GetModifyState(rel);	
+	if (fmstate != NULL) {
+		return;
+	}
+    fmstate->upload();
   // ParquetS3FdwModifyState *fmstate = NULL;
 
   // Oid                     foreignTableId = InvalidOid;
   // foreignTableId = RelationGetRelid(rel);
 }
 
+extern "C" void ParquetInsert(Relation rel, HeapTuple* tuple,
+                                   CommandId cid, int options,
+                                   struct BulkInsertStateData *bistate, TransactionId xid) {
+  std::string error;
+  TupleTableSlot *slot;
+  TupleDesc desc;
+  desc = RelationGetDescr(rel);
+  elog(INFO, "parquet insert finish: %s 1", error.c_str());
+  slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
+  //elog(ERROR, "parquet insert finish: %s 2", error.c_str());
+
+   auto fmstate = GetModifyState(rel);	
+
+   if (fmstate == nullptr) {
+	  auto temp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
+									   ALLOCSET_DEFAULT_SIZES);
+	  auto s3client = ParquetGetConnectionByRelation(rel);
+	  fmstate = CreateParquetModifyState(rel,
+			temp_cxt, "base/", s3client, desc, true);
+
+		fmstate->set_rel_name(RelationGetRelationName(rel));
+	
+	}
+
+  try {
+
+	fmstate->exec_insert(slot);
+  elog(PANIC, "parquet insert finish: %s 3", error.c_str());
+    // if (plstate->selector_function_name)
+    //     fmstate->set_user_defined_func(plstate->selector_function_name);
+  } catch (std::exception &e) {
+    error = e.what();
+  }
+  if (!error.empty()) {
+    elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+  }
+
+  elog(ERROR, "parquet insert finish: %s", error.c_str());
+  // return slot;
+}
+
+
+
 extern "C" void ParquetTupleInsert(Relation rel, TupleTableSlot *slot,
                                    CommandId cid, int options,
                                    struct BulkInsertStateData *bistate) {
+
+  auto fmstate = GetModifyState(rel);	
+  if (fmstate != NULL) {
+		return;
+	}
   fmstate->exec_insert(slot);
   // return slot;
 }
 
-/*
- * parquetExecForeignInsert
- *      Insert one row into a foreign table
- */
-extern "C" TupleTableSlot *parquetExecForeignInsert(
-    EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
-    TupleTableSlot *planSlot) {
-  ParquetS3ModifyState *fmstate =
-      (ParquetS3ModifyState *)resultRelInfo->ri_FdwState;
 
-  fmstate->exec_insert(slot);
-
-  return slot;
-}
 
 /*
- * parquetExecForeignUpdate
- *      Update one row in a foreign table
+ *      Update one row
  */
 extern "C" TM_Result 
 ParquetTupleUpdate(Relation rel, ItemPointer otid,
@@ -1186,6 +1258,11 @@ ParquetTupleUpdate(Relation rel, ItemPointer otid,
                                         bool wait, TM_FailureData *tmfd,
                                         LockTupleMode *lockmode,
                                         bool *update_indexes) {
+
+   auto fmstate = GetModifyState(rel);	
+   if (fmstate != NULL) {
+		return TM_Ok;
+	}
   fmstate->exec_delete(otid);                              
   fmstate->exec_insert(slot);
 
@@ -1196,6 +1273,11 @@ extern "C" TM_Result
 ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
 				   Snapshot snapshot, Snapshot crosscheck, bool wait,
 				   TM_FailureData *tmfd, bool changingPart) {
+
+   auto fmstate = GetModifyState(relation);	
+   if (fmstate != NULL) {
+		return TM_Ok;
+	}
 	fmstate->exec_delete(tid);
 	return TM_Ok;
 }
