@@ -11,7 +11,7 @@ template <class TYPE_CLASS>
 // decltype(arrow::TypeTraits<TYPE_CLASS>::CType) { decltype(auto)
 // GetValue(arrow::Array* a, int64_t i) { //}-> decltype(CType) {
 auto GetValue(arrow::Array* a, int64_t i) {  //}-> decltype(CType) {
-  using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
+  // using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
 
   auto array = reinterpret_cast<ArrayType*>(a);
@@ -34,7 +34,7 @@ Datum GetStringToDatum(arrow::Array* a, int64_t i) {
 }
 
 template <class TYPE_CLASS>
-Datum GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i) {
+arrow::Status GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i, Datum* datum) {
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
   auto array = reinterpret_cast<ArrayType*>(a);
   auto view = array->GetView(i);
@@ -47,12 +47,13 @@ Datum GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i) {
 
   char* resultptr = (char*)palloc(len);
   memcpy(resultptr, view.data(), view.size());
-  return PointerGetDatum(resultptr);
+  *datum = PointerGetDatum(resultptr);
+  return arrow::Status::OK();
 }
 
 GetDatumFunc GetGetFixStringToDatumFunc(size_t len) {
-  return std::bind(PutFixedString<FixedSizeBinaryType>, std::placeholders::_1,
-                   len, std::placeholders::_2)
+  return std::bind(GetFixStringToDatum<arrow::FixedSizeBinaryType>, std::placeholders::_1,
+                   len, std::placeholders::_2, std::placeholders::_3);
 }
 
 template <int>
@@ -192,7 +193,6 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
                        Datum* datum) {
   Datum* datums;
   bool* nulls;
-  int count;
 
   arrow::ListArray* list_array = reinterpret_cast<arrow::ListArray*>(a);
   std::shared_ptr<arrow::Array> array = list_array->value_slice(i);
@@ -206,7 +206,10 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
       continue;
     }
     nulls[i] = false;
-    sub_func(array.get(), i, &(datums[i]));
+    auto status = sub_func(array.get(), i, &(datums[i]));
+	if (!status.ok()) {
+		return status;
+	}
   }
 
   ArrayType* t =
@@ -306,12 +309,12 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
 
   /* composite type */
   if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
-    Relation relation;
+    // Relation relation;
     TupleDesc tupdesc;
     std::vector<GetDatumFunc> sub_funcs;
     std::vector<Oid> sub_types;
 
-    relation = relation_open(typrelid, AccessShareLock);
+    // relation = relation_open(typrelid, AccessShareLock);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
       auto sub_data_type = GetFunction(attr);
@@ -348,7 +351,9 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     case NAMEOID:
       assert(typlen == NAMEDATALEN);
       // fallthrougth
-    case CHAROID; return GetGetFixStringToDatumFunc(typlen); default: {
+    case CHAROID: 
+			return GetGetFixStringToDatumFunc(typlen); 
+	default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {

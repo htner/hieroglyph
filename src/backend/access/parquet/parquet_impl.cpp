@@ -1156,7 +1156,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
     auto fmstate = CreateParquetModifyState(rel, temp_cxt, dirname, s3client,
                                             tupleDesc, use_threads);
 
-    fmstate->set_rel_name(RelationGetRelationName(rel));
+    fmstate->SetRelName(RelationGetRelationName(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
       // fmstate->add_file(i, filenames[i].data());
     }
@@ -1212,11 +1212,11 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple *tuple, CommandId cid,
     fmstate =
         CreateParquetModifyState(rel, temp_cxt, "base/", s3client, desc, true);
 
-    fmstate->set_rel_name(RelationGetRelationName(rel));
+    fmstate->SetRelName(RelationGetRelationName(rel));
   }
 
   try {
-    fmstate->exec_insert(slot);
+    fmstate->ExecInsert(slot);
     elog(INFO, "parquet insert finish ok?");
     // if (plstate->selector_function_name)
     //     fmstate->set_user_defined_func(plstate->selector_function_name);
@@ -1238,7 +1238,7 @@ extern "C" void ParquetTupleInsert(Relation rel, TupleTableSlot *slot,
   if (fmstate != NULL) {
     return;
   }
-  fmstate->exec_insert(slot);
+  fmstate->ExecInsert(slot);
   // return slot;
 }
 

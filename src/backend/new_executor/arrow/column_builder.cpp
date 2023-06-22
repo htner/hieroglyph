@@ -32,15 +32,13 @@ arrow::Status PutFixedString(arrow::ArrayBuilder* b, Datum d, size_t len,
   if (isnull) {
     return builder->AppendNull();
   }
-  1
-
-      std::string_view str(DatumGetChar, len);
+  std::string_view str(DatumGetPointer(d), len);
 
   return builder->Append(str);
 }
 
 PutDatumFunc GetPutFixedStringFunc(size_t len) {
-  return std::bind(PutFixedString<FixedSizeBinaryType>, std::placeholders::_1,
+  return std::bind(PutFixedString<arrow::FixedSizeBinaryType>, std::placeholders::_1,
                    std::placeholders::_2, len, std::placeholders::_3);
 }
 
@@ -52,9 +50,7 @@ arrow::Status PutString(arrow::ArrayBuilder* b, Datum d, bool isnull) {
   if (isnull) {
     return builder->AppendNull();
   }
-  1
-
-      int vl_len = VARSIZE_ANY_EXHDR(d);
+  int vl_len = VARSIZE_ANY_EXHDR(d);
   char* vl_ptr = VARDATA_ANY(d);
   std::string_view str(vl_ptr, vl_len);
 
@@ -88,7 +84,7 @@ arrow::Status PutDatum<INT4OID>(arrow::ArrayBuilder* builder, Datum datum,
 template <>
 arrow::Status PutDatum<OIDOID>(arrow::ArrayBuilder* builder, Datum datum,
                                bool isnull) {
-  return PutValue<arrow::Uint32Type>(builder, DatumGetUInt32(datum), isnull);
+  return PutValue<arrow::UInt32Type>(builder, DatumGetUInt32(datum), isnull);
 }
 
 template <>
@@ -205,7 +201,10 @@ arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type,
   deconstruct_array(array, sub_type, -1, false, 'i', &datums, &nulls, &count);
 
   auto builder = reinterpret_cast<arrow::ListBuilder*>(b);
-  builder->Append();
+  auto status = builder->Append();
+  if (!status.ok()) {
+		return status;
+	}
   arrow::ArrayBuilder* value_builder = builder->value_builder();
 
   for (int i = 0; i < count; ++i) {
@@ -402,7 +401,8 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
-          return PutFixString<arrow::FixedSizeBinaryType>;
+          //return PutFixedString<arrow::FixedSizeBinaryType>;
+		  return GetPutFixedStringFunc(typlen);
         } else if (typlen == 2) {
           return PutDatum<INT2OID>;
         } else if (typlen == 4) {

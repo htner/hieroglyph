@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "backend/new_executor/arrow/type_mapping.hpp"
 
 extern "C" {
@@ -23,7 +24,6 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
   const char* tzn = nullptr;
   int scale = 8;      /* default, if typmod == -1 */
   int precision = 30; /* default, if typmod == -1 */
-  int32_t byte_width;
 
   switch (typid) {
     case INT2OID:
@@ -70,7 +70,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
       assert(typlen == NAMEDATALEN);
     // fallthrougth
     case CHAROID:
-      return arrow::fixed_size_binary(typelen);
+      return arrow::fixed_size_binary(typlen);
     default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
@@ -83,7 +83,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
         } else if (typlen == 8) {
           return arrow::int64();
         } else {
-          return arrow::fixed_size_binary(typelen);
+          return arrow::fixed_size_binary(typlen);
         }
         /*
          * MEMO: Unfortunately, we have no portable way to pack user defined
