@@ -21,7 +21,7 @@ SUBDIRS = access bootstrap catalog parser commands executor foreign lib libpq \
 	main nodes optimizer partitioning port postmaster \
 	regex replication rewrite \
 	statistics storage tcop tsearch utils $(top_builddir)/src/timezone \
-	jit $(top_builddir)/proto sdb
+	jit $(top_builddir)/proto sdb new_executor
 
 SUBDIRS += fts cdb
 ifeq ($(enable_orca),yes)

@@ -58,6 +58,7 @@ public:
     Size estimate_coord_size() 
     {
         Assert(false && "estimate_coord_size is not supported for TrivialExecutionStateS3");
+		return 0;
     }
     void init_coord()
     {
@@ -111,7 +112,7 @@ public:
     {
         ReadStatus res;
 
-        if ((res = reader->next(slot, fake)) == RS_SUCCESS)
+        if ((res = reader->Next(slot, fake)) == RS_SUCCESS)
             ExecStoreVirtualTuple(slot);
 
         return res == RS_SUCCESS;
@@ -119,7 +120,7 @@ public:
 
     void rescan(void)
     {
-        reader->rescan();
+        reader->Rescan();
     }
 
     void add_file(const char *filename, List *rowgroups)
@@ -130,15 +131,13 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        reader = create_parquet_reader(filename, cxt);
-        reader->set_options(use_threads, use_mmap);
-        reader->set_rowgroups_list(rg);
+        reader = CreateParquetReader(filename, cxt, tuple_desc);
+        reader->SetOptions(use_threads, use_mmap);
+        reader->SetRowgroupsList(rg);
         if (s3_client)
-            reader->open(dirname, s3_client);
+            reader->Open(dirname, s3_client);
         else
-            reader->open();
-        reader->set_schemaless_info(schemaless, slcols, sorted_cols);
-        reader->create_column_mapping(tuple_desc, attrs_used);
+            reader->Open();
     }
 
     void set_coordinator(ParallelCoordinator *coord)
@@ -146,16 +145,14 @@ public:
         this->coord = coord;
 
         if (reader)
-            reader->set_coordinator(coord);
+            reader->SetCoordinator(coord);
     }
 
-    Size estimate_coord_size()
-    {
+    Size estimate_coord_size() {
         return sizeof(ParallelCoordinator);
     }
 
-    void init_coord()
-    {
+    void init_coord() {
         coord->init_single(NULL, 0);
     }
 };
@@ -202,16 +199,14 @@ private:
         if (cur_reader >= files.size() || cur_reader < 0)
             return NULL;
 
-        r = create_parquet_reader(files[cur_reader].filename.c_str(), cxt, cur_reader);
-        r->set_rowgroups_list(files[cur_reader].rowgroups);
-        r->set_options(use_threads, use_mmap);
-        r->set_coordinator(coord);
+        r = CreateParquetReader(files[cur_reader].filename.c_str(), cxt, tuple_desc, cur_reader);
+        r->SetRowgroupsList(files[cur_reader].rowgroups);
+        r->SetOptions(use_threads, use_mmap);
+        r->SetCoordinator(coord);
         if (s3_client)
-            r->open(dirname, s3_client);
+            r->Open(dirname, s3_client);
         else
-            r->open();
-        r->set_schemaless_info(schemaless, slcols, sorted_cols);
-        r->create_column_mapping(tuple_desc, attrs_used);
+            r->Open();
 
         cur_reader++;
 
@@ -251,7 +246,7 @@ public:
                 return false;
         }
 
-        res = reader->next(slot, fake);
+        res = reader->Next(slot, fake);
 
         /* Finished reading current reader? Proceed to the next one */
         if (unlikely(res != RS_SUCCESS))
@@ -264,7 +259,7 @@ public:
                 reader = this->get_next_reader();
                 if (!reader)
                     return false;
-                res = reader->next(slot, fake);
+                res = reader->Next(slot, fake);
                 if (res == RS_SUCCESS)
                     break;
             }
@@ -284,7 +279,7 @@ public:
 
     void rescan(void)
     {
-        reader->rescan();
+        reader->Rescan();
     }
 
     void add_file(const char *filename, List *rowgroups)
@@ -385,23 +380,8 @@ protected:
              * In schemaless mode, presorted column data available on each reader.
              * TupleTableSlot just have a jsonb column.
              */
-            if (this->schemaless)
-            {
-                auto reader_a = readers[a.reader_id];
-                auto reader_b = readers[b.reader_id];
-                std::vector<ParquetReader::preSortedColumnData> sorted_cols_data_a = reader_a->get_current_sorted_cols_data();
-                std::vector<ParquetReader::preSortedColumnData> sorted_cols_data_b = reader_b->get_current_sorted_cols_data();
-
-                datum1 = sorted_cols_data_a[attno].val;
-                isNull1 = sorted_cols_data_a[attno].is_null;
-                datum2 = sorted_cols_data_b[attno].val;
-                isNull2 = sorted_cols_data_b[attno].is_null;
-            }
-            else
-            {
-                datum1 = slot_getattr(s1, attno, &isNull1);
-                datum2 = slot_getattr(s2, attno, &isNull2);
-            }
+			datum1 = slot_getattr(s1, attno, &isNull1);
+			datum2 = slot_getattr(s2, attno, &isNull2);
 
             compare = ApplySortComparator(datum1, isNull1,
                                           datum2, isNull2,
@@ -417,7 +397,7 @@ protected:
     {
         this->coord = coord;
         for (auto reader : readers)
-            reader->set_coordinator(coord);
+            reader->SetCoordinator(coord);
     }
 
     Size estimate_coord_size()
@@ -430,28 +410,6 @@ protected:
         coord->init_multi(readers.size());
     }
 
-    /*
-     * get_schemaless_sortkeys
-     *      - Get sorkeys list from reader list.
-     *      - The sorkey is create when create column mapping on each reader
-     */
-    void get_schemaless_sortkeys()
-    {
-        this->sort_keys.clear();
-        for (size_t i = 0; i < this->sorted_cols.size(); i++)
-        {
-            /* load sort key from all reader */
-            for (auto reader: readers)
-            {
-                ParquetReader::preSortedColumnData sd = reader->get_current_sorted_cols_data()[i];
-                if (sd.is_available)
-                {
-                    this->sort_keys.push_back(sd.sortkey);
-                    break;
-                }
-            }
-        }
-    }
 };
 
 class MultifileMergeExecutionStateS3 : public MultifileMergeExecutionStateBaseS3
@@ -482,7 +440,7 @@ private:
                 }, "failed to create a TupleTableSlot"
             );
 
-            if (reader->next(rs.slot) == RS_SUCCESS)
+            if (reader->Next(rs.slot) == RS_SUCCESS)
             {
                 ExecStoreVirtualTuple(rs.slot);
                 rs.reader_id = i;
@@ -490,8 +448,6 @@ private:
             }
             ++i;
         }
-        if (this->schemaless)
-            get_schemaless_sortkeys();
         PG_TRY_INLINE({ slots.heapify(); }, "heapify failed");
         slots_initialized = true;
     }
@@ -559,7 +515,7 @@ public:
          * reader then current head is removed from the heap and heap gets
          * reheapified.
          */
-        if (readers[head.reader_id]->next(head.slot) == RS_SUCCESS)
+        if (readers[head.reader_id]->Next(head.slot) == RS_SUCCESS)
         {
             ExecStoreVirtualTuple(head.slot);
             PG_TRY_INLINE({ slots.heapify_head(); }, "heapify failed");
@@ -583,7 +539,7 @@ public:
     {
         /* TODO: clean binheap */
         for (auto reader: readers)
-            reader->rescan();
+            reader->Rescan();
         slots.clear();
         slots_initialized = false;
     }
@@ -598,15 +554,13 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        r = create_parquet_reader(filename, cxt, reader_id);
-        r->set_rowgroups_list(rg);
-        r->set_options(use_threads, use_mmap);
+        r = CreateParquetReader(filename, cxt, tuple_desc, reader_id);
+        r->SetRowgroupsList(rg);
+        r->SetOptions(use_threads, use_mmap);
         if (s3_client)
-            r->open(dirname, s3_client);
+            r->Open(dirname, s3_client);
         else
-            r->open();
-        r->set_schemaless_info(schemaless, slcols, sorted_cols);
-        r->create_column_mapping(tuple_desc, attrs_used);
+            r->Open();
         readers.push_back(r);
     }
 };
@@ -657,10 +611,8 @@ private:
             );
 
             activate_reader(reader);
-            reader->set_schemaless_info(schemaless, slcols, sorted_cols);
-            reader->create_column_mapping(tuple_desc, attrs_used);
 
-            if (reader->next(rs.slot) == RS_SUCCESS)
+            if (reader->Next(rs.slot) == RS_SUCCESS)
             {
                 ExecStoreVirtualTuple(rs.slot);
                 rs.reader_id = i;
@@ -668,8 +620,6 @@ private:
             }
             ++i;
         }
-        if (this->schemaless)
-            get_schemaless_sortkeys();
         PG_TRY_INLINE({ slots.heapify(); }, "heapify failed");
         slots_initialized = true;
     }
@@ -706,7 +656,7 @@ private:
 
             if (idx_min < 0)
                 throw std::runtime_error("failed to find a reader to deactivate");
-            readers[idx_min]->close();
+            //readers[idx_min]->close();
             ts_active[idx_min] = 0;
             num_active_readers--;
         }
@@ -715,9 +665,9 @@ private:
         gettimeofday(&tv, NULL);
         ts_active[reader->id()] = tv.tv_sec*1000LL + tv.tv_usec/1000;
         if (s3_client)
-            reader->open(dirname, s3_client);
+            reader->Open(dirname, s3_client);
         else
-            reader->open();
+            reader->Open();
         num_active_readers++;
 
         return reader;
@@ -789,7 +739,7 @@ public:
          * current head is removed from the heap and heap gets reheapified.
          */
         while (true) {
-            ReadStatus status = readers[head.reader_id]->next(head.slot);
+            ReadStatus status = readers[head.reader_id]->Next(head.slot);
 
             switch(status)
             {
@@ -822,7 +772,7 @@ public:
     {
         /* TODO: clean binheap */
         for (auto reader: readers)
-            reader->rescan();
+            reader->Rescan();
         slots.clear();
         slots_initialized = false;
     }
@@ -837,9 +787,9 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        r = create_parquet_reader(filename, cxt, reader_id, true);
-        r->set_rowgroups_list(rg);
-        r->set_options(use_threads, use_mmap);
+        r = CreateParquetReader(filename, cxt, tuple_desc, reader_id, true);
+        r->SetRowgroupsList(rg);
+        r->SetOptions(use_threads, use_mmap);
         readers.push_back(r);
     }
 

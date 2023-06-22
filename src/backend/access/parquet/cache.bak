@@ -1,0 +1,137 @@
+/*
+class CachingParquetReader : public ParquetReader
+{
+private:
+    std::vector<void *>             column_data;
+    std::vector<std::vector<bool> > column_nulls;
+
+    bool            is_active_;          /* weather reader is active */
+
+    int             row_group_;          /* current row group index */
+    uint32_t        num_rows_;           /* total rows in row group */
+
+public:
+    CachingParquetReader(const char* filename, MemoryContext cxt, int reader_id = -1)
+        : ParquetReader(cxt), is_active_(false), row_group_(-1), num_rows(0)
+    {
+        reader_entry_ = NULL;
+        filename_ = filename;
+        reader_id_ = reader_id;
+        coordinator_ = NULL;
+        initialized_ = false;
+    }
+
+    ~CachingParquetReader() {
+        if (reader_entry_ && reader_)
+            reader_entry_->file_reader->reader = std::move(reader_);
+    }
+
+    void Open(const char *dirname,
+              Aws::S3::S3Client *s3_client) {
+        arrow::Status   status;
+        char *dname;
+        char *fname;
+        parquetSplitS3Path(dirname, filename.c_str(), &dname, &fname);
+        reader_entry_ = parquetGetFileReader(s3_client, dname, fname);
+        elog(DEBUG1, "parquet reader: open Parquet file on S3. %s%s", dname, fname);
+        pfree(dname);
+        pfree(fname);
+
+        reader_ = std::move(reader_entry_->file_reader->reader);
+
+        /* Enable parallel columns decoding/decompression if needed */
+        reader_->set_use_threads(use_threads_ && parquet_fdw_use_threads);
+
+        is_active_ = true;
+    }
+
+    void Open() {
+        arrow::Status   status;
+        std::unique_ptr<parquet::arrow::FileReader> reader;
+
+        status = parquet::arrow::FileReader::Make(
+                        arrow::default_memory_pool(),
+                        parquet::ParquetFileReader::OpenFile(filename_, use_mmap_),
+                        &reader);
+        if (!status.ok())
+            throw Error("cache parquet reader: failed to open Parquet file %s",
+                                 status.message().c_str());
+        reader_ = std::move(reader);
+
+        /* Enable parallel columns decoding/decompression if needed */
+        reader_->set_use_threads(this->use_threads && parquet_fdw_use_threads);
+
+        is_active = true;
+    }
+
+    void Close() {
+        reader_ = nullptr;  /* destroy the reader */
+        is_active_ = false;
+    }
+
+    bool ReadNextRowgroup() {
+        arrow::Status                   status;
+        std::shared_ptr<arrow::Table>   table;
+
+       if (coordinator_) {
+            coordinator_->lock();
+            if ((row_group_ = coordinator_->next_rowgroup(reader_id_)) == -1) {
+                coordinator_->unlock();
+                return false;
+            }
+            coordinator_->unlock();
+        } else {
+            row_group_++;
+		}
+
+        /*
+         * row_group cannot be less than zero at this point so it is safe to cast
+         * it to unsigned int
+         */
+        if ((uint) row_group_ >= row_groups_.size())
+            return false;
+
+        int  rowgroup = row_groups_[row_group_];
+		auto rowgroup_meta = reader_->parquet_reader()
+				->metadata()
+				->RowGroup(rowgroup_);
+
+        status = reader_->RowGroup(rowgroup)
+            ->ReadTable(&table_);
+        if (!status.ok())
+            throw Error("parquet reader: failed to read rowgroup #%i: %s",
+                        rowgroup, status.message().c_str());
+
+        /* Release resources acquired in the previous iteration */
+        allocator_->recycle();
+
+        row_ = 0;
+        return true;
+    }
+
+    ReadStatus Next(TupleTableSlot *slot, bool fake=false) {
+        if (row_ >= num_rows_) {
+            if (!is_active_) {
+                return RS_INACTIVE;
+			}
+            /*
+             * Read next row group. We do it in a loop to skip possibly empty
+             * row groups.
+             */
+            do {
+                if (!ReadNextRowgroup()) {
+                    return RS_EOF;
+				}
+            } while (!num_rows_);
+        }
+        return RS_SUCCESS;
+    }
+
+    void Rescan(void) {
+        row_group_ = -1;
+        row_ = 0;
+        num_rows_ = 0;
+    }
+};
+
+

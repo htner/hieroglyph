@@ -68,6 +68,7 @@ to_postgres_type(int arrow_type)
         case arrow::Type::BOOL:
             return BOOLOID;
         case arrow::Type::INT8:
+			return CHAROID;
         case arrow::Type::INT16:
             return INT2OID;
         case arrow::Type::INT32:
@@ -98,16 +99,19 @@ to_postgres_type(int arrow_type)
  * @return arrow::Type::type mapped arrow type
  */
 arrow::Type::type
-postgres_to_arrow_type(Oid postgres_type)
+postgres_to_arrow_type(Oid postgres_type, int32_t mod, int16_t attlen, bool byval)
 {
     switch (postgres_type)
     {
         case BOOLOID:
             return arrow::Type::BOOL;
+		case CHAROID:
+            return arrow::Type::INT8;
         case INT2OID:
             return arrow::Type::INT16;
         case INT4OID:
             return arrow::Type::INT32;
+		case OIDOID:
         case INT8OID:
             return arrow::Type::INT64;
         case FLOAT4OID:
@@ -125,8 +129,23 @@ postgres_to_arrow_type(Oid postgres_type)
             return arrow::Type::TIMESTAMP;
         case DATEOID:
             return arrow::Type::DATE32;
+		case NAMEOID:
         default:
-            elog(DEBUG3, "parquet_s3_fdw: Does not support create arrow mapping type for type Oid: %d", postgres_type);
+			if (attlen == 1) {
+				return arrow::Type::INT8;
+			} else if (attlen == 2) {
+				return arrow::Type::INT16;
+			} else if (attlen == 4) {
+				return arrow::Type::INT32;
+			} else if (attlen == 8) {
+				return arrow::Type::INT64;
+	 		} else if (attlen == -1 || byval) {
+				return arrow::Type::BINARY;
+			} else if (attlen > 0) {
+				return arrow::Type::FIXED_SIZE_BINARY;
+			}
+
+            elog(PANIC, "parquet_s3_fdw: Does not support create arrow mapping type for type Oid: %d", postgres_type);
             return arrow::Type::NA;
     }
 }

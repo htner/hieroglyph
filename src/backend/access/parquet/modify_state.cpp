@@ -78,39 +78,47 @@ ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
  *
  * @param filename file path
  */
-void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename) {
-  std::shared_ptr<ModifyParquetReader> reader =
-      create_modify_parquet_reader(filename, cxt, file_schema_, false);
+/*
+void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename, 
+									std::shared_ptr<arrow::RecordBatch> recordbatch) {
+  if (file_schema_ == nullptr) {
+    file_schema_ = create_new_file_schema();
+  }
+  std::shared_ptr<ParquetWriter> reader =
+      CreateParquetWriter(filename, tuple_desc, file_schema_);
 
-  reader->open(dirname, s3_client);
-  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
-  reader->set_options(use_threads, use_mmap);
+  reader->Open(dirname, s3_client);
+  // reader->SetRecordBatch(recordbatch);
+  //reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  //reader->set_options(use_threads, use_mmap);
 
   updates[blockid] = reader;
 }
+
+*/
 
 /**
  * @brief add a new parquet file
  *
  * @param filename new file path
  * @param slot tuple table slot data
- * @return ModifyParquetReader* reader to new file
+ * @return ParquetWriter* reader to new file
  */
-std::shared_ptr<ModifyParquetReader> ParquetS3ModifyState::new_inserter(const char *filename,
+std::shared_ptr<ParquetWriter> ParquetS3ModifyState::new_inserter(const char *filename,
                                                         TupleTableSlot *slot) {
   if (file_schema_ == nullptr) {
-    file_schema_ = create_new_file_schema(slot);
+    file_schema_ = create_new_file_schema();
   }
 
-  auto reader = create_modify_parquet_reader(filename, cxt, file_schema_, true);
-  //reader->open(filename, s3_client);
-  reader->set_options(use_threads, use_mmap);
+  auto reader = CreateParquetWriter(filename, tuple_desc, file_schema_);
+  //reader->Open(filename, s3_client);
+  //reader->set_options(use_threads, use_mmap);
 
   /* create temporary file */
-  reader->create_column_mapping(this->tuple_desc, this->target_attrs);
-  reader->create_new_file_temp_cache();
+  //reader->create_column_mapping(this->tuple_desc, this->target_attrs);
+  //reader->create_new_file_temp_cache();
 
-  reader->prepare_upload();
+  reader->PrepareUpload();
 
   return reader;
 }
@@ -132,19 +140,19 @@ bool ParquetS3ModifyState::has_s3_client() {
  */
 void ParquetS3ModifyState::upload() {
   for (auto update : updates) {
-    update.second->upload(dirname, s3_client);
+    update.second->Upload(dirname, s3_client);
     uploads.push_back(update.second);
   }
   updates.clear();
 
   if (inserter != nullptr) {
-    inserter->upload(dirname, s3_client);
+    inserter->Upload(dirname, s3_client);
     uploads.push_back(inserter);
     inserter = nullptr;
   }
 
   for (auto upload : uploads) {
-    upload->commit_upload();
+    upload->CommitUpload();
   }
 }
 
@@ -155,36 +163,8 @@ void ParquetS3ModifyState::upload() {
  * @return true if insert successfully
  */
 bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
-  std::vector<int> attrs;
-  std::vector<Datum> values;
-  std::vector<Oid> types;
-  std::vector<bool> is_nulls;
-  char *user_selects_file = NULL;
-
-  /* get value from slot to corresponding vector */
-  for (int attnum = 0; attnum < slot->tts_tupleDescriptor->natts; ++attnum) {
-
-    bool is_null;
-    Datum attr_value = 0;
-    Oid attr_type;
-;
-    //attr_value = slot_getattr(slot, attnum, &is_null);
-	is_null = slot->tts_isnull[attnum];
-	attr_value = slot->tts_values[attnum];
-
-    attr_type = TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid;
-
-    attrs.push_back(attnum - 1);
-    values.push_back(attr_value);
-    is_nulls.push_back(is_null);
-    types.push_back(attr_type);
-  }
-
-  if (attrs.size() == 0)
-    elog(ERROR, "parquet_s3_fdw: can not find any record for schemaless mode.");
-
-  if (inserter != nullptr && inserter->data_size() > 100 * 1024 * 0124) {
-    inserter->upload(dirname, s3_client);
+  if (inserter != nullptr && inserter->DataSize() > 100 * 1024 * 0124) {
+    inserter->Upload(dirname, s3_client);
     uploads.push_back(inserter);
     inserter = nullptr;
   }
@@ -197,7 +177,7 @@ bool ParquetS3ModifyState::exec_insert(TupleTableSlot *slot) {
     inserter = new_inserter(uuid, slot);
   }
   if (inserter != nullptr) {
-    return inserter->exec_insert(attrs, values, is_nulls);
+    return inserter->ExecInsert(slot);
   }
   return false;
 }
@@ -213,7 +193,7 @@ bool ParquetS3ModifyState::exec_delete(ItemPointer tid) {
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
   auto it = updates.find(block_id);
   if (it != updates.end()) {
-    return it->second->exec_delete(tid->ip_posid);
+    return it->second->ExecDelete(tid->ip_posid);
   }
   return false;
 }
@@ -322,8 +302,7 @@ static void parse_jsonb_column(Datum attr_value,
  * @param slot tuple table slot
  * @return std::shared_ptr<arrow::Schema> new file schema
  */
-std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
-    TupleTableSlot *slot) {
+std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema() {
   arrow::FieldVector fields;
   int natts = this->tuple_desc->natts;
   bool *founds = (bool *)palloc0(sizeof(bool) * natts);
@@ -355,46 +334,15 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
 
     if (att->attisdropped || founds[i] == true) continue;
 
-    type_id = postgres_to_arrow_type(att->atttypid);
-    if (type_id != arrow::Type::NA)
+    type_id = postgres_to_arrow_type(att->atttypid, att->atttypmod, att->attlen, att->attbyval);
+    if (type_id != arrow::Type::NA) {
       fields.push_back(
           arrow::field(att->attname.data, to_primitive_DataType(type_id)));
-    else if (att->atttypid == JSONBOID) {
-      bool att_isnull;
-      Datum *cols;
-      Datum *col_vals;
-      jbvType *col_types;
-      bool *col_isnulls;
-      size_t len;
-      Datum att_val = slot_getattr(slot, att->attnum, &att_isnull);
-
-      if (att_isnull) {
-        /* we has no information for MAP column => use text instead */
-        fields.push_back(arrow::field(
-            att->attname.data, arrow::map(arrow::utf8(), arrow::utf8())));
-      } else {
-        Jsonb *jb = DatumGetJsonbP(att_val);
-
-        parquet_parse_jsonb(&jb->root, &cols, &col_vals, &col_types,
-                            &col_isnulls, &len);
-
-        if (JsonContainerIsObject(&jb->root)) {
-          if (len > 0)
-            fields.push_back(arrow::field(
-                att->attname.data,
-                arrow::map(arrow::utf8(),
-                           jbvType_to_primitive_DataType(col_types[0]))));
-          else
-            /* we has no information for MAP column => use text => text instead
-             */
-            fields.push_back(arrow::field(
-                att->attname.data, arrow::map(arrow::utf8(), arrow::utf8())));
-        } else
-          elog(ERROR,
+	} else if (att->atttypid == JSONBOID) {
+			elog(ERROR,
                "parquet_s3_fdw: can not create parquet mapping type for jsonb "
                "column: %s.",
                att->attname.data);
-      }
     } else {
       Oid elemtyp = get_element_type(att->atttypid);
 	
@@ -404,11 +352,16 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
 	  }
 
       if (elemtyp != InvalidOid) {
-        arrow::Type::type elem_type_id = postgres_to_arrow_type(elemtyp);
+        arrow::Type::type elem_type_id = postgres_to_arrow_type(att->atttypid, att->atttypmod, att->attlen, att->attbyval);
         if (elem_type_id != arrow::Type::NA)
           fields.push_back(
               arrow::field(att->attname.data,
                            arrow::list(to_primitive_DataType(elem_type_id))));
+		else {
+        elog(PANIC,
+             "parquet to arrow type error: type %d , %d",
+             att->atttypid, elemtyp);
+		}
       } else {
         elog(PANIC,
              "parquet_s3_fdw: Can not create parquet mapping type for type "
@@ -417,7 +370,7 @@ std::shared_ptr<arrow::Schema> ParquetS3ModifyState::create_new_file_schema(
       }
     }
   }
-  elog(WARNING, "create_new_file_schem, schema size: %d ", fields.size());
+  elog(WARNING, "create_new_file_schem, schema size: %d, should be(%d natts) ", fields.size(), natts);
 
   return arrow::schema(fields);
 }

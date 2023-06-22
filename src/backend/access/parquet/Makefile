@@ -11,8 +11,8 @@ include $(top_builddir)/src/Makefile.global
 override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS)
 
 OBJS = common.o  exec_state.o  \
-	   modify_reader.o  modify_state.o \
-	   parquet_impl.o  reader.o  slvars.o \
+	   parquet_writer.o  modify_state.o \
+	   parquet_impl.o  parquet_reader.o  slvars.o \
 	   parquet_am.o
 
 SUBDIRS = parquet_s3

@@ -17,7 +17,7 @@
 #include <set>
 #include <vector>
 
-#include "backend/access/parquet/modify_reader.hpp"
+#include "backend/access/parquet/parquet_writer.hpp"
 
 extern "C"
 {
@@ -30,9 +30,9 @@ class ParquetS3ModifyState
 {
 private:
     /* list parquet reader of target files */
-    std::shared_ptr<ModifyParquetReader> inserter;
-    std::map<uint64_t, std::shared_ptr<ModifyParquetReader>> updates;
-    std::list<std::shared_ptr<ModifyParquetReader>> uploads;
+    std::shared_ptr<ParquetWriter> inserter;
+    std::map<uint64_t, std::shared_ptr<ParquetWriter>> updates;
+    std::list<std::shared_ptr<ParquetWriter>> uploads;
     /* memory context of reader */
     MemoryContext       cxt;
     /* target directory name */
@@ -68,9 +68,9 @@ public:
     ~ParquetS3ModifyState();
 
     /* create reader for `filename` and add to list file */
-    void add_file(uint64_t blockid, const char *filename);
+    //void add_file(uint64_t blockid, const char *filename, std);
     /* create new file and its temporary cache data */
-    std::shared_ptr<ModifyParquetReader> new_inserter(const char *filename, TupleTableSlot *slot);
+    std::shared_ptr<ParquetWriter> new_inserter(const char *filename, TupleTableSlot *slot);
     /* execute insert `*slot` to cache data */
     bool exec_insert(TupleTableSlot *slot);
     /* execute update */
@@ -83,7 +83,7 @@ public:
     bool has_s3_client();
 
     /* create schema for new file */
-    std::shared_ptr<arrow::Schema> create_new_file_schema(TupleTableSlot *slot);
+    std::shared_ptr<arrow::Schema> create_new_file_schema();
 
     void set_rel_name(char *name);
 };

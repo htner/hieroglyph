@@ -17,7 +17,7 @@
 #include <list>
 #include <set>
 
-#include "backend/access/parquet/reader.hpp"
+#include "backend/access/parquet/parquet_reader.hpp"
 
 extern "C"
 {

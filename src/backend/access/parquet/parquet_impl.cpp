@@ -29,10 +29,10 @@
 #include "backend/access/parquet/common.hpp"
 #include "backend/access/parquet/exec_state.hpp"
 #include "backend/access/parquet/heap.hpp"
-#include "backend/access/parquet/modify_reader.hpp"
+#include "backend/access/parquet/parquet_reader.hpp"
+#include "backend/access/parquet/parquet_writer.hpp"
 #include "backend/access/parquet/modify_state.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
-#include "backend/access/parquet/reader.hpp"
 #include "backend/access/parquet/slvars.hpp"
 #include "parquet/arrow/reader.h"
 #include "parquet/arrow/schema.h"
@@ -1027,7 +1027,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
         sorted_cols);
 
     for (auto it = filenames.begin(); it != filenames.end(); ++it) {
-      state->add_file(it->data(), NULL);
+      //state->add_file(it->data(), NULL);
     }
   } catch (std::exception &e) {
     error = e.what();
@@ -1158,7 +1158,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
     fmstate->set_rel_name(RelationGetRelationName(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
-      fmstate->add_file(i, filenames[i].data());
+      //fmstate->add_file(i, filenames[i].data());
     }
 
     // if (plstate->selector_function_name)
@@ -1212,14 +1212,14 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple* tuple,
 	  fmstate = CreateParquetModifyState(rel,
 			temp_cxt, "base/", s3client, desc, true);
 
-		fmstate->set_rel_name(RelationGetRelationName(rel));
+	  fmstate->set_rel_name(RelationGetRelationName(rel));
 	
 	}
 
   try {
 
 	fmstate->exec_insert(slot);
-  elog(PANIC, "parquet insert finish: %s 3", error.c_str());
+    elog(INFO, "parquet insert finish ok?");
     // if (plstate->selector_function_name)
     //     fmstate->set_user_defined_func(plstate->selector_function_name);
   } catch (std::exception &e) {
@@ -1229,7 +1229,7 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple* tuple,
     elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
   }
 
-  elog(ERROR, "parquet insert finish: %s", error.c_str());
+  elog(INFO, "parquet insert finish: %s", error.c_str());
   // return slot;
 }
 
