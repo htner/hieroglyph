@@ -1,7 +1,8 @@
-#include <arrow/status.h> 
+#include "backend/new_executor/arrow/column_builder.hpp"
+
+#include <arrow/status.h>
 #include <arrow/type_fwd.h>
 
-#include "backend/new_executor/arrow/column_builder.hpp"
 #include "backend/new_executor/arrow/type_mapping.hpp"
 
 extern "C" {
@@ -10,407 +11,426 @@ extern "C" {
 
 namespace pdb {
 
-template<class TYPE_CLASS, class Value>
-arrow::Status PutValue(arrow::ArrayBuilder* b, Value value, bool isnull) {                     
-    using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
-    using BuilderType = typename arrow::TypeTraits<TYPE_CLASS>::BuilderType;
+template <class TYPE_CLASS, class Value>
+arrow::Status PutValue(arrow::ArrayBuilder* b, Value value, bool isnull) {
+  using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
+  using BuilderType = typename arrow::TypeTraits<TYPE_CLASS>::BuilderType;
 
-    auto builder = reinterpret_cast<BuilderType*>(b);
-	if (isnull) {
-		return builder->AppendNull();
-	}
-    return builder->Append(static_cast<CType>(value));
+  auto builder = reinterpret_cast<BuilderType*>(b);
+  if (isnull) {
+    return builder->AppendNull();
+  }
+  return builder->Append(static_cast<CType>(value));
 }
 
-template<class TYPE_CLASS>
-arrow::Status PutString(arrow::ArrayBuilder* b, Datum d, bool isnull) {                     
-    using BuilderType = typename arrow::TypeTraits<TYPE_CLASS>::BuilderType;
+template <class TYPE_CLASS>
+arrow::Status PutFixedString(arrow::ArrayBuilder* b, Datum d, size_t len,
+                             bool isnull) {
+  using BuilderType = typename arrow::TypeTraits<TYPE_CLASS>::BuilderType;
 
-    auto builder = reinterpret_cast<BuilderType*>(b);
-	if (isnull) {
-		return builder->AppendNull();
-	}
+  auto builder = reinterpret_cast<BuilderType*>(b);
+  if (isnull) {
+    return builder->AppendNull();
+  }
+  1
 
-	int		vl_len = VARSIZE_ANY_EXHDR(d);
-	char   *vl_ptr = VARDATA_ANY(d);
-	std::string_view str(vl_ptr, vl_len);
+      std::string_view str(DatumGetChar, len);
 
-    return builder->Append(str);
+  return builder->Append(str);
+}
+
+PutDatumFunc GetPutFixedStringFunc(size_t len) {
+  return std::bind(PutFixedString<FixedSizeBinaryType>, std::placeholders::_1,
+                   std::placeholders::_2, len, std::placeholders::_3);
+}
+
+template <class TYPE_CLASS>
+arrow::Status PutString(arrow::ArrayBuilder* b, Datum d, bool isnull) {
+  using BuilderType = typename arrow::TypeTraits<TYPE_CLASS>::BuilderType;
+
+  auto builder = reinterpret_cast<BuilderType*>(b);
+  if (isnull) {
+    return builder->AppendNull();
+  }
+  1
+
+      int vl_len = VARSIZE_ANY_EXHDR(d);
+  char* vl_ptr = VARDATA_ANY(d);
+  std::string_view str(vl_ptr, vl_len);
+
+  return builder->Append(str);
 }
 
 /*
 template<INT1OID>
 arrow::Status PutDatum(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Int8Type>(builder, DatumGetInt8(datum), isnull);
+        return PutValue<arrow::Int8Type>(builder, DatumGetInt8(datum), isnull);
 }
 */
 
-template<int>
+template <int>
 arrow::Status PutDatum(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return arrow::Status::OK();
+  return arrow::Status::OK();
 }
 
-template<>
-arrow::Status PutDatum<INT2OID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Int16Type>(builder, DatumGetInt16(datum), isnull);
+template <>
+arrow::Status PutDatum<INT2OID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::Int16Type>(builder, DatumGetInt16(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<INT4OID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Int32Type>(builder, DatumGetInt32(datum), isnull);
+template <>
+arrow::Status PutDatum<INT4OID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::Int32Type>(builder, DatumGetInt32(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<INT8OID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Int64Type>(builder, DatumGetInt64(datum), isnull);
+template <>
+arrow::Status PutDatum<OIDOID>(arrow::ArrayBuilder* builder, Datum datum,
+                               bool isnull) {
+  return PutValue<arrow::Uint32Type>(builder, DatumGetUInt32(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<FLOAT4OID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::FloatType>(builder, DatumGetFloat4(datum), isnull);
+template <>
+arrow::Status PutDatum<INT8OID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::Int64Type>(builder, DatumGetInt64(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<FLOAT8OID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::DoubleType>(builder, DatumGetFloat8(datum), isnull);
+template <>
+arrow::Status PutDatum<FLOAT4OID>(arrow::ArrayBuilder* builder, Datum datum,
+                                  bool isnull) {
+  return PutValue<arrow::FloatType>(builder, DatumGetFloat4(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<BOOLOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::BooleanType>(builder, DatumGetBool(datum), isnull);
+template <>
+arrow::Status PutDatum<FLOAT8OID>(arrow::ArrayBuilder* builder, Datum datum,
+                                  bool isnull) {
+  return PutValue<arrow::DoubleType>(builder, DatumGetFloat8(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<CHAROID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::FixedSizeBinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<BOOLOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::BooleanType>(builder, DatumGetBool(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<NAMEOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::FixedSizeBinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<BPCHAROID>(arrow::ArrayBuilder* builder, Datum datum,
+                                  bool isnull) {
+  return PutString<arrow::BinaryType>(builder, datum, isnull);
 }
 
-template<>
-arrow::Status PutDatum<BPCHAROID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::BinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<VARCHAROID>(arrow::ArrayBuilder* builder, Datum datum,
+                                   bool isnull) {
+  return PutString<arrow::BinaryType>(builder, datum, isnull);
 }
 
-template<>
-arrow::Status PutDatum<VARCHAROID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::BinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<BYTEAOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                 bool isnull) {
+  return PutString<arrow::BinaryType>(builder, datum, isnull);
 }
 
-template<>
-arrow::Status PutDatum<BYTEAOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::BinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<TEXTOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutString<arrow::BinaryType>(builder, datum, isnull);
 }
 
-template<>
-arrow::Status PutDatum<TEXTOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutString<arrow::BinaryType>(builder, datum, isnull);
+template <>
+arrow::Status PutDatum<TIMEOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::Time64Type>(builder, DatumGetTimeADT(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<TIMEOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Time64Type>(builder, DatumGetTimeADT(datum), isnull);
+template <>
+arrow::Status PutDatum<TIMESTAMPOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                     bool isnull) {
+  return PutValue<arrow::Time64Type>(builder, DatumGetTimestamp(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<TIMESTAMPOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Time64Type>(builder, DatumGetTimestamp(datum), isnull);
+template <>
+arrow::Status PutDatum<TIMESTAMPTZOID>(arrow::ArrayBuilder* builder,
+                                       Datum datum, bool isnull) {
+  return PutValue<arrow::Time64Type>(builder, DatumGetTimestampTz(datum),
+                                     isnull);
 }
 
-template<>
-arrow::Status PutDatum<TIMESTAMPTZOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Time64Type>(builder, DatumGetTimestampTz(datum), isnull);
+template <>
+arrow::Status PutDatum<DATEOID>(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::Time32Type>(builder, DatumGetDateADT(datum), isnull);
 }
 
-template<>
-arrow::Status PutDatum<DATEOID>(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
-	return PutValue<arrow::Time32Type>(builder, DatumGetDateADT(datum), isnull);
+template <>
+arrow::Status PutDatum<TIMETZOID>(arrow::ArrayBuilder* b, Datum datum,
+                                  bool isnull) {
+  using c_type = typename arrow::Time32Type::c_type;
+  TimeTzADT* timetz = DatumGetTimeTzADTP(datum);
+  auto builder = reinterpret_cast<arrow::Time32Builder*>(b);
+  auto t = (timetz->time + (timetz->zone * 1000000.0));
+  return builder->Append(static_cast<c_type>(t));
 }
 
-template<>
-arrow::Status PutDatum<TIMETZOID>(arrow::ArrayBuilder* b, Datum datum, bool isnull) {
-	using c_type = typename arrow::Time32Type::c_type;
-	TimeTzADT *timetz = DatumGetTimeTzADTP(datum);
-	auto builder = reinterpret_cast<arrow::Time32Builder*>(b);
-	auto t = (timetz->time + (timetz->zone * 1000000.0));
-	return builder->Append(static_cast<c_type>(t));
+template <>
+arrow::Status PutDatum<NUMERICOID>(arrow::ArrayBuilder* b, Datum datum,
+                                   bool isnull) {
+  char* tmp;
+  tmp =
+      DatumGetCString(DirectFunctionCall1(numeric_out, NumericGetDatum(datum)));
+  auto value = arrow::Decimal128::FromString(tmp);
+  arrow::Decimal128 number = value.ValueOrDie();
+
+  auto builder = reinterpret_cast<arrow::DecimalBuilder*>(b);
+  //
+  auto st = builder->Append(number);
+  pfree(tmp);
+  return st;
 }
 
-template<>
-arrow::Status PutDatum<NUMERICOID>(arrow::ArrayBuilder* b, Datum datum, bool isnull) {
-	char* tmp;
-	tmp = DatumGetCString(DirectFunctionCall1(numeric_out,
-											  NumericGetDatum(datum)));
-	auto value = arrow::Decimal128::FromString(tmp);	
-	arrow::Decimal128 number = value.ValueOrDie();	
+arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type,
+                       arrow::ArrayBuilder* b, Datum datum, bool isnull) {
+  if (isnull) {
+    return b->AppendNull();
+  }
 
-	auto builder = reinterpret_cast<arrow::DecimalBuilder*>(b);
-	//  
-	auto st = builder->Append(number);
-	pfree(tmp);
-	return st;
+  Datum* datums;
+  bool* nulls;
+  int count;
+
+  ArrayType* array = (ArrayType*)DatumGetPointer(datum);
+
+  deconstruct_array(array, sub_type, -1, false, 'i', &datums, &nulls, &count);
+
+  auto builder = reinterpret_cast<arrow::ListBuilder*>(b);
+  builder->Append();
+  arrow::ArrayBuilder* value_builder = builder->value_builder();
+
+  for (int i = 0; i < count; ++i) {
+    sub_func(value_builder, datums[i], nulls[i]);
+  }
+  return arrow::Status::OK();
 }
 
-arrow::Status PutArray(PutDatumFunc sub_func, 
-					   Oid sub_type, 
-					   arrow::ArrayBuilder* b, 
-					   Datum datum, 
-					   bool isnull) {
+arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs,
+                        std::vector<Oid> sub_types, arrow::ArrayBuilder* b,
+                        Datum d, bool isnull) {
+  if (isnull) {
+    return b->AppendNull();
+  }
 
-	if (isnull) {
-		return b->AppendNull();
-	}
+  int vl_len = VARSIZE_ANY_EXHDR(d);
+  char* vl_ptr = VARDATA_ANY(d);
+  std::string str(vl_ptr, vl_len);
 
-	Datum	   *datums;
-	bool	   *nulls;
-	int			count;
-
-	ArrayType* array = (ArrayType *)DatumGetPointer(datum);
-
-	deconstruct_array(array,
-					sub_type, -1, false, 'i',
-					&datums, &nulls, &count);
-
-	auto builder = reinterpret_cast<arrow::ListBuilder*>(b);
-    builder->Append();
-	arrow::ArrayBuilder* value_builder = builder->value_builder();
-
-	for (int i = 0; i < count; ++i)
-	{
-		sub_func(value_builder, datums[i], nulls[i]);
-	}
-	return arrow::Status::OK();
+  auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
+  // return builder->Append(str);
+  return arrow::Status::OK();
 }
 
-arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs, 
-						std::vector<Oid> sub_types,
-						arrow::ArrayBuilder* b, 
-						Datum d,
-						bool isnull) {                     
-	if (isnull) {
-		return b->AppendNull();
-	}
-
-	int		vl_len = VARSIZE_ANY_EXHDR(d);
-	char   *vl_ptr = VARDATA_ANY(d);
-	std::string str(vl_ptr, vl_len);
-
-    auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
-    //return builder->Append(str);
-	return arrow::Status::OK();
-}
-
-#define CASE_APPEND_TIMETZ(PG_TYPE, TYPE_CLASS, datum)                    \
-case PG_TYPE: {															  \
-    using c_type = typename TYPE_CLASS##Type::c_type;                     \
-	TimeTzADT *timetz = DatumGetTimeTzADTP;						          \
-	auto builder = reinterpret_cast<TYPE_CLASS##Builder*>(builder_);      \
-	auto t = (timetz->time + (timetz->zone * 1000000.0));                 \
+#define CASE_APPEND_TIMETZ(PG_TYPE, TYPE_CLASS, datum)               \
+  case PG_TYPE: {                                                    \
+    using c_type = typename TYPE_CLASS##Type::c_type;                \
+    TimeTzADT* timetz = DatumGetTimeTzADTP;                          \
+    auto builder = reinterpret_cast<TYPE_CLASS##Builder*>(builder_); \
+    auto t = (timetz->time + (timetz->zone * 1000000.0));            \
     ARROW_RETURN_NOT_OK(builder->Append(static_cast<c_type>(t));		  \
-    break;																  \
-}
+    break;                                                           \
+  }
 
 ColumnBuilder::ColumnBuilder(Form_pg_attribute attr) {
-	auto typid = attr->atttypid;
-	auto typmod = attr->atttypmod;
+  auto typid = attr->atttypid;
+  auto typmod = attr->atttypmod;
 
-	HeapTuple tup;
-	Form_pg_type elem_type;
+  HeapTuple tup;
+  Form_pg_type elem_type;
 
-	/* walk down to the base type */
-	for (;;) {
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
-		if (!HeapTupleIsValid(tup)) {
-			// TODO failure 
-	 		elog(PANIC, "cache lookup failed for type: %u", typid);
-			return;
-		}
-		elem_type = (Form_pg_type) GETSTRUCT(tup);
-		if (elem_type->oid == 0) {
-			break;
-		}
-		if (elem_type->typtype != TYPTYPE_DOMAIN) {
-			break;
-		}
-		typid = elem_type->typbasetype;
-		typmod = elem_type->typtypmod;
-		ReleaseSysCache(tup);
-	}
-	put_value_func_ = GetPutValueFunction(typid, elem_type->typlen, 
-									   elem_type->typtype, 
-									   typmod, 
-									   elem_type->typelem,
-									   elem_type->typrelid);
+  /* walk down to the base type */
+  for (;;) {
+    tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+    if (!HeapTupleIsValid(tup)) {
+      // TODO failure
+      elog(PANIC, "cache lookup failed for type: %u", typid);
+      return;
+    }
+    elem_type = (Form_pg_type)GETSTRUCT(tup);
+    if (elem_type->oid == 0) {
+      break;
+    }
+    if (elem_type->typtype != TYPTYPE_DOMAIN) {
+      break;
+    }
+    typid = elem_type->typbasetype;
+    typmod = elem_type->typtypmod;
+    ReleaseSysCache(tup);
+  }
+  put_value_func_ =
+      GetPutValueFunction(typid, elem_type->typlen, elem_type->typtype, typmod,
+                          elem_type->typelem, elem_type->typrelid);
 
-	arrow_type_ = TypeMapping::GetDataType(attr); 
+  arrow_type_ = TypeMapping::GetDataType(attr);
 
-	auto status = MakeBuilder(arrow::default_memory_pool(), arrow_type_, &array_builder_);
-	assert(status.ok());
-	assert(array_builder_ != nullptr);
+  auto status =
+      MakeBuilder(arrow::default_memory_pool(), arrow_type_, &array_builder_);
+  assert(status.ok());
+  assert(array_builder_ != nullptr);
 }
-	
 
 #define CASE_RETURN_PUSH_VALUE_FUNC(oid) \
-case oid:							  \
-	return PutDatum<oid>;	
+  case oid:                              \
+    return PutDatum<oid>;
 
 PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
-
-	auto atttypid = attr->atttypid;
-	auto atttypmod = attr->atttypmod;
-	HeapTuple tup;
-	Form_pg_type elem_type;
-	/* walk down to the base type */
-	for (;;) {
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
-		// elog(ERROR, "cache lookup failed for type: %u", atttypid);
-		if (!HeapTupleIsValid(tup)) {
-			return nullptr;
-		}
-		elem_type = (Form_pg_type) GETSTRUCT(tup);
-		atttypid = elem_type->typbasetype;
-		atttypmod = elem_type->typtypmod;
-		//typtype = elem_type->typtype;
-		ReleaseSysCache(tup);
-	}
-	return GetPutValueFunction(atttypid,
-						   elem_type->typlen,
-						   elem_type->typtype,
-						   atttypmod,
-						   elem_type->typelem,
-						   elem_type->typrelid);
+  auto atttypid = attr->atttypid;
+  auto atttypmod = attr->atttypmod;
+  HeapTuple tup;
+  Form_pg_type elem_type;
+  /* walk down to the base type */
+  for (;;) {
+    tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
+    // elog(ERROR, "cache lookup failed for type: %u", atttypid);
+    if (!HeapTupleIsValid(tup)) {
+      return nullptr;
+    }
+    elem_type = (Form_pg_type)GETSTRUCT(tup);
+    atttypid = elem_type->typbasetype;
+    atttypmod = elem_type->typtypmod;
+    // typtype = elem_type->typtype;
+    ReleaseSysCache(tup);
+  }
+  return GetPutValueFunction(atttypid, elem_type->typlen, elem_type->typtype,
+                             atttypmod, elem_type->typelem,
+                             elem_type->typrelid);
 }
 
 PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
-	HeapTuple tup;
-	Form_pg_type elem_type;
-/* walk down to the base type */
-	for (;;) {
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
-		// elog(ERROR, "cache lookup failed for type: %u", atttypid);
-		if (!HeapTupleIsValid(tup)) {
-			return nullptr;
-		}
-		elem_type = (Form_pg_type) GETSTRUCT(tup);
-		typid = elem_type->typbasetype;
-		//atttypmod_ = elem_type->typtypmod;
-		///typid = elem_type->typtype;
-		ReleaseSysCache(tup);
-	}
-	return GetPutValueFunction(typid, elem_type->typlen, elem_type->typtype, 
-						elem_type->typtypmod, elem_type->typelem, elem_type->typrelid);
+  HeapTuple tup;
+  Form_pg_type elem_type;
+  /* walk down to the base type */
+  for (;;) {
+    tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+    // elog(ERROR, "cache lookup failed for type: %u", atttypid);
+    if (!HeapTupleIsValid(tup)) {
+      return nullptr;
+    }
+    elem_type = (Form_pg_type)GETSTRUCT(tup);
+    typid = elem_type->typbasetype;
+    // atttypmod_ = elem_type->typtypmod;
+    /// typid = elem_type->typtype;
+    ReleaseSysCache(tup);
+  }
+  return GetPutValueFunction(typid, elem_type->typlen, elem_type->typtype,
+                             elem_type->typtypmod, elem_type->typelem,
+                             elem_type->typrelid);
 }
 
-PutDatumFunc 
-ColumnBuilder::GetPutValueFunction(Oid typid,
-								   int typlen,
-								   char typtype, 
-								   int32_t typmod,
-								   Oid typelem,
-								   Oid typrelid) {
+PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
+                                                char typtype, int32_t typmod,
+                                                Oid typelem, Oid typrelid) {
+  /*
+  HeapTuple tup;
+  Form_gp_type elem_type;
 
-	/*
-	HeapTuple tup;
-	Form_gp_type elem_type;
+  for (;;) {
+          tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
+                  // elog(ERROR, "cache lookup failed for type: %u", atttypid);
+          if (!HeapTupleIsValid(tup)) {TYPTYPE_COMPOSITE
+                  return nullptr;
+          }
+          elem_type = (Form_pg_type) GETSTRUCT(tup);
+          atttypid_ = elem_type->typbasetype;
+          atttypmod_ = elem_type->typtypmod;
+          typtype_ = elem_type->typtype;
+          ReleaseSysCache(tup);
+  }
+  */
+  /* array type */
+  if (typelem != 0 && typlen == -1) {
+    auto sub_func = GetPutValueFunction(typelem);
+    if (sub_func == nullptr) {
+      return nullptr;
+    }
+    return std::bind(PutArray, sub_func, typelem, std::placeholders::_1,
+                     std::placeholders::_2, std::placeholders::_3);
+  }
 
-	for (;;) {
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
-	 		// elog(ERROR, "cache lookup failed for type: %u", atttypid);
-		if (!HeapTupleIsValid(tup)) {TYPTYPE_COMPOSITE
-			return nullptr;
-		}
-		elem_type = (Form_pg_type) GETSTRUCT(tup);
-		atttypid_ = elem_type->typbasetype;
-		atttypmod_ = elem_type->typtypmod;
-		typtype_ = elem_type->typtype;
-		ReleaseSysCache(tup);
-	}
-	*/
-	/* array type */
-	if (typelem != 0 && typlen == -1) {
-		auto sub_func = GetPutValueFunction(typelem);
-		if (sub_func == nullptr) {
-			return nullptr;
-		}
-		return std::bind(PutArray, 
-						sub_func,
-						typelem, 
-						std::placeholders::_1, 
-						std::placeholders::_2, 
-						std::placeholders::_3); 
-	 }
+  /* composite type */
+  if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
+    Relation relation;
+    TupleDesc tupdesc;
+    std::vector<PutDatumFunc> sub_funcs;
+    std::vector<Oid> sub_types;
 
-	/* composite type */
-	if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
-		Relation	relation;
-		TupleDesc	tupdesc;
-		std::vector<PutDatumFunc> sub_funcs;
-		std::vector<Oid> sub_types;
+    relation = relation_open(typrelid, AccessShareLock);
+    for (int i = 0; i < tupdesc->natts; i++) {
+      Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
+      auto sub_typeid = attr->atttypid;
+      auto sub_func = GetPutValueFunction(sub_typeid);
+      sub_funcs.push_back(sub_func);
+      sub_types.push_back(sub_typeid);
+    }
+    return std::bind(PutStruct, sub_funcs, sub_types, std::placeholders::_1,
+                     std::placeholders::_2, std::placeholders::_3);
+  }
 
-		relation = relation_open(typrelid, AccessShareLock);
-		for (int i = 0; i < tupdesc->natts; i++) {
-			Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
-			auto sub_typeid = attr->atttypid;
-			auto sub_func = GetPutValueFunction(sub_typeid);
-			sub_funcs.push_back(sub_func);
-			sub_types.push_back(sub_typeid);
-		}
-		return std::bind(PutStruct, sub_funcs, sub_types, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-	}
-
-	switch (typid) {
-		CASE_RETURN_PUSH_VALUE_FUNC(INT2OID);
-		CASE_RETURN_PUSH_VALUE_FUNC(INT4OID);
-		CASE_RETURN_PUSH_VALUE_FUNC(INT8OID);
-		CASE_RETURN_PUSH_VALUE_FUNC(FLOAT8OID);
-		CASE_RETURN_PUSH_VALUE_FUNC(FLOAT4OID);
-		CASE_RETURN_PUSH_VALUE_FUNC(BOOLOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(CHAROID)
-		CASE_RETURN_PUSH_VALUE_FUNC(BPCHAROID);
-		CASE_RETURN_PUSH_VALUE_FUNC(VARCHAROID);
-		CASE_RETURN_PUSH_VALUE_FUNC(BYTEAOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(TEXTOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(TIMEOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(TIMESTAMPOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(TIMESTAMPTZOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(DATEOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(TIMETZOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(NUMERICOID);
-		CASE_RETURN_PUSH_VALUE_FUNC(NAMEOID);
-		default: {
-			/* elsewhere, we save the values just bunch of binary data */
-			if (typlen > 0) {
-				if (typlen == 1) {
-					return PutString<arrow::FixedSizeBinaryType>;
-				} else if (typlen == 2) {
-					return PutDatum<INT2OID>;
-				} else if (typlen == 4) {
-					return PutDatum<INT4OID>;
-				} else if (typlen == 8) {
-					return PutDatum<INT8OID>;
-				}
-				/*
-				* MEMO: Unfortunately, we have no portable way to pack user defined
-				* fixed-length binary data types, because their 'send' handler often
-				* manipulate its internal data representation.
-				* Please check box_send() for example. It sends four float8 (which
-				* is reordered to bit-endien) values in 32bytes. We cannot understand
-				* its binary format without proper knowledge.
-				*/
-			} else if (typlen == -1) {
-				return PutDatum<TEXTOID>;
-			}
-			//Elog("PostgreSQL type: '%s' is not supported", typname);
-		}
-	}
-	return nullptr;
+  switch (typid) {
+    CASE_RETURN_PUSH_VALUE_FUNC(INT2OID);
+    CASE_RETURN_PUSH_VALUE_FUNC(INT4OID);
+    CASE_RETURN_PUSH_VALUE_FUNC(OIDOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(INT8OID);
+    CASE_RETURN_PUSH_VALUE_FUNC(FLOAT8OID);
+    CASE_RETURN_PUSH_VALUE_FUNC(FLOAT4OID);
+    CASE_RETURN_PUSH_VALUE_FUNC(BOOLOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(BPCHAROID);
+    CASE_RETURN_PUSH_VALUE_FUNC(VARCHAROID);
+    CASE_RETURN_PUSH_VALUE_FUNC(BYTEAOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(TEXTOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(TIMEOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(TIMESTAMPOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(TIMESTAMPTZOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(DATEOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(TIMETZOID);
+    CASE_RETURN_PUSH_VALUE_FUNC(NUMERICOID);
+    case NAMEOID:
+      assert(typlen == NAMEDATALEN);
+      // fallthrougth
+    case CHAROID:
+      return GetPutFixedStringFunc(typlen);
+    default: {
+      /* elsewhere, we save the values just bunch of binary data */
+      if (typlen > 0) {
+        if (typlen == 1) {
+          return PutFixString<arrow::FixedSizeBinaryType>;
+        } else if (typlen == 2) {
+          return PutDatum<INT2OID>;
+        } else if (typlen == 4) {
+          return PutDatum<INT4OID>;
+        } else if (typlen == 8) {
+          return PutDatum<INT8OID>;
+        }
+        /*
+         * MEMO: Unfortunately, we have no portable way to pack user defined
+         * fixed-length binary data types, because their 'send' handler often
+         * manipulate its internal data representation.
+         * Please check box_send() for example. It sends four float8 (which
+         * is reordered to bit-endien) values in 32bytes. We cannot understand
+         * its binary format without proper knowledge.
+         */
+      } else if (typlen > 0) {
+        return GetPutFixedStringFunc(typlen);
+      } else if (typlen == -1) {
+        return PutDatum<TEXTOID>;
+      }
+      // Elog("PostgreSQL type: '%s' is not supported", typname);
+    }
+  }
+  return nullptr;
 }
 
 arrow::ArrayBuilder* ColumnBuilder::GetArrayBuilder() {
-	return array_builder_.get();
+  return array_builder_.get();
 }
 
-}
+}  // namespace pdb

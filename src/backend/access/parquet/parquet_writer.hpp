@@ -18,8 +18,8 @@
 #include <parquet/arrow/reader.h>
 
 #include "backend/access/parquet/common.hpp"
-#include "backend/new_executor/arrow/recordbatch_builder.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
+#include "backend/new_executor/arrow/recordbatch_builder.hpp"
 
 /*
  * ParquetWriter
@@ -28,31 +28,26 @@
  *      - Create new file from given file schema
  */
 enum Lake2PCState {
-    LAKE2PC_NULL = 0,
-    LAKE2PC_PREPARE = 1,
-    LAKE2PC_COMMIT_WRITE = 2,
+  LAKE2PC_NULL = 0,
+  LAKE2PC_PREPARE = 1,
+  LAKE2PC_COMMIT_WRITE = 2,
 };
 
 class ParquetWriter {
  private:
-  
   /* remove row in idx in cache data */
   void RemoveRow(size_t idx);
-  
-  public:
-  ParquetWriter(const char *filename,
-                TupleDesc tuple_desc,
+
+ public:
+  ParquetWriter(const char *filename, TupleDesc tuple_desc,
                 std::shared_ptr<arrow::Schema> schema = nullptr);
 
   ~ParquetWriter();
 
-
-  size_t DataSize() {
-      return data_size_;
-  }
+  size_t DataSize() { return data_size_; }
 
   /* execute insert a postgres slot */
-  bool ExecInsert(TupleTableSlot* slot);
+  bool ExecInsert(TupleTableSlot *slot);
 
   /* delete a record by key column values */
   bool ExecDelete(size_t pos);
@@ -63,13 +58,12 @@ class ParquetWriter {
   void PrepareUpload();
   void CommitUpload() {}
 
-  void ParquetWriteFile(const char *dirname,
-									   Aws::S3::S3Client *s3_client,
-									const arrow::Table &table);
+  void ParquetWriteFile(const char *dirname, Aws::S3::S3Client *s3_client,
+                        const arrow::Table &table);
 
   void SetBatch(std::shared_ptr<arrow::RecordBatch> batch);
-private:
 
+ private:
   /* column num */
   size_t column_num_;
   size_t data_size_;
@@ -87,11 +81,8 @@ private:
   std::shared_ptr<pdb::RecordBatchBuilder> builder_;
 
   Lake2PCState lake_2pc_state_;
-
-
 };
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
-    const char *filename,
-    TupleDesc tuple_desc,
+    const char *filename, TupleDesc tuple_desc,
     std::shared_ptr<arrow::Schema> schema = nullptr);

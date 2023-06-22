@@ -29,10 +29,10 @@
 #include "backend/access/parquet/common.hpp"
 #include "backend/access/parquet/exec_state.hpp"
 #include "backend/access/parquet/heap.hpp"
-#include "backend/access/parquet/parquet_reader.hpp"
-#include "backend/access/parquet/parquet_writer.hpp"
 #include "backend/access/parquet/modify_state.hpp"
+#include "backend/access/parquet/parquet_reader.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
+#include "backend/access/parquet/parquet_writer.hpp"
 #include "backend/access/parquet/slvars.hpp"
 #include "parquet/arrow/reader.h"
 #include "parquet/arrow/schema.h"
@@ -138,35 +138,32 @@ struct RowGroupFilter {
   bool is_column; /* for schemaless actual column `exist` operator */
 };
 
-static std::unordered_map<Oid, ParquetS3ModifyState*> fmstates;
+static std::unordered_map<Oid, ParquetS3ModifyState *> fmstates;
 
-ParquetS3ModifyState*
-GetModifyState(Relation rel) {
-	Oid oid = rel->rd_id;
-	auto it = fmstates.find(oid);
-	if (it != fmstates.end()) {
-		return it->second;
-	}
-	return nullptr;
+ParquetS3ModifyState *GetModifyState(Relation rel) {
+  Oid oid = rel->rd_id;
+  auto it = fmstates.find(oid);
+  if (it != fmstates.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
 
-ParquetS3ModifyState*
-CreateParquetModifyState(Relation rel,
-						 MemoryContext ctx, 
-						 char* dirname, 
-						 Aws::S3::S3Client* s3client,
-						 TupleDesc tuple_desc,
-						 bool use_threads) {
-	Oid oid = rel->rd_id;
-	auto fmstate = GetModifyState(rel);	
-	if (fmstate != NULL) {
-		return fmstate;
-	}
-	std::set<int> attrs;
-    fmstate = create_parquet_modify_state(
-        ctx, dirname, s3client, tuple_desc, attrs, use_threads, true);
-	fmstates[oid] = fmstate;
-	return fmstate;
+ParquetS3ModifyState *CreateParquetModifyState(Relation rel, MemoryContext ctx,
+                                               char *dirname,
+                                               Aws::S3::S3Client *s3client,
+                                               TupleDesc tuple_desc,
+                                               bool use_threads) {
+  Oid oid = rel->rd_id;
+  auto fmstate = GetModifyState(rel);
+  if (fmstate != NULL) {
+    return fmstate;
+  }
+  std::set<int> attrs;
+  fmstate = create_parquet_modify_state(ctx, dirname, s3client, tuple_desc,
+                                        attrs, use_threads, true);
+  fmstates[oid] = fmstate;
+  return fmstate;
 }
 
 static Const *convert_const(Const *c, Oid dst_oid) {
@@ -384,8 +381,9 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
     }
 
     if (!status.ok())
-      throw Error("parquet_impl extract_rowgroups_list: failed to open Parquet file %s",
-                  status.message().c_str());
+      throw Error(
+          "parquet_impl extract_rowgroups_list: failed to open Parquet file %s",
+          status.message().c_str());
 
     auto meta = reader->parquet_reader()->metadata();
     parquet::ArrowReaderProperties props;
@@ -577,8 +575,9 @@ List *extract_parquet_fields(const char *path, const char *dirname,
           parquet::ParquetFileReader::OpenFile(path, false), &reader);
     }
     if (!status.ok())
-      throw Error("parquet_impl extract_parquet_fields: failed to open Parquet file %s",
-                  status.message().c_str());
+      throw Error(
+          "parquet_impl extract_parquet_fields: failed to open Parquet file %s",
+          status.message().c_str());
 
     auto p_schema = reader->parquet_reader()->metadata()->schema();
     if (!parquet::arrow::SchemaManifest::Make(p_schema, nullptr, props,
@@ -658,7 +657,7 @@ static void destroy_parquet_state(void *arg) {
 static void destroy_parquet_modify_state(void *arg) {
   ParquetS3ModifyState *fmstate = (ParquetS3ModifyState *)arg;
 
-  if (fmstate && fmstate->has_s3_client()) {
+  if (fmstate && fmstate->HasS3Client()) {
     /*
      * After modify, parquet file information on S3 server is different with
      * cached one, so, disable connection imediately after modify to reload this
@@ -840,8 +839,10 @@ static void schemaless_get_sorted_column_type(Aws::S3::S3Client *s3_client,
       }
 
       if (!status.ok())
-        throw Error("parquet_impl schemaless_get_sorted_column_type: failed to open Parquet file %s",
-                    status.message().c_str());
+        throw Error(
+            "parquet_impl schemaless_get_sorted_column_type: failed to open "
+            "Parquet file %s",
+            status.message().c_str());
 
       auto meta = reader->parquet_reader()->metadata();
       parquet::ArrowReaderProperties props;
@@ -931,12 +932,13 @@ struct UsedColumnsContext {
 };
 
 static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
-	static bool init_s3sdk = false;
-	if (!init_s3sdk) {
-		parquet_s3_init();
-		init_s3sdk = true;
-	}
-  Aws::S3::S3Client *s3client = s3_client_open("minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
+  static bool init_s3sdk = false;
+  if (!init_s3sdk) {
+    parquet_s3_init();
+    init_s3sdk = true;
+  }
+  Aws::S3::S3Client *s3client = s3_client_open(
+      "minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
   return s3client;
 }
 
@@ -981,7 +983,6 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
     std::list<std::string> filenames, int nkeys, ScanKey key,
     ParallelTableScanDesc parallel_scan, List *targetlist, List *qual,
     List *bitmapqualorig, uint32 flags, struct DynamicBitmapContext *bmCxt) {
-
   ParquetS3AccessState *state = NULL;
   ParquetScanDesc scan;
 
@@ -1027,7 +1028,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
         sorted_cols);
 
     for (auto it = filenames.begin(); it != filenames.end(); ++it) {
-      //state->add_file(it->data(), NULL);
+      // state->add_file(it->data(), NULL);
     }
   } catch (std::exception &e) {
     error = e.what();
@@ -1110,10 +1111,9 @@ static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2) {
   fmgr_info(cmp_proc_oid, finfo);
 }
 
-extern "C" void
-ParquetRescan(TableScanDesc scan, ScanKey key,
-			  bool set_params, bool allow_strat,
-			  bool allow_sync, bool allow_pagemode) {
+extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
+                              bool allow_strat, bool allow_sync,
+                              bool allow_pagemode) {
   ParquetScanDesc pscan = (ParquetScanDesc)scan;
   ParquetS3AccessState *festate = pscan->state;
   festate->rescan();
@@ -1153,12 +1153,12 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
-    auto fmstate = CreateParquetModifyState(rel,
-        temp_cxt, dirname, s3client, tupleDesc, use_threads);
+    auto fmstate = CreateParquetModifyState(rel, temp_cxt, dirname, s3client,
+                                            tupleDesc, use_threads);
 
     fmstate->set_rel_name(RelationGetRelationName(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
-      //fmstate->add_file(i, filenames[i].data());
+      // fmstate->add_file(i, filenames[i].data());
     }
 
     // if (plstate->selector_function_name)
@@ -1181,44 +1181,42 @@ extern "C" void ParquetDmlInit(Relation rel) {
 }
 
 extern "C" void ParquetDmlFinish(Relation rel) {
-	auto fmstate = GetModifyState(rel);	
-	if (fmstate != NULL) {
-		return;
-	}
-    fmstate->upload();
+  auto fmstate = GetModifyState(rel);
+  if (fmstate != NULL) {
+    return;
+  }
+  fmstate->upload();
   // ParquetS3FdwModifyState *fmstate = NULL;
 
   // Oid                     foreignTableId = InvalidOid;
   // foreignTableId = RelationGetRelid(rel);
 }
 
-extern "C" void ParquetInsert(Relation rel, HeapTuple* tuple,
-                                   CommandId cid, int options,
-                                   struct BulkInsertStateData *bistate, TransactionId xid) {
+extern "C" void ParquetInsert(Relation rel, HeapTuple *tuple, CommandId cid,
+                              int options, struct BulkInsertStateData *bistate,
+                              TransactionId xid) {
   std::string error;
   TupleTableSlot *slot;
   TupleDesc desc;
   desc = RelationGetDescr(rel);
   elog(INFO, "parquet insert finish: %s 1", error.c_str());
   slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
-  //elog(ERROR, "parquet insert finish: %s 2", error.c_str());
+  // elog(ERROR, "parquet insert finish: %s 2", error.c_str());
 
-   auto fmstate = GetModifyState(rel);	
+  auto fmstate = GetModifyState(rel);
 
-   if (fmstate == nullptr) {
-	  auto temp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
-									   ALLOCSET_DEFAULT_SIZES);
-	  auto s3client = ParquetGetConnectionByRelation(rel);
-	  fmstate = CreateParquetModifyState(rel,
-			temp_cxt, "base/", s3client, desc, true);
+  if (fmstate == nullptr) {
+    auto temp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
+                                          ALLOCSET_DEFAULT_SIZES);
+    auto s3client = ParquetGetConnectionByRelation(rel);
+    fmstate =
+        CreateParquetModifyState(rel, temp_cxt, "base/", s3client, desc, true);
 
-	  fmstate->set_rel_name(RelationGetRelationName(rel));
-	
-	}
+    fmstate->set_rel_name(RelationGetRelationName(rel));
+  }
 
   try {
-
-	fmstate->exec_insert(slot);
+    fmstate->exec_insert(slot);
     elog(INFO, "parquet insert finish ok?");
     // if (plstate->selector_function_name)
     //     fmstate->set_user_defined_func(plstate->selector_function_name);
@@ -1233,52 +1231,45 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple* tuple,
   // return slot;
 }
 
-
-
 extern "C" void ParquetTupleInsert(Relation rel, TupleTableSlot *slot,
                                    CommandId cid, int options,
                                    struct BulkInsertStateData *bistate) {
-
-  auto fmstate = GetModifyState(rel);	
+  auto fmstate = GetModifyState(rel);
   if (fmstate != NULL) {
-		return;
-	}
+    return;
+  }
   fmstate->exec_insert(slot);
   // return slot;
 }
 
-
-
 /*
  *      Update one row
  */
-extern "C" TM_Result 
-ParquetTupleUpdate(Relation rel, ItemPointer otid,
+extern "C" TM_Result ParquetTupleUpdate(Relation rel, ItemPointer otid,
                                         TupleTableSlot *slot, CommandId cid,
                                         Snapshot snapshot, Snapshot crosscheck,
                                         bool wait, TM_FailureData *tmfd,
                                         LockTupleMode *lockmode,
                                         bool *update_indexes) {
-
-   auto fmstate = GetModifyState(rel);	
-   if (fmstate != NULL) {
-		return TM_Ok;
-	}
-  fmstate->exec_delete(otid);                              
-  fmstate->exec_insert(slot);
+  auto fmstate = GetModifyState(rel);
+  if (fmstate != NULL) {
+    return TM_Ok;
+  }
+  fmstate->ExecDelete(otid);
+  fmstate->ExecInsert(slot);
 
   return TM_Ok;
 }
 
-extern "C" TM_Result 
-ParquetTupleDelete(Relation relation, ItemPointer tid, CommandId cid,
-				   Snapshot snapshot, Snapshot crosscheck, bool wait,
-				   TM_FailureData *tmfd, bool changingPart) {
-
-   auto fmstate = GetModifyState(relation);	
-   if (fmstate != NULL) {
-		return TM_Ok;
-	}
-	fmstate->exec_delete(tid);
-	return TM_Ok;
+extern "C" TM_Result ParquetTupleDelete(Relation relation, ItemPointer tid,
+                                        CommandId cid, Snapshot snapshot,
+                                        Snapshot crosscheck, bool wait,
+                                        TM_FailureData *tmfd,
+                                        bool changingPart) {
+  auto fmstate = GetModifyState(relation);
+  if (fmstate != NULL) {
+    return TM_Ok;
+  }
+  fmstate->ExecDelete(tid);
+  return TM_Ok;
 }
