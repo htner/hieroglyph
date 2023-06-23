@@ -57,7 +57,7 @@ ParquetBeginScan(Relation relation,
 				 ParallelTableScanDesc pscan,
 				 uint32 flags);
 
-extern void ParquetInsert(Relation rel, HeapTuple* tuple,
+extern void ParquetInsert(Relation rel, HeapTuple tuple,
 						  CommandId cid, int options,
 						  struct BulkInsertStateData *bistate, TransactionId xid);
 
