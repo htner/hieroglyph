@@ -1064,7 +1064,7 @@ extern "C" void ParquetDmlFinish(Relation rel) {
   // foreignTableId = RelationGetRelid(rel);
 }
 
-extern "C" void ParquetInsert(Relation rel, HeapTuple *tuple, CommandId cid,
+extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
                               int options, struct BulkInsertStateData *bistate,
                               TransactionId xid) {
   std::string error;
@@ -1072,8 +1072,10 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple *tuple, CommandId cid,
   TupleDesc desc;
   desc = RelationGetDescr(rel);
   elog(INFO, "parquet insert finish: %s 1", error.c_str());
-  slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
+  //slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
   // elog(ERROR, "parquet insert finish: %s 2", error.c_str());
+	slot = MakeSingleTupleTableSlot(RelationGetDescr(rel),
+									&TTSOpsHeapTuple);
 
   auto fmstate = GetModifyState(rel);
 
@@ -1086,6 +1088,8 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple *tuple, CommandId cid,
 
     fmstate->SetRelName(RelationGetRelationName(rel));
   }
+	ExecStoreHeapTuple(tuple, slot, false);
+	ExecStoreVirtualTuple(slot);
 
   try {
     fmstate->ExecInsert(slot);
