@@ -10,8 +10,8 @@ top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS)
 
-OBJS = common.o  exec_state.o  \
-	   parquet_writer.o  modify_state.o \
+OBJS = common.o  reader_state.o  \
+	   parquet_writer.o  writer_state.o \
 	   parquet_impl.o  parquet_reader.o  slvars.o \
 	   parquet_am.o
 

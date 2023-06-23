@@ -69,13 +69,12 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
 	case NAMEOID:
       assert(typlen == NAMEDATALEN);
     // fallthrougth
-    case CHAROID:
       return arrow::fixed_size_binary(typlen);
     default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
-          return arrow::int8();
+          return arrow::uint8();
         } else if (typlen == 2) {
           return arrow::int16();
         } else if (typlen == 4) {

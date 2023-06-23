@@ -27,9 +27,9 @@
 #include "arrow/array.h"
 #include "arrow/io/api.h"
 #include "backend/access/parquet/common.hpp"
-#include "backend/access/parquet/exec_state.hpp"
+#include "backend/access/parquet/reader_state.hpp"
 #include "backend/access/parquet/heap.hpp"
-#include "backend/access/parquet/modify_state.hpp"
+#include "backend/access/parquet/writer_state.hpp"
 #include "backend/access/parquet/parquet_reader.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include "backend/access/parquet/parquet_writer.hpp"
@@ -138,9 +138,9 @@ struct RowGroupFilter {
   bool is_column; /* for schemaless actual column `exist` operator */
 };
 
-static std::unordered_map<Oid, ParquetS3ModifyState *> fmstates;
+static std::unordered_map<Oid, ParquetS3WriterState *> fmstates;
 
-ParquetS3ModifyState *GetModifyState(Relation rel) {
+ParquetS3WriterState *GetModifyState(Relation rel) {
   Oid oid = rel->rd_id;
   auto it = fmstates.find(oid);
   if (it != fmstates.end()) {
@@ -149,7 +149,7 @@ ParquetS3ModifyState *GetModifyState(Relation rel) {
   return nullptr;
 }
 
-ParquetS3ModifyState *CreateParquetModifyState(Relation rel, MemoryContext ctx,
+ParquetS3WriterState *CreateParquetModifyState(Relation rel, MemoryContext ctx,
                                                char *dirname,
                                                Aws::S3::S3Client *s3client,
                                                TupleDesc tuple_desc,
@@ -655,7 +655,7 @@ static void destroy_parquet_state(void *arg) {
 }
 
 static void destroy_parquet_modify_state(void *arg) {
-  ParquetS3ModifyState *fmstate = (ParquetS3ModifyState *)arg;
+  ParquetS3WriterState *fmstate = (ParquetS3WriterState *)arg;
 
   if (fmstate && fmstate->HasS3Client()) {
     /*
@@ -855,7 +855,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
     std::list<std::string> filenames, int nkeys, ScanKey key,
     ParallelTableScanDesc parallel_scan, List *targetlist, List *qual,
     List *bitmapqualorig, uint32 flags, struct DynamicBitmapContext *bmCxt) {
-  ParquetS3AccessState *state = NULL;
+  ParquetS3ReaderState *state = NULL;
   ParquetScanDesc scan;
 
   std::set<int> attrs_used;
@@ -947,7 +947,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
 extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
                                    TupleTableSlot *slot) {
   ParquetScanDesc pscan = (ParquetScanDesc)scan;
-  ParquetS3AccessState *festate = pscan->state;
+  ParquetS3ReaderState *festate = pscan->state;
   // TupleTableSlot             *slot = pscan->ss_ScanTupleSlot;
   std::string error;
 
@@ -1057,7 +1057,7 @@ extern "C" void ParquetDmlFinish(Relation rel) {
   if (fmstate != NULL) {
     return;
   }
-  fmstate->upload();
+  fmstate->Upload();
   // ParquetS3FdwModifyState *fmstate = NULL;
 
   // Oid                     foreignTableId = InvalidOid;
@@ -1075,7 +1075,11 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
   //slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
   // elog(ERROR, "parquet insert finish: %s 2", error.c_str());
 	slot = MakeSingleTupleTableSlot(RelationGetDescr(rel),
-									&TTSOpsHeapTuple);
+									&TTSOpsVirtual);
+	slot->tts_tableOid = RelationGetRelid(rel);
+	heap_deform_tuple(tuple, RelationGetDescr(rel), slot->tts_values, slot->tts_isnull);
+	ExecStoreVirtualTuple(slot);
+	//ExecStoreHeapTuple(tuple, slot, true);
 
   auto fmstate = GetModifyState(rel);
 
@@ -1088,8 +1092,7 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
 
     fmstate->SetRelName(RelationGetRelationName(rel));
   }
-	ExecStoreHeapTuple(tuple, slot, false);
-	ExecStoreVirtualTuple(slot);
+  //ExecStoreVirtualTuple(slot);
 
   try {
     fmstate->ExecInsert(slot);
@@ -1149,3 +1152,12 @@ extern "C" TM_Result ParquetTupleDelete(Relation relation, ItemPointer tid,
   fmstate->ExecDelete(tid);
   return TM_Ok;
 }
+
+
+extern "C" void ParquetWriterUpload() {
+  auto it = fmstates.begin();
+  for (; it != fmstates.end(); ++it) {
+    it->second->Upload();
+  }
+}
+ 

@@ -11,7 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "backend/access/parquet/exec_state.hpp"
+#include "backend/access/parquet/reader_state.hpp"
 #include "backend/access/parquet/heap.hpp"
 
 #include <sys/time.h>

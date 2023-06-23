@@ -73,10 +73,11 @@ ParquetWriter::ParquetWriter(const char *filename, TupleDesc tuple_desc,
   file_schema_ = schema;
   lake_2pc_state_ = LAKE2PC_NULL;
   builder_ = std::make_shared<pdb::RecordBatchBuilder>(tuple_desc);
+  Assert(builder_ != nullptr);
 }
 
 /**
- * @brief Destroy the Modify Parquet Reader:: Modify Parquet Reader object
+ *, @brief Destroy the Modify Parquet Reader:: Modify Parquet Reader object
  */
 ParquetWriter::~ParquetWriter() {}
 

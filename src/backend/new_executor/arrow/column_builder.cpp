@@ -69,6 +69,11 @@ arrow::Status PutDatum(arrow::ArrayBuilder* builder, Datum datum, bool isnull) {
   return arrow::Status::OK();
 }
 
+arrow::Status PutChar(arrow::ArrayBuilder* builder, Datum datum,
+                                bool isnull) {
+  return PutValue<arrow::UInt8Type>(builder, DatumGetChar(datum), isnull);
+}
+
 template <>
 arrow::Status PutDatum<INT2OID>(arrow::ArrayBuilder* builder, Datum datum,
                                 bool isnull) {
@@ -395,14 +400,14 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
     case NAMEOID:
       assert(typlen == NAMEDATALEN);
       // fallthrougth
-    case CHAROID:
+    //case CHAROID:
       return GetPutFixedStringFunc(typlen);
     default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
           //return PutFixedString<arrow::FixedSizeBinaryType>;
-		  return GetPutFixedStringFunc(typlen);
+		  return PutChar;
         } else if (typlen == 2) {
           return PutDatum<INT2OID>;
         } else if (typlen == 4) {

@@ -11,7 +11,7 @@
  *-------------------------------------------------------------------------
  */
 
-#include "backend/access/parquet/modify_state.hpp"
+#include "backend/access/parquet/writer_state.hpp"
 
 #include <sys/time.h>
 
@@ -36,11 +36,11 @@ extern "C" {
  * @return ParquetS3FdwModifyState* parquet modify state object
  */
 
-ParquetS3ModifyState *create_parquet_modify_state(
+ParquetS3WriterState *create_parquet_modify_state(
     MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
     TupleDesc tuple_desc, std::set<int> target_attrs, bool use_threads,
     bool use_mmap) {
-  return new ParquetS3ModifyState(reader_cxt, dirname, s3_client, tuple_desc,
+  return new ParquetS3WriterState(reader_cxt, dirname, s3_client, tuple_desc,
                                   target_attrs, use_threads, use_mmap);
 }
 
@@ -55,7 +55,7 @@ ParquetS3ModifyState *create_parquet_modify_state(
  * @param use_threads use_thread option
  * @param use_mmap use_mmap option
  */
-ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
+ParquetS3WriterState::ParquetS3WriterState(MemoryContext reader_cxt,
                                            const char *dirname,
                                            Aws::S3::S3Client *s3_client,
                                            TupleDesc tuple_desc,
@@ -74,14 +74,14 @@ ParquetS3ModifyState::ParquetS3ModifyState(MemoryContext reader_cxt,
  * @brief Destroy the Parquet S 3 Fdw Modify State:: Parquet S3 Fdw Modify State
  * object
  */
-ParquetS3ModifyState::~ParquetS3ModifyState() {}
+ParquetS3WriterState::~ParquetS3WriterState() {}
 /**
  * @brief add a parquet file
  *
  * @param filename file path
  */
 /*
-void ParquetS3ModifyState::add_file(uint64_t blockid, const char *filename,
+void ParquetS3WriterState::add_file(uint64_t blockid, const char *filename,
                                                                         std::shared_ptr<arrow::RecordBatch>
 recordbatch) { if (file_schema_ == nullptr) { file_schema_ =
 create_new_file_schema();
@@ -106,7 +106,7 @@ create_new_file_schema();
  * @param slot tuple table slot data
  * @return ParquetWriter* reader to new file
  */
-std::shared_ptr<ParquetWriter> ParquetS3ModifyState::new_inserter(
+std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
     const char *filename, TupleTableSlot *slot) {
   if (file_schema_ == nullptr) {
     file_schema_ = CreateNewFileSchema();
@@ -130,7 +130,7 @@ std::shared_ptr<ParquetWriter> ParquetS3ModifyState::new_inserter(
  *
  * @return true if s3_client is existed
  */
-bool ParquetS3ModifyState::HasS3Client() {
+bool ParquetS3WriterState::HasS3Client() {
   if (this->s3_client) {
     return true;
   }
@@ -140,7 +140,7 @@ bool ParquetS3ModifyState::HasS3Client() {
 /**
  * @brief upload all cached data on readers list
  */
-void ParquetS3ModifyState::upload() {
+void ParquetS3WriterState::Upload() {
   for (auto update : updates) {
     update.second->Upload(dirname, s3_client);
     uploads_.push_back(update.second);
@@ -164,7 +164,7 @@ void ParquetS3ModifyState::upload() {
  * @param slot tuple table slot
  * @return true if insert successfully
  */
-bool ParquetS3ModifyState::ExecInsert(TupleTableSlot *slot) {
+bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
   if (inserter_ != nullptr && inserter_->DataSize() > 100 * 1024 * 0124) {
     inserter_->Upload(dirname, s3_client);
     uploads_.push_back(inserter_);
@@ -176,7 +176,7 @@ bool ParquetS3ModifyState::ExecInsert(TupleTableSlot *slot) {
     static uint32_t local_index = 0;
     uint64_t worker_uuid = 1;
     sprintf(uuid, "%d_%d.parquet", worker_uuid, local_index++);
-    inserter_ = new_inserter(uuid, slot);
+    inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {
     return inserter_->ExecInsert(slot);
@@ -191,7 +191,7 @@ bool ParquetS3ModifyState::ExecInsert(TupleTableSlot *slot) {
  * @param planSlot junk values
  * @return true if delete successfully
  */
-bool ParquetS3ModifyState::ExecDelete(ItemPointer tid) {
+bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
   auto it = updates.find(block_id);
   if (it != updates.end()) {
@@ -205,7 +205,7 @@ bool ParquetS3ModifyState::ExecDelete(ItemPointer tid) {
  *
  * @param name relation name
  */
-void ParquetS3ModifyState::SetRelName(char *name) { this->rel_name = name; }
+void ParquetS3WriterState::SetRelName(char *name) { this->rel_name = name; }
 
 /**
  * @brief get arrow::DataType from given arrow type id
@@ -304,7 +304,7 @@ static void parse_jsonb_column(Datum attr_value,
  * @param slot tuple table slot
  * @return std::shared_ptr<arrow::Schema> new file schema
  */
-std::shared_ptr<arrow::Schema> ParquetS3ModifyState::CreateNewFileSchema() {
+std::shared_ptr<arrow::Schema> ParquetS3WriterState::CreateNewFileSchema() {
   arrow::FieldVector fields;
   int natts = this->tuple_desc->natts;
   bool *founds = (bool *)palloc0(sizeof(bool) * natts);

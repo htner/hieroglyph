@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "postgres.h"
 #include "access/heapam.h"
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_table.h"
@@ -20,7 +21,6 @@
 #include "foreign/fdwapi.h"
 #include "nodes/execnodes.h"
 #include "optimizer/planmain.h"
-#include "postgres.h"
 #include "storage/ipc.h"
 #include "utils/builtins.h"
 #include "utils/elog.h"
@@ -169,7 +169,7 @@ extern TM_Result ParquetTupleLock(Relation relation, ItemPointer tid,
                                   Snapshot snapshot, TupleTableSlot *slot,
                                   CommandId cid, LockTupleMode mode,
                                   LockWaitPolicy wait_policy, uint8 flags,
-                                  M_FailureData *tmfd) {
+                                 TM_FailureData *tmfd) {
   elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
   return TM_Ok;
 }
@@ -310,6 +310,10 @@ static bool ParquetScanSampleNextTuple(TableScanDesc scan,
                                        TupleTableSlot *slot) {
   return false;
 }
+
+extern void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
+                              int options, struct BulkInsertStateData *bistate,
+                              TransactionId xid);
 
 void simple_parquet_insert(Relation relation, HeapTuple tup)
 {

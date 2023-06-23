@@ -61,6 +61,12 @@ arrow::Status GetDatum(arrow::Array* array, int64_t i, Datum* datum) {
   return arrow::Status::OK();
 }
 
+arrow::Status GetChar(arrow::Array* array, int64_t i, Datum* datum) {
+  auto value = GetValue<arrow::UInt8Type>(array, i);
+  *datum = CharGetDatum(value);
+  return arrow::Status::OK();
+}
+
 template <>
 arrow::Status GetDatum<INT2OID>(arrow::Array* array, int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Int16Type>(array, i);
@@ -351,13 +357,13 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     case NAMEOID:
       assert(typlen == NAMEDATALEN);
       // fallthrougth
-    case CHAROID: 
+    //case CHAROID: 
 			return GetGetFixStringToDatumFunc(typlen); 
 	default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
-          return GetDatum<CHAROID>;
+          return GetChar;
           // return GetStringToDatum<arrow::FixedSizeBinaryType>;
         } else if (typlen == 2) {
           return GetDatum<INT2OID>;
