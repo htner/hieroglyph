@@ -25,7 +25,7 @@ extern "C" {
 #include "postgres.h"
 }
 
-class ParquetS3ModifyState {
+class ParquetS3WriterState {
  private:
   /* list parquet reader of target files */
   std::shared_ptr<ParquetWriter> inserter_;
@@ -56,16 +56,16 @@ class ParquetS3ModifyState {
   MemoryContext fmstate_cxt;
 
  public:
-  ParquetS3ModifyState(MemoryContext reader_cxt, const char *dirname,
+  ParquetS3WriterState(MemoryContext reader_cxt, const char *dirname,
                        Aws::S3::S3Client *s3_client, TupleDesc tuple_desc,
                        std::set<int> target_attrs, bool use_threads,
                        bool use_mmap);
-  ~ParquetS3ModifyState();
+  ~ParquetS3WriterState();
 
   /* create reader for `filename` and add to list file */
   // void add_file(uint64_t blockid, const char *filename, std);
   /* create new file and its temporary cache data */
-  std::shared_ptr<ParquetWriter> new_inserter(const char *filename,
+  std::shared_ptr<ParquetWriter> NewInserter(const char *filename,
                                               TupleTableSlot *slot);
   /* execute insert `*slot` to cache data */
   bool ExecInsert(TupleTableSlot *slot);
@@ -74,7 +74,7 @@ class ParquetS3ModifyState {
   /* execute delete */
   bool ExecDelete(ItemPointer tic);
   /* upload modified parquet file to storage system (local/S3) */
-  void upload();
+  void Upload();
   /* true if s3_client is set */
   bool HasS3Client();
 
@@ -84,7 +84,7 @@ class ParquetS3ModifyState {
   void SetRelName(char *name);
 };
 
-ParquetS3ModifyState *create_parquet_modify_state(
+ParquetS3WriterState *create_parquet_modify_state(
     MemoryContext reader_cxt, const char *dirname, Aws::S3::S3Client *s3_client,
     TupleDesc tuple_desc, std::set<int> target_attrs, bool use_threads,
     bool use_mmap);

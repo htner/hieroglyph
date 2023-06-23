@@ -122,7 +122,7 @@ static List *parse_attributes_list(char *start);
  */
 struct ParquetScanDescData {
   TableScanDescData rs_base;
-  ParquetS3AccessState *state;
+  ParquetS3ReaderState *state;
 };
 
 typedef struct ParquetScanDescData *ParquetScanDesc;
@@ -647,7 +647,7 @@ List *extract_parquet_fields(const char *path, const char *dirname,
 }
 
 static void destroy_parquet_state(void *arg) {
-  ParquetS3AccessState *festate = (ParquetS3AccessState *)arg;
+  ParquetS3ReaderState *festate = (ParquetS3ReaderState *)arg;
 
   if (festate) {
     delete festate;
@@ -796,134 +796,6 @@ static List *get_filenames_from_userfunc(const char *funcname,
   }
 
   return res;
-}
-
-/*
- * get actual type for column in sorted option, coresponding type Oid list will
- * be returned.
- */
-static void schemaless_get_sorted_column_type(Aws::S3::S3Client *s3_client,
-                                              List *file_list, char *dirname,
-                                              List *attrs_sorted,
-                                              List **attrs_sorted_type) {
-  ListCell *lc1, *lc2;
-  int attrs_sorted_num = list_length(attrs_sorted);
-  Oid *attrs_sorted_type_array = (Oid *)palloc(sizeof(Oid) * attrs_sorted_num);
-  bool *attrs_sorted_is_taken = (bool *)palloc(sizeof(bool) * attrs_sorted_num);
-
-  memset(attrs_sorted_is_taken, false, attrs_sorted_num);
-
-  foreach (lc1, file_list) {
-    std::unique_ptr<parquet::arrow::FileReader> reader;
-    arrow::Status status;
-    ReaderCacheEntry *reader_entry = NULL;
-    std::string error;
-    char *filename = strVal((Node *)lfirst(lc1));
-    ;
-    int attrs_sorted_idx = 0;
-
-    /* Open parquet file to read meta information */
-    try {
-      if (s3_client) {
-        char *dname;
-        char *fname;
-        parquetSplitS3Path(dirname, filename, &dname, &fname);
-        reader_entry = parquetGetFileReader(s3_client, dname, fname);
-        reader = std::move(reader_entry->file_reader->reader);
-        pfree(dname);
-        pfree(fname);
-      } else {
-        status = parquet::arrow::FileReader::Make(
-            arrow::default_memory_pool(),
-            parquet::ParquetFileReader::OpenFile(filename, false), &reader);
-      }
-
-      if (!status.ok())
-        throw Error(
-            "parquet_impl schemaless_get_sorted_column_type: failed to open "
-            "Parquet file %s",
-            status.message().c_str());
-
-      auto meta = reader->parquet_reader()->metadata();
-      parquet::ArrowReaderProperties props;
-      parquet::arrow::SchemaManifest manifest;
-
-      status = parquet::arrow::SchemaManifest::Make(meta->schema(), nullptr,
-                                                    props, &manifest);
-      if (!status.ok())
-        throw Error("parquet_s3_fdw: error creating arrow schema");
-
-      /*
-       * Search for the column with the same name as sorted attribute
-       */
-      foreach (lc2, attrs_sorted) {
-        char *attname = (char *)lfirst(lc2);
-
-        for (auto &schema_field : manifest.schema_fields) {
-          auto field_name = schema_field.field->name();
-          char arrow_colname[NAMEDATALEN];
-
-          if (field_name.length() > NAMEDATALEN - 1)
-            throw Error("parquet column name '%s' is too long (max: %d)",
-                        field_name.c_str(), NAMEDATALEN - 1);
-          tolowercase(field_name.c_str(), arrow_colname);
-
-          if (attrs_sorted_is_taken[attrs_sorted_idx] == false &&
-              strcmp(attname, arrow_colname) == 0) {
-            /* Found it! */
-            auto arrow_type_id = schema_field.field->type()->id();
-            attrs_sorted_is_taken[attrs_sorted_idx] = true;
-
-            switch (arrow_type_id) {
-              case arrow::Type::LIST:
-              case arrow::Type::MAP:
-                /* In schemaless mode, both NESTED LIST and MAP is mapping with
-                 * JSONB  */
-                attrs_sorted_type_array[attrs_sorted_idx] = JSONBOID;
-                break;
-              default:
-                attrs_sorted_type_array[attrs_sorted_idx] =
-                    to_postgres_type(arrow_type_id);
-                break;
-            }
-
-            if (attrs_sorted_type_array[attrs_sorted_idx] == InvalidOid)
-              elog(ERROR,
-                   "parquet_s3_fdw: Can not get mapping type of '%s' column "
-                   "from parquet file.",
-                   attname);
-            break;
-          }
-        } /* loop over parquet file columns */
-        attrs_sorted_idx++;
-      } /* loop over sorted columns */
-
-      /* Get list type Oid from attrs_sorted_type_array */
-      for (int i = list_length(*attrs_sorted_type); i < attrs_sorted_num; i++) {
-        if (attrs_sorted_is_taken[i] == true) {
-          *attrs_sorted_type =
-              lappend_oid(*attrs_sorted_type, attrs_sorted_type_array[i]);
-        } else {
-          /* break to get missing sorted column from the next file */
-          break;
-        }
-      }
-
-      /* All sorted column type is taken */
-      if (list_length(*attrs_sorted_type) == attrs_sorted_num) return;
-    } catch (const std::exception &e) {
-      error = e.what();
-    }
-    if (!error.empty()) {
-      if (reader_entry) reader_entry->file_reader->reader = std::move(reader);
-      elog(ERROR,
-           "parquet_s3_fdw: failed to exctract column from Parquet file: %s",
-           error.c_str());
-    }
-  } /* loop over list parquet file */
-
-  elog(ERROR, "parquet_s3_fdw: '%s' column is not existed.",
-       (char *)list_nth(attrs_sorted, list_length(*attrs_sorted_type)));
 }
 
 struct UsedColumnsContext {
@@ -1115,7 +987,7 @@ extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
                               bool allow_strat, bool allow_sync,
                               bool allow_pagemode) {
   ParquetScanDesc pscan = (ParquetScanDesc)scan;
-  ParquetS3AccessState *festate = pscan->state;
+  ParquetS3ReaderState *festate = pscan->state;
   festate->rescan();
 }
 

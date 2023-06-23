@@ -66,6 +66,7 @@ static void ShutdownAuxiliaryProcess(int code, Datum arg);
 static Form_pg_attribute AllocateAttribute(void);
 static Oid	gettype(char *type);
 static void cleanup(void);
+extern void ParquetWriterUpload();
 
 /* ----------------
  *		global variables
@@ -541,6 +542,7 @@ BootstrapModeMain(void)
 	 */
 	StartTransactionCommand();
 	boot_yyparse();
+	ParquetWriterUpload();
 	CommitTransactionCommand();
 
 	/*
