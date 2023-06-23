@@ -17,6 +17,7 @@ RecordBatchExchanger::RecordBatchExchanger(TupleDesc tuple_desc) {
 }
 
 RecordBatchExchanger::~RecordBatchExchanger() {
+	FreeTupleDesc(tuple_desc_);
 }
 
 void RecordBatchExchanger::SetRecordBatch(std::shared_ptr<arrow::RecordBatch> batch) {

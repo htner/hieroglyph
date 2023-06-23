@@ -191,8 +191,9 @@ arrow::Status PutDatum<NUMERICOID>(arrow::ArrayBuilder* b, Datum datum,
   return st;
 }
 
-arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type,
-                       arrow::ArrayBuilder* b, Datum datum, bool isnull) {
+arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type, int sublen, 
+						 bool elmbyval, char elmalign,
+                        arrow::ArrayBuilder* b, Datum datum, bool isnull) {
   if (isnull) {
     return b->AppendNull();
   }
@@ -203,7 +204,7 @@ arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type,
 
   ArrayType* array = (ArrayType*)DatumGetPointer(datum);
 
-  deconstruct_array(array, sub_type, -1, false, 'i', &datums, &nulls, &count);
+  deconstruct_array(array, sub_type, sublen, elmbyval, elmalign, &datums, &nulls, &count);
 
   auto builder = reinterpret_cast<arrow::ListBuilder*>(b);
   auto status = builder->Append();
@@ -247,9 +248,11 @@ arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs,
 ColumnBuilder::ColumnBuilder(Form_pg_attribute attr) {
   auto typid = attr->atttypid;
   auto typmod = attr->atttypmod;
+  int typlen = attr->attlen;
 
   HeapTuple tup;
   Form_pg_type elem_type;
+  char typtype;
 
   /* walk down to the base type */
   for (;;) {
@@ -260,18 +263,18 @@ ColumnBuilder::ColumnBuilder(Form_pg_attribute attr) {
       return;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
-    if (elem_type->oid == 0) {
+
+    typtype = elem_type->typtype;
+    if (typtype != TYPTYPE_DOMAIN) {
+      typmod = elem_type->typtypmod;
       break;
     }
-    if (elem_type->typtype != TYPTYPE_DOMAIN) {
-      break;
-    }
+
     typid = elem_type->typbasetype;
-    typmod = elem_type->typtypmod;
     ReleaseSysCache(tup);
   }
   put_value_func_ =
-      GetPutValueFunction(typid, elem_type->typlen, elem_type->typtype, typmod,
+      GetPutValueFunction(typid, typlen, elem_type->typtype, typmod,
                           elem_type->typelem, elem_type->typrelid);
 
   arrow_type_ = TypeMapping::GetDataType(attr);
@@ -289,8 +292,10 @@ ColumnBuilder::ColumnBuilder(Form_pg_attribute attr) {
 PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
   auto atttypid = attr->atttypid;
   auto atttypmod = attr->atttypmod;
+  int typlen = attr->attlen;
   HeapTuple tup;
   Form_pg_type elem_type;
+  char typtype;
   /* walk down to the base type */
   for (;;) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
@@ -299,19 +304,62 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
+
+    typtype = elem_type->typtype;
+
+	if (typtype != TYPTYPE_DOMAIN) {
+      atttypmod = elem_type->typtypmod;
+      break;
+    }
     atttypid = elem_type->typbasetype;
-    atttypmod = elem_type->typtypmod;
-    // typtype = elem_type->typtype;
     ReleaseSysCache(tup);
   }
-  return GetPutValueFunction(atttypid, elem_type->typlen, elem_type->typtype,
+  return GetPutValueFunction(atttypid, typlen, elem_type->typtype,
                              atttypmod, elem_type->typelem,
                              elem_type->typrelid);
+}
+
+void GetElmInfo(Oid typid, int32_t* typmod, 
+						 char* typtype, int* typlen,
+						 bool* elmbyval, char* elmalign) {
+  HeapTuple tup;
+  Form_pg_type elem_type;
+  bool first = true;
+
+  /* walk down to the base type */
+  for (;;) {
+    tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+    // elog(ERROR, "cache lookup failed for type: %u", atttypid);
+    if (!HeapTupleIsValid(tup)) {
+      return;
+    }
+    elem_type = (Form_pg_type)GETSTRUCT(tup);
+    
+	if (first) {
+		*typlen = elem_type->typlen;
+	}
+	first = false;
+
+    *typtype = elem_type->typtype;
+	if (*typtype != TYPTYPE_DOMAIN) {
+      *typmod = elem_type->typtypmod;
+      *elmbyval = elem_type->typbyval;
+      *elmalign = elem_type->typalign;
+      break;
+    }
+    typid = elem_type->typbasetype;
+    ReleaseSysCache(tup);
+  }
 }
 
 PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
+  bool first = true;
+
+  int32_t typmod;
+  char typtype;
+  int typlen;  
   /* walk down to the base type */
   for (;;) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
@@ -320,9 +368,18 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
+    
+	if (first) {
+		typlen = elem_type->typlen;
+	}
+	first = false;
+
+    typtype = elem_type->typtype;
+	if (typtype != TYPTYPE_DOMAIN) {
+    typmod = elem_type->typtypmod;
+      break;
+    }
     typid = elem_type->typbasetype;
-    // atttypmod_ = elem_type->typtypmod;
-    /// typid = elem_type->typtype;
     ReleaseSysCache(tup);
   }
   return GetPutValueFunction(typid, elem_type->typlen, elem_type->typtype,
@@ -356,7 +413,15 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
     if (sub_func == nullptr) {
       return nullptr;
     }
-    return std::bind(PutArray, sub_func, typelem, std::placeholders::_1,
+	int32_t typemod; 
+	char typtype;
+	int attlen;
+	bool elmbyval; 
+	char elmalign;
+	GetElmInfo(typelem, &typemod, 
+						 &typtype, &attlen,
+						 &elmbyval, &elmalign);
+    return std::bind(PutArray, sub_func, typelem, attlen, elmbyval, elmalign, std::placeholders::_1,
                      std::placeholders::_2, std::placeholders::_3);
   }
 

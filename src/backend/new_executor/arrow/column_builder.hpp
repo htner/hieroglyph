@@ -21,6 +21,9 @@ public:
 //  ColumnBuilder(int16_t typid);
 
   arrow::Status AppendDatum(Datum d, bool isnull) {
+  if (isnull) {
+    return array_builder_->AppendNull();
+  }
     return put_value_func_(array_builder_.get(), d, isnull);
   }
 

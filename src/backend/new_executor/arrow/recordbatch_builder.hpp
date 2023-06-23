@@ -16,6 +16,7 @@ namespace pdb
 class RecordBatchBuilder {
 public:
   RecordBatchBuilder(TupleDesc tuple_desc);
+  ~RecordBatchBuilder();
 
   RecordBatchBuilder(const RecordBatchBuilder&) = delete;
   RecordBatchBuilder& operator= (const RecordBatchBuilder&) = delete;

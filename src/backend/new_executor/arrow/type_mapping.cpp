@@ -106,6 +106,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
     Form_pg_attribute attr) {
   Oid atttypid = attr->atttypid;
   auto typmod = attr->atttypmod;
+  auto typlen = attr->attlen;
 
   HeapTuple tup;
   Form_pg_type elem_type;
@@ -119,20 +120,18 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
-    if (elem_type->oid == 0) {
-      break;
-    }
-    if (elem_type->typtype != TYPTYPE_DOMAIN) {
+
+    typtype = elem_type->typtype;
+    if (typtype != TYPTYPE_DOMAIN) {
+      typmod = elem_type->typtypmod;
       break;
     }
     atttypid = elem_type->typbasetype;
-    typmod = elem_type->typtypmod;
-    typtype = elem_type->typtype;
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
   }
 
   return GetDataType(atttypid, elem_type->typelem, elem_type->typrelid,
-                     elem_type->typlen, typmod, typtype);
+                     typlen, typmod, typtype);
 }
 
 std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
@@ -140,6 +139,8 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
   Form_pg_type elem_type;
   int32_t typmod;
   char typtype;
+  bool first = true;
+  int typlen;  
   /* walk down to the base type */
   for (;;) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
@@ -148,14 +149,24 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
-    typid = elem_type->typbasetype;
-    typmod = elem_type->typtypmod;
-    typtype = elem_type->typtype;
-    ReleaseSysCache(tup);
 
-    return GetDataType(typid, elem_type->typelem, elem_type->typrelid,
-                       elem_type->typlen, typmod, typtype);
+	if (first) {
+		typlen = elem_type->typlen;
+	}
+	first = false;
+
+    typtype = elem_type->typtype;
+    if (typtype != TYPTYPE_DOMAIN) {
+	  typmod = elem_type->typtypmod;
+      break;
+    }
+
+    typid = elem_type->typbasetype;
+    ReleaseSysCache(tup);
   }
+
+  return GetDataType(typid, elem_type->typelem, elem_type->typrelid,
+                       typlen, typmod, typtype);
   return nullptr;
 }
 
@@ -163,11 +174,13 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
     Oid typid, Oid typelem, Oid typrelid, int32_t typlen, int32_t typmod,
     char typtype) {
   /* array type */
-  if (typtype == 'c' && typelem != 0 && typlen == -1) {
+  if (typelem != 0 && typlen == -1) {
     std::shared_ptr<arrow::DataType> elem_data_type = GetDataType(typelem);
     if (elem_data_type != nullptr) {
-      return list(elem_data_type);
+	  elog(WARNING, "sub type %s %c", elem_data_type->name(), typtype);
+      return arrow::list(elem_data_type);
     }
+	  elog(WARNING, "sub type not found %d", typelem);
     return nullptr;
   }
 

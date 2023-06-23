@@ -501,6 +501,53 @@ CheckerModeMain(void)
 	proc_exit(0);
 }
 
+void CopyTableToParquet(Oid relid) {
+	Relation rel;	
+	SysScanDesc scan;
+	HeapTuple tuple;
+
+	rel = relation_open(relid, AccessShareLock);		
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	while((tuple = systable_getnext(scan)) != NULL) {
+		simple_parquet_insert(rel, tuple);
+	}
+	relation_close(rel, AccessShareLock);
+}
+
+void CopyPGClassTableToParquet() {
+	Oid relid = 1259; // pg_class
+	Relation rel;	
+
+	int			chnattrs = 1;	/* # of above */
+	Datum	   *newvals;		/* vals of above */
+	bool	   *newnulls;		/* null flags for above */
+	int		   *chattrs;		/* attnums of attributes to change */
+
+	chattrs = (int *) palloc(sizeof(int));
+	newvals = (Datum *) palloc(sizeof(Datum));
+	newnulls = (bool *) palloc(sizeof(bool));
+
+	chattrs[0] = 6;
+	newvals[0] = ObjectIdGetDatum(5104); // parquet am
+	newnulls[0] = false;
+
+	SysScanDesc scan;
+	HeapTuple tuple;
+
+	rel = relation_open(relid, AccessShareLock);		
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	while((tuple = systable_getnext(scan)) != NULL) {
+		heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
+		simple_parquet_insert(rel, tuple);
+	}
+
+	pfree(chattrs);
+	pfree(newvals);
+	pfree(newnulls);
+
+	relation_close(rel, AccessShareLock);
+}
+
 /*
  *	 The main entry point for running the backend in bootstrap mode
  *
@@ -538,11 +585,18 @@ BootstrapModeMain(void)
 	}
 
 	/*
-	 * Process bootstrap input.
+	 * Process bootstrap input.type <list>  boot_index_params
 	 */
 	StartTransactionCommand();
 	boot_yyparse();
+	CopyTableToParquet(1247); // "pg_proc"
+	CopyTableToParquet(1255); // "pg_type"
+	CopyTableToParquet(1249); // "pg_attribute"
+	// need change am 
+	CopyPGClassTableToParquet();
+
 	ParquetWriterUpload();
+
 	CommitTransactionCommand();
 
 	/*
@@ -832,7 +886,7 @@ InsertOneTuple(void)
 	TupleDesc	tupDesc;
 	int			i;
 
-	elog(WARNING, "inserting row with %d columns", numattr);
+//	elog(WARNING, "inserting row with %d columns", numattr);
 
 	tupDesc = CreateTupleDesc(numattr, attrtypes);
 	tuple = heap_form_tuple(tupDesc, values, Nulls);
@@ -840,10 +894,10 @@ InsertOneTuple(void)
 
 	if (boot_reldesc->rd_rel->relam == HEAP_TABLE_AM_OID) {
 		simple_heap_insert(boot_reldesc, tuple);
-		elog(WARNING, "inserting row to heap");
+//		elog(WARNING, "inserting row to heap");
 	} else if (boot_reldesc->rd_rel->relam == PARQUET_TABLE_AM_OID) {
 		simple_parquet_insert(boot_reldesc, tuple);
-		elog(WARNING, "inserting row to parquet");
+//		elog(WARNING, "inserting row to parquet");
 	}
 	heap_freetuple(tuple);
 	elog(DEBUG4, "row inserted");

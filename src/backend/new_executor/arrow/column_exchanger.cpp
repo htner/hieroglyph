@@ -248,6 +248,8 @@ GetDatumFunc ColumnExchanger::GetFunction(Form_pg_attribute attr) {
   Form_pg_type elem_type;
   auto atttypid = attr->atttypid;
   auto atttypmod = attr->atttypmod;
+  auto typlen = attr->attlen;
+  char typtype;
   /* walk down to the base type */
   for (;;) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
@@ -255,19 +257,18 @@ GetDatumFunc ColumnExchanger::GetFunction(Form_pg_attribute attr) {
     if (!HeapTupleIsValid(tup)) {
       return nullptr;
     }
-    if (elem_type->oid == 0) {
-      break;
-    }
-    if (elem_type->typtype != TYPTYPE_DOMAIN) {
-      break;
-    }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
+
+    typtype = elem_type->typtype;
+
+	if (typtype != TYPTYPE_DOMAIN) {
+      atttypmod = elem_type->typtypmod;
+      break;
+    }
     atttypid = elem_type->typbasetype;
-    atttypmod = elem_type->typtypmod;
-    ReleaseSysCache(tup);
-    break;
+	ReleaseSysCache(tup);
   }
-  return GetFunction(atttypid, elem_type->typlen, elem_type->typbyval,
+  return GetFunction(atttypid, typlen, elem_type->typbyval,
                      elem_type->typalign, elem_type->typtype, atttypmod,
                      elem_type->typelem, elem_type->typrelid);
 }
@@ -276,6 +277,10 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
 
+  int32_t typmod;
+  char typtype;
+  bool first = true;
+  int typlen;  
   /* walk down to the base type */
   for (;;) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
@@ -284,6 +289,18 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
+
+	if (first) {
+		typlen = elem_type->typlen;
+	}
+	first = false;
+
+    typtype = elem_type->typtype;
+    if (typtype != TYPTYPE_DOMAIN) {
+      typmod = elem_type->typtypmod;
+      break;
+    }
+
     typid = elem_type->typbasetype;
     ReleaseSysCache(tup);
   }

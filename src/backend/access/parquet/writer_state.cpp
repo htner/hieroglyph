@@ -175,7 +175,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
     char uuid[1024];
     static uint32_t local_index = 0;
     uint64_t worker_uuid = 1;
-    sprintf(uuid, "%d_%d.parquet", worker_uuid, local_index++);
+    sprintf(uuid, "%s_%d_%d_%d.parquet", rel_name, rel_id, worker_uuid, local_index++);
     inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {
@@ -205,7 +205,10 @@ bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
  *
  * @param name relation name
  */
-void ParquetS3WriterState::SetRelName(char *name) { this->rel_name = name; }
+void ParquetS3WriterState::SetRel(char *name, Oid id) { 
+	rel_name = name; 
+	rel_id = id;
+}
 
 /**
  * @brief get arrow::DataType from given arrow type id

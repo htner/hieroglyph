@@ -46,6 +46,7 @@ class ParquetS3WriterState {
   bool schemaless;
   /* foreign table name */
   char *rel_name;
+  Oid rel_id;
 
   std::shared_ptr<arrow::Schema> file_schema_;
 
@@ -81,7 +82,7 @@ class ParquetS3WriterState {
   /* create schema for new file */
   std::shared_ptr<arrow::Schema> CreateNewFileSchema();
 
-  void SetRelName(char *name);
+  void SetRel(char *name, Oid id);
 };
 
 ParquetS3WriterState *create_parquet_modify_state(

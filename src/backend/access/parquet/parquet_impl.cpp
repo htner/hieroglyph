@@ -432,7 +432,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
          * Search for the column with the same name as filtered attribute
          */
         for (auto &schema_field : manifest.schema_fields) {
-          MemoryContext ccxt = CurrentMemoryContext;
+          //MemoryContext ccxt = CurrentMemoryContext;
           bool error = false;
           char errstr[ERROR_STR_LEN];
           char arrow_colname[NAMEDATALEN];
@@ -498,7 +498,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
           {
             ErrorData *errdata;
 
-            MemoryContextSwitchTo(ccxt);
+            //MemoryContextSwitchTo(ccxt);
             error = true;
             errdata = CopyErrorData();
             FlushErrorState();
@@ -811,6 +811,7 @@ static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
   }
   Aws::S3::S3Client *s3client = s3_client_open(
       "minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
+  
   return s3client;
 }
 
@@ -1028,7 +1029,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
     auto fmstate = CreateParquetModifyState(rel, temp_cxt, dirname, s3client,
                                             tupleDesc, use_threads);
 
-    fmstate->SetRelName(RelationGetRelationName(rel));
+    fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
       // fmstate->add_file(i, filenames[i].data());
     }
@@ -1064,9 +1065,18 @@ extern "C" void ParquetDmlFinish(Relation rel) {
   // foreignTableId = RelationGetRelid(rel);
 }
 
+
+MemoryContext tmp_cxt = NULL;
+
 extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
                               int options, struct BulkInsertStateData *bistate,
                               TransactionId xid) {
+
+	if (tmp_cxt == NULL) {
+		tmp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
+                                          ALLOCSET_DEFAULT_SIZES);
+	}
+	auto old_cxt = MemoryContextSwitchTo(tmp_cxt);
   std::string error;
   TupleTableSlot *slot;
   TupleDesc desc;
@@ -1084,13 +1094,11 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
   auto fmstate = GetModifyState(rel);
 
   if (fmstate == nullptr) {
-    auto temp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
-                                          ALLOCSET_DEFAULT_SIZES);
     auto s3client = ParquetGetConnectionByRelation(rel);
     fmstate =
-        CreateParquetModifyState(rel, temp_cxt, "base/", s3client, desc, true);
+        CreateParquetModifyState(rel, tmp_cxt, "s3://template1", s3client, desc, true);
 
-    fmstate->SetRelName(RelationGetRelationName(rel));
+    fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
   }
   //ExecStoreVirtualTuple(slot);
 
@@ -1107,6 +1115,8 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
   }
 
   elog(INFO, "parquet insert finish: %s", error.c_str());
+
+	MemoryContextSwitchTo(old_cxt);
   // return slot;
 }
 
@@ -1159,5 +1169,8 @@ extern "C" void ParquetWriterUpload() {
   for (; it != fmstates.end(); ++it) {
     it->second->Upload();
   }
+  fmstates.clear();
+  MemoryContextDelete(tmp_cxt);
+  tmp_cxt = NULL;
 }
  

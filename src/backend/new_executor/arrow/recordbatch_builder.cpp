@@ -23,9 +23,18 @@ RecordBatchBuilder::RecordBatchBuilder(TupleDesc tuple_desc) {
 	schema_ = std::make_shared<arrow::Schema>(fields);
 }
 
+RecordBatchBuilder::~RecordBatchBuilder() {
+	FreeTupleDesc(tuple_desc_);
+}
+
 arrow::Status RecordBatchBuilder::AppendTuple(TupleTableSlot* tuple) {
 	for (int i = 0; i < tuple_desc_->natts; i++) {
-		builders_[i]->AppendDatum(tuple->tts_values[i], tuple->tts_isnull[i]);
+		try {
+			builders_[i]->AppendDatum(tuple->tts_values[i], tuple->tts_isnull[i]);
+		} catch (const std::exception &e) {
+			elog(ERROR, "record batch : %s", e.what());
+			return arrow::Status::UnknownError("");
+		}
 	}
 	return arrow::Status::OK();
 }

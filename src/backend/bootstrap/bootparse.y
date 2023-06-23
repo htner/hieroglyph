@@ -114,6 +114,7 @@ static int num_columns_read = 0;
 	Oid			oidval;
 }
 
+
 %type <list>  boot_index_params
 %type <ielem> boot_index_param
 %type <str>   boot_ident
@@ -237,7 +238,6 @@ Boot_CreateStmt:
 												   &relfrozenxid,
 												   &relminmxid);
 						elog(DEBUG4, "bootstrap relation created");
-						elog(WARNING, "bootstrap relation created");
 					}
 					else
 					{
@@ -286,6 +286,7 @@ Boot_InsertStmt:
 							 numattr, num_columns_read);
 					if (boot_reldesc == NULL)
 						elog(FATAL, "relation not open");
+
 					InsertOneTuple();
 					do_end();
 				}
@@ -326,8 +327,7 @@ Boot_DeclareIndexStmt:
 					/* locks and races need not concern us in bootstrap mode */
 					relationId = RangeVarGetRelid(stmt->relation, NoLock,
 												  false);
-
-					DefineIndex(relationId,
+					/*DefineIndex(relationId,
 								stmt,
 								$4,
 								InvalidOid,
@@ -335,9 +335,9 @@ Boot_DeclareIndexStmt:
 								false,
 								false,
 								false,
-								true, /* skip_build */
+								true,  //skip_build 
 								false,
-								false /* is_new_table */);
+								false  ); // is_new_table  */
 					do_end();
 				}
 		;
@@ -378,6 +378,7 @@ Boot_DeclareUniqueIndexStmt:
 					relationId = RangeVarGetRelid(stmt->relation, NoLock,
 												  false);
 
+/*
 					DefineIndex(relationId,
 								stmt,
 								$5,
@@ -386,9 +387,10 @@ Boot_DeclareUniqueIndexStmt:
 								false,
 								false,
 								false,
-								true, /* skip_build */
+								true,
 								false,
-								false /* is_new_table */);
+								false);
+								*/
 					do_end();
 				}
 		;
@@ -400,7 +402,7 @@ Boot_DeclareToastStmt:
 
 					do_start();
 
-					BootstrapToastTable($6, $3, $4);
+					//BootstrapToastTable($6, $3, $4);
 					do_end();
 				}
 		;
@@ -409,7 +411,7 @@ Boot_BuildIndsStmt:
 		  XBUILD INDICES
 				{
 					do_start();
-					build_indices();
+					//build_indices();
 					do_end();
 				}
 		;
@@ -482,9 +484,13 @@ boot_column_val_list:
 
 boot_column_val:
 		  boot_ident
-			{ InsertOneValue($1, num_columns_read++); }
+			{ 
+			InsertOneValue($1, num_columns_read++); 
+			}
 		| NULLVAL
-			{ InsertOneNull(num_columns_read++); }
+			{ 
+			InsertOneNull(num_columns_read++); 
+			}
 		;
 
 boot_ident:

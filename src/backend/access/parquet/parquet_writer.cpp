@@ -39,7 +39,7 @@ extern "C" {
 #include "utils/timestamp.h"
 }
 
-#define TEMPORARY_DIR "/tmp/parquet_writer_temp"
+#define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
 
 /**
  * @brief Create a modify parquet reader object
@@ -137,7 +137,7 @@ void ParquetWriter::ParquetWriteFile(const char *dirname,
 
       /* clean-up the local temporary file */
       /* delete temporary file */
-      std::remove(local_path.c_str());
+      // std::remove(local_path.c_str());
       /* remove parent directory if it empty */
       remove_directory_if_empty(TEMPORARY_DIR);
 
@@ -166,6 +166,7 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
     auto result = builder_->Finish();
 
     if (result == nullptr) {
+	  elog(WARNING, "'%s' file has been empty.", filename_.c_str());
       return;
     }
     record_batch = result;
@@ -174,9 +175,11 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
   batches.push_back(record_batch);
 
-  auto result = arrow::Table::FromRecordBatches(file_schema_, batches);
+  auto result = arrow::Table::FromRecordBatches(batches);
 
   if (!result.status().ok()) {
+	elog(WARNING, "'%s' file has been empty writer error %s", 
+	  filename_.c_str(), result.status().ToString().c_str());
     return;
   }
   std::shared_ptr<arrow::Table> table = *result;
@@ -186,7 +189,7 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   ParquetWriteFile(dirname, s3_client, *table);
   INSTR_TIME_SET_CURRENT(duration);
   INSTR_TIME_SUBTRACT(duration, start);
-  elog(DEBUG1, "'%s' file has been uploaded in %ld seconds %ld microseconds.",
+  elog(WARNING, "'%s' file has been uploaded in %ld seconds %ld microseconds.",
        filename_.c_str(), duration.tv_sec, duration.tv_nsec / 1000);
 }
 
