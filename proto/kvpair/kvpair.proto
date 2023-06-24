@@ -1,0 +1,81 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = false;
+option go_package="./proto";
+
+message CommandDetail {
+  uint64 uid = 1;
+  uint64 sessionid = 2;
+  uint64 xid = 3;
+  string query_string = 4;
+}
+
+enum CommandStatus {
+  CS_INIT,
+  CS_WAIT_OP,
+  CS_OP,
+  CS_WAIT_EXEC,
+  CS_DONE.
+}
+
+message CommandStatus {
+  CommandStatus status = 1;
+}
+
+message CommandOptimizerResult {
+
+}
+
+message CommandExecDetail {
+
+}
+
+message CommandExecResult {
+}
+
+
+message PBPlanSlice {
+  int32 slice_index = 1;
+  int32 parent_index = 2;
+  int32 gang_type = 3;
+  int32 num_segments = 4;
+  int32 segindex = 5;
+  PBDirectDispatchInfo direct_dispatch_info = 6;
+}
+// The request message containing the user's name.
+message OptimizeRequest {
+  string name = 1;
+  string sql = 2;
+  uint64 sid = 3;
+  uint64 uid = 4;
+  uint64 dbid = 5;
+  uint64 xid = 6;
+}
+
+// The response message containing the greetings
+message OptimizeReply {
+  string message = 1;
+  bytes planstmt_str = 2;
+  bytes plan_dxl_str = 3; // TODO maybe problem FIXME_SDB
+  bytes plan_params_str = 4;
+  repeated PBPlanSlice slices = 5;
+}

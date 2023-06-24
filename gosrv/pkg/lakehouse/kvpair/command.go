@@ -3,17 +3,25 @@ package kvpair
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type CommKey struct {
-	Cid uint64
+	Dbid types.DatabaseId
+	Uid  uint64
+	Cid  uint64
+}
+
+type CommonBaseInfo struct {
+	Phase uint
 }
 
 func (s *CommKey) Tag() uint16 {
 	return CLOGTag
 }
 
-func (t *TransactionCLog) EncFdbKey(buf *bytes.Buffer) error {
+func (t *CommKey) EncFdbKey(buf *bytes.Buffer) error {
 	err := binary.Write(buf, binary.LittleEndian, t.DbId)
 	if err != nil {
 		return err
@@ -21,7 +29,7 @@ func (t *TransactionCLog) EncFdbKey(buf *bytes.Buffer) error {
 	return binary.Write(buf, binary.LittleEndian, t.Tid)
 }
 
-func (t *TransactionCLog) EncFdbValue(buf *bytes.Buffer) error {
+func (t *CommKey) EncFdbValue(buf *bytes.Buffer) error {
 	err := binary.Write(buf, binary.LittleEndian, t.Sessionid)
 	if err != nil {
 		return err
