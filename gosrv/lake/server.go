@@ -14,6 +14,8 @@ import (
 	"github.com/htner/sdb/gosrv/lake/proto"
 	pb "github.com/htner/sdb/gosrv/lake/proto"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -55,18 +57,53 @@ type LakeServer struct {
 
 // Depart implements proto.ScheduleServer
 // It just returns commid
-func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *pb.PrepareInsertFilesRequest) (*pb.ExecQueryReply, error) {
+func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *pb.PrepareInsertFilesRequest) (*pb.PrepareInsertFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
-	lakeop := lakehouse.NewLakeRelOperator(request.DBId(), request.Sid())
-	lakeop.MarkFiles(request.RelId(), request.AddFiles())
+	lakeop := lakehouse.NewLakeRelOperator(
+		types.DatabaseId(request.Dbid),
+		types.SessionId(request.Sessionid),
+		types.TransactionId(request.CommitXid))
+	err := lakeop.MarkFiles(types.RelId(request.Rel), request.AddFiles)
+	if err != nil {
+		return nil, fmt.Errorf("mark files error")
+	}
 	return &pb.PrepareInsertFilesResponse{}, nil
 }
 
-func (s *LakeServer) UpdateFiles(ctx context.Context, request *pb.UpdateFilesFilesRequest) (*pb.UpdateFilesRequest, error) {
+func (s *LakeServer) UpdateFiles(ctx context.Context, request *pb.UpdateFilesRequest) (*pb.UpdateFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
-	lakeop := lakehouse.NewLakeRelOperator(request.DBId(), request.Sid())
-	lakeop.InsertFiles(request.RelId(), request.AddFiles())
-	lakeop.DeleleFiles(request.RelId(), request.DelteFiles())
+	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
+		types.SessionId(request.Sessionid),
+		types.TransactionId(request.CommitXid))
+
+	newFiles := make([]*kvpair.FileMeta, 0)
+	removeFiles := make([]*kvpair.FileMeta, 0)
+	for _, file := range request.AddFiles {
+		var f kvpair.FileMeta
+		f.Database = types.DatabaseId(request.Dbid)
+		f.Relation = types.RelId(request.Rel)
+		f.Filename = file.FileName
+
+		newFiles = append(newFiles, &f)
+	}
+
+	for _, file := range request.RemoveFiles {
+		var f kvpair.FileMeta
+		f.Database = types.DatabaseId(request.Dbid)
+		f.Relation = types.RelId(request.Rel)
+		f.Filename = file.FileName
+
+		removeFiles = append(removeFiles, &f)
+	}
+
+	err := lakeop.InsertFiles(types.RelId(request.Rel), newFiles)
+	if err != nil {
+		return nil, fmt.Errorf("insert files error")
+	}
+	err = lakeop.DeleleFiles(types.RelId(request.Rel), removeFiles)
+	if err != nil {
+		return nil, fmt.Errorf("insert files error")
+	}
 	return &pb.UpdateFilesResponse{}, nil
 }
 

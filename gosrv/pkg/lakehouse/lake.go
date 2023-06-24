@@ -13,8 +13,8 @@ type LakeRelOperator struct {
 	T *Transaction
 }
 
-func NewLakeRelOperator(dbid types.DatabaseId, sid types.SessionId) (L *LakeRelOperator) {
-	return &LakeRelOperator{T: NewTranscation(dbid, sid)}
+func NewLakeRelOperator(dbid types.DatabaseId, sid types.SessionId, xid types.TransactionId) (L *LakeRelOperator) {
+	return &LakeRelOperator{T: NewTranscationWithXid(dbid, xid, sid)}
 }
 
 func (L *LakeRelOperator) MarkFiles(rel types.RelId, files []string) error {
@@ -79,6 +79,8 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*kv.FileMeta) err
 
 			kvOp := NewKvOperator(tr)
 			for _, file := range files {
+				file.Database = L.T.Database
+				file.Relation = rel
 				file.Xmin = t.Xid
 				file.Xmax = InvaildTranscaton
 				file.XminState = XS_START
@@ -130,6 +132,8 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*kv.FileMeta) err
 			kvOp := NewKvOperator(tr)
 
 			for _, file := range files {
+				file.Database = L.T.Database
+				file.Relation = rel
 				file.Xmax = t.Xid
 				file.XmaxState = XS_START
 

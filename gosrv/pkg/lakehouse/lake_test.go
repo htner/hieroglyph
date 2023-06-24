@@ -32,7 +32,7 @@ func TestLake_1(t *testing.T) { // 模拟需要耗时一秒钟运行的任务
 		t.Fatalf("new transaction error:%v", err)
 	}
 
-	lakeop := NewLakeRelOperator(1, 1)
+	lakeop := NewLakeRelOperator(1, 1, 1)
 
 	var files []string
 	files = append(files, "1.p")
