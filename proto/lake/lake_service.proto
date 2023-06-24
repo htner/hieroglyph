@@ -77,8 +77,10 @@ message UnlockResponse {
 message PrepareInsertFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 rel = 3;
-    repeated string add_files = 4;
+    uint64 commit_xid = 3;
+    uint64 rel = 4;
+    uint64 commandid = 5;
+    repeated string add_files = 6;
 }
 
 message PrepareInsertFilesResponse {
@@ -87,9 +89,11 @@ message PrepareInsertFilesResponse {
 message UpdateFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 rel = 3;
-    repeated LakeFile add_files = 4;
-    repeated LakeFile remove_files = 5;
+    uint64 commit_xid = 3;
+    uint64 commandid = 4;
+    uint64 rel = 5;
+    repeated LakeFile add_files = 6;
+    repeated LakeFile remove_files = 7;
 }
 
 message UpdateFilesResponse {
@@ -98,11 +102,13 @@ message UpdateFilesResponse {
 message GetFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 rel = 3;
-    uint64 slice_count = 4;
-    uint64 slice_seg_index = 5;
+    uint64 xid = 3;
+    uint64 commandid = 4;
+    uint64 rel = 5;
+    uint64 slice_count = 6;
+    uint64 slice_seg_index = 7;
 }
 
 message GetFilesResponse {
-    repeated LakeFile add_files = 1;
+    repeated LakeFile files = 1;
 }

@@ -11,8 +11,8 @@ import (
 	"os/signal"
 
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/htner/sdb/gosrv/lakehouse/proto"
-	pb "github.com/htner/sdb/gosrv/lakehouse/proto"
+	"github.com/htner/sdb/gosrv/lake/proto"
+	pb "github.com/htner/sdb/gosrv/lake/proto"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"

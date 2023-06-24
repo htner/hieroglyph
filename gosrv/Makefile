@@ -24,6 +24,8 @@ all: clean build
 
 .PHONY: build
 
+proto: protogen
+
 protogen:
 	make -C ../proto go
 
