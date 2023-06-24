@@ -38,7 +38,7 @@ struct TaskIdentifyEqual{
 
 class WorkerService;
 
-class ExecuteTask {
+class ExecuteTask : public std::enable_shared_from_this<ExecuteTask> {
 public:
 	ExecuteTask(const sdb::PrepareTaskRequest* req,
              WorkerService* service);

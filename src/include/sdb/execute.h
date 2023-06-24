@@ -85,6 +85,7 @@ SDBSendEndOfStream(void *task,
 				   int motNodeID,
 				   TupleChunkListItem tcItem);
 
+
 #ifdef __cplusplus
 };
 #endif

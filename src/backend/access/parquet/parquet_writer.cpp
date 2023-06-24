@@ -13,16 +13,17 @@
 
 #include "backend/access/parquet/parquet_writer.hpp"
 
-#include "arrow/api.h"
-#include "arrow/array.h"
-#include "arrow/io/api.h"
+#include <arrow/api.h>
+#include <arrow/array.h>
+#include <arrow/io/api.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/arrow/schema.h>
+#include <parquet/arrow/writer.h>
+#include <parquet/exception.h>
+#include <parquet/file_reader.h>
+#include <parquet/statistics.h>
+
 #include "backend/access/parquet/common.hpp"
-#include "parquet/arrow/reader.h"
-#include "parquet/arrow/schema.h"
-#include "parquet/arrow/writer.h"
-#include "parquet/exception.h"
-#include "parquet/file_reader.h"
-#include "parquet/statistics.h"
 
 extern "C" {
 #include "access/sysattr.h"
@@ -39,6 +40,13 @@ extern "C" {
 #include "utils/timestamp.h"
 }
 
+#include "backend/sdb/common/pg_export.hpp"
+#include <brpc/server.h>
+#include <brpc/channel.h>
+#include <butil/iobuf.h>
+#include <butil/logging.h>
+#include "lake/lake_service.pb.h"
+
 #define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
 
 /**
@@ -52,9 +60,8 @@ extern "C" {
  * @return ParquetWriter* modify parquet reader object
  */
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
-    const char *filename, TupleDesc tuple_desc,
-    std::shared_ptr<arrow::Schema> schema) {
-  return std::make_shared<ParquetWriter>(filename, tuple_desc, schema);
+    const char *filename, TupleDesc tuple_desc) {
+  return std::make_shared<ParquetWriter>(filename, tuple_desc);
 }
 /**
  * @brief Construct a new Modify Parquet Reader:: Modify Parquet Reader object
@@ -65,12 +72,10 @@ std::shared_ptr<ParquetWriter> CreateParquetWriter(
  * @param is_new_file where target file is new
  * @param reader_id reder id
  */
-ParquetWriter::ParquetWriter(const char *filename, TupleDesc tuple_desc,
-                             std::shared_ptr<arrow::Schema> schema) {
+ParquetWriter::ParquetWriter(const char *filename, TupleDesc tuple_desc) {
   filename_ = filename;
   is_delete_ = false;
   is_insert_ = false;
-  file_schema_ = schema;
   lake_2pc_state_ = LAKE2PC_NULL;
   builder_ = std::make_shared<pdb::RecordBatchBuilder>(tuple_desc);
   Assert(builder_ != nullptr);
@@ -113,7 +118,8 @@ void ParquetWriter::ParquetWriteFile(const char *dirname,
     }
 
     if (dir.empty()) {
-      elog(ERROR, "parquet_writer: Unformed file path: %s", local_path.c_str());
+      LOG(ERROR) << "parquet_writer: Unformed file path: " << local_path;
+	  return;
     }
 
     /* Create parent directory if needed */
@@ -142,11 +148,12 @@ void ParquetWriter::ParquetWriteFile(const char *dirname,
       remove_directory_if_empty(TEMPORARY_DIR);
 
       if (!uploaded) {
-        elog(ERROR, "parquet_writer: upload file to s3 system failed!");
+        LOG(ERROR) << "parquet_writer: upload file to s3 system failed!";
+		return;
       }
     }
   } catch (const std::exception &e) {
-    elog(ERROR, "parquet_writer: %s", e.what());
+    LOG(ERROR) << "parquet_writer: " << e.what();
   }
 }
 
@@ -166,7 +173,7 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
     auto result = builder_->Finish();
 
     if (result == nullptr) {
-	  elog(WARNING, "'%s' file has been empty.", filename_.c_str());
+	  LOG(WARNING) << filename_ << " file has been empty.";
       return;
     }
     record_batch = result;
@@ -178,8 +185,8 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   auto result = arrow::Table::FromRecordBatches(batches);
 
   if (!result.status().ok()) {
-	elog(WARNING, "'%s' file has been empty writer error %s", 
-	  filename_.c_str(), result.status().ToString().c_str());
+	LOG(WARNING) << filename_ << "file has been empty writer error"
+	   << result.status().ToString();
     return;
   }
   std::shared_ptr<arrow::Table> table = *result;
@@ -189,8 +196,8 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   ParquetWriteFile(dirname, s3_client, *table);
   INSTR_TIME_SET_CURRENT(duration);
   INSTR_TIME_SUBTRACT(duration, start);
-  elog(WARNING, "'%s' file has been uploaded in %ld seconds %ld microseconds.",
-       filename_.c_str(), duration.tv_sec, duration.tv_nsec / 1000);
+  LOG(INFO) << filename_ << " file has been uploaded in "
+	<< duration.tv_sec << " seconds " << duration.tv_nsec/1000 << " microseconds.";
 }
 
 /**
@@ -220,48 +227,77 @@ bool ParquetWriter::ExecDelete(size_t pos) {
     is_delete_ = true;
     return true;
   } catch (const std::exception &e) {
-    elog(ERROR, "parquet_writer: %s", e.what());
+    LOG(ERROR) << "parquet_writer:" << e.what();
   }
 
   return false;
 }
 
 void ParquetWriter::PrepareUpload() {
-  auto channel = std::make_unique<brpc::Channel>();
+
+	std::unique_ptr<brpc::Channel> channel;
+	std::unique_ptr<lake::Lake_Stub> stub;//(&channel);
+	brpc::Controller cntl;
+	channel = std::make_unique<brpc::Channel>();
 
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
-	options.protocol = brpc::PROTOCOL_GRPC;
+	options.protocol = "h2:grpc";
 	options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel_->Init(server_addr.c_str(), NULL) != 0) {
+	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
-  auto stub = std::make_unique<sdb::Worker_Stub>(channel_.get());
+	stub = std::make_unique<lake::Lake_Stub>(channel.get());
 
-  sdb::PrepareInsertFilesRequest request;
-  auto add_file  = prepare_request->add_add_files();
-  *add_file = filename_;
+	lake::PrepareInsertFilesRequest request;
+	auto add_file  = request.add_add_files();
+	*add_file = filename_;
 
-  sdb::UpdateFilesResponse response;
-  //request.set_message("I'm a RPC to connect stream");
-	stub_->PrepareInsertFiles(&cntl_, &request, &response, NULL);
-	if (cntl_.Failed()) {
-		brpc::StreamClose(stream_);
-		stream_ = brpc::INVALID_STREAM_ID;
-		LOG(ERROR) << "Fail to connect stream, " << cntl_.ErrorText();
-		return false;
+	lake::PrepareInsertFilesResponse response;
+	//request.set_message("I'm a RPC to connect stream");
+	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
+	if (cntl.Failed()) {
+		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		return;
 	}
-	if (!response.succ()) {
-		brpc::StreamClose(stream_);
-		stream_ = brpc::INVALID_STREAM_ID;
-		LOG(ERROR) << "Fail to connect stream";
-	}
-	return response.succ();
 }
 
 void ParquetWriter::CommitUpload() {
+	std::unique_ptr<brpc::Channel> channel;
+	std::unique_ptr<lake::Lake_Stub> stub;//(&channel);
+	brpc::Controller cntl;
+	channel = std::make_unique<brpc::Channel>();
+
+	// Initialize the channel, NULL means using default options. 
+	brpc::ChannelOptions options;
+	options.protocol = "h2:grpc";
+	options.connection_type = "pooled";
+	options.timeout_ms = 10000/*milliseconds*/;
+	options.max_retry = 5;
+	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
+		LOG(ERROR) << "Fail to initialize channel";
+		return;
+	}
+	stub = std::make_unique<lake::Lake_Stub>(channel.get());
+
+	lake::UpdateFilesRequest request;
+	//auto add_file  = prepare_request->add_add_files();
+	//*add_file = filename_;
+
+	lake::UpdateFilesResponse response;
+	//request.set_message("I'm a RPC to connect stream");
+	stub->UpdateFiles(&cntl, &request, &response, NULL);
+	if (cntl.Failed()) {
+		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		return;
+	}
 }
 
+void ParquetWriter::SetOldBatch(std::string filename,
+								std::shared_ptr<arrow::RecordBatch> batch) {
+	old_filename_ = filename;
+	record_batch_ = batch;
+}

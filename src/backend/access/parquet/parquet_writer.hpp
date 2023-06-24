@@ -39,8 +39,7 @@ class ParquetWriter {
   void RemoveRow(size_t idx);
 
  public:
-  ParquetWriter(const char *filename, TupleDesc tuple_desc,
-                std::shared_ptr<arrow::Schema> schema = nullptr);
+  ParquetWriter(const char *filename, TupleDesc tuple_desc);
 
   ~ParquetWriter();
 
@@ -61,7 +60,7 @@ class ParquetWriter {
   void ParquetWriteFile(const char *dirname, Aws::S3::S3Client *s3_client,
                         const arrow::Table &table);
 
-  void SetBatch(std::shared_ptr<arrow::RecordBatch> batch);
+  void SetOldBatch(std::string filename, std::shared_ptr<arrow::RecordBatch> batch);
 
  private:
   /* column num */
@@ -72,11 +71,11 @@ class ParquetWriter {
   bool is_insert_ = false;
   bool is_delete_ = false;
 
+  std::string old_filename_;
   std::string filename_;
   std::vector<std::string> column_names_;
   std::set<size_t> deletes_;
   /* schema of target file */
-  std::shared_ptr<arrow::Schema> file_schema_;
   std::shared_ptr<arrow::RecordBatch> record_batch_;
   std::shared_ptr<pdb::RecordBatchBuilder> builder_;
 
@@ -84,5 +83,4 @@ class ParquetWriter {
 };
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
-    const char *filename, TupleDesc tuple_desc,
-    std::shared_ptr<arrow::Schema> schema = nullptr);
+    const char *filename, TupleDesc tuple_desc);

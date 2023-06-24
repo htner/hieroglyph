@@ -48,8 +48,6 @@ class ParquetS3WriterState {
   char *rel_name;
   Oid rel_id;
 
-  std::shared_ptr<arrow::Schema> file_schema_;
-
   /* list attnum of needed modify attributes */
   std::set<int> target_attrs;
 
@@ -76,8 +74,9 @@ class ParquetS3WriterState {
   bool ExecDelete(ItemPointer tic);
   /* upload modified parquet file to storage system (local/S3) */
   void Upload();
-  void CommitUpload(std::list<sdb::LakeFiles> add_files,
-                   std::list<sdb::LakeFiles> delete_files););
+  void CommitUpload();
+  //void CommitUpload(std::list<lake::LakeFile> add_files,
+  //                 std::list<lake::LakeFile> delete_files);
   /* true if s3_client is set */
   bool HasS3Client();
 

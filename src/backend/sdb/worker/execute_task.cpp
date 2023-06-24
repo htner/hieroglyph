@@ -5,6 +5,8 @@
 #include "backend/sdb/worker/worker_service.hpp"
 #include "sdb/execute.h"
 
+extern "C"
+
 namespace sdb {
 
 ExecuteTask::ExecuteTask(const sdb::PrepareTaskRequest* req,
@@ -17,6 +19,7 @@ ExecuteTask::~ExecuteTask() {
 
 void ExecuteTask::Run() {
 	LOG(INFO) << "MPPEXEC: execute run";
+	//kGlobalTask = shared_from_this();
 	StartTransactionCommand();
 	PrepareGuc();
 	PrepareCatalog();
