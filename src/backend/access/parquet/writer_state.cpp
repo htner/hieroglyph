@@ -153,9 +153,49 @@ void ParquetS3WriterState::Upload() {
     inserter_ = nullptr;
   }
 
+  CommitUpload();
   for (auto upload : uploads_) {
     upload->CommitUpload();
   }
+}
+
+void ParquetS3WriterState::CommitUpload(std::list<sdb::LakeFiles> add_files,
+                   std::list<sdb::LakeFiles> delete_files) {
+  auto channel = std::make_unique<brpc::Channel>();
+
+	// Initialize the channel, NULL means using default options. 
+	brpc::ChannelOptions options;
+	options.protocol = brpc::PROTOCOL_GRPC;
+	options.connection_type = "pooled";
+	options.timeout_ms = 10000/*milliseconds*/;
+	options.max_retry = 5;
+	if (channel_->Init(server_addr.c_str(), NULL) != 0) {
+		LOG(ERROR) << "Fail to initialize channel";
+		return;
+	}
+  auto stub = std::make_unique<sdb::Worker_Stub>(channel_.get());
+
+  sdb::UpdateFilesRequest request;
+  request->set_add_files(add_files);
+  request->set_delete_files(delete_files);
+  //auto add_file  = prepare_request->add_add_files();
+  //add_file->set_file_name(file_name_);
+  //add_file->set_space();
+  sdb::PrepareInsertFilesResponse response;
+  //request.set_message("I'm a RPC to connect stream");
+	stub_->UpdateFiles(&cntl_, &request, &response, NULL);
+	if (cntl_.Failed()) {
+		brpc::StreamClose(stream_);
+		stream_ = brpc::INVALID_STREAM_ID;
+		LOG(ERROR) << "Fail to connect stream, " << cntl_.ErrorText();
+		return false;
+	}
+	if (!response.succ()) {
+		brpc::StreamClose(stream_);
+		stream_ = brpc::INVALID_STREAM_ID;
+		LOG(ERROR) << "Fail to connect stream";
+	}
+	return response.succ();
 }
 
 /**

@@ -56,7 +56,7 @@ class ParquetWriter {
   void Upload(const char *dirname, Aws::S3::S3Client *s3_client);
 
   void PrepareUpload();
-  void CommitUpload() {}
+  void CommitUpload();
 
   void ParquetWriteFile(const char *dirname, Aws::S3::S3Client *s3_client,
                         const arrow::Table &table);

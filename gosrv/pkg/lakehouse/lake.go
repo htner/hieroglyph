@@ -289,3 +289,11 @@ func (L *LakeRelOperator) SatisfiesMvcc(files []*kv.FileMeta, currTid types.Tran
 	}
 	return satisfiesFiles
 }
+
+func (L *LakeRelOperator) FlushCommit() {
+	// TODO
+}
+
+func (L *LakeRelOperator) Abrot() {
+	// TODO
+}

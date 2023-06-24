@@ -76,6 +76,8 @@ class ParquetS3WriterState {
   bool ExecDelete(ItemPointer tic);
   /* upload modified parquet file to storage system (local/S3) */
   void Upload();
+  void CommitUpload(std::list<sdb::LakeFiles> add_files,
+                   std::list<sdb::LakeFiles> delete_files););
   /* true if s3_client is set */
   bool HasS3Client();
 
