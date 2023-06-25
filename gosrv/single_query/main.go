@@ -26,8 +26,7 @@ import (
 	"log"
 	"time"
 
-	pb "github.com/htner/sdb/gosrv/optimizer/proto"
-	wpb "github.com/htner/sdb/gosrv/worker/proto"
+	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -52,12 +51,12 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewOptimizerClient(conn)
+	c := sdb.NewOptimizerClient(conn)
 
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
-	r, err := c.Optimize(ctx, &pb.OptimizeRequest{Name: *name, Sql: "select * from student"})
+	r, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: *name, Sql: "select * from student"})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
@@ -71,15 +70,15 @@ func main() {
 	}
 
 	// prepare segments
-	var sliceTable wpb.PBSliceTable
+	var sliceTable sdb.PBSliceTable
 	sliceTable.InstrumentOptions = 0
 	sliceTable.HasMotions = false
 	// Slice Info
-	sliceTable.Slices = make([]*wpb.PBExecSlice, len(r.Slices))
+	sliceTable.Slices = make([]*sdb.PBExecSlice, len(r.Slices))
 	segindex := int32(1)
 	for i, planSlice := range r.Slices {
 		log.Printf("%d.%s", i, planSlice.String())
-		execSlice := new(wpb.PBExecSlice)
+		execSlice := new(sdb.PBExecSlice)
 		execSlice.SliceIndex = planSlice.SliceIndex
 		execSlice.PlanNumSegments = planSlice.NumSegments
 
@@ -151,7 +150,7 @@ func main() {
 
 	for i := int32(0); i < 4; i++ {
 		// Send To Work
-		go func(i int32, localSliceTable wpb.PBSliceTable) {
+		go func(i int32, localSliceTable sdb.PBSliceTable) {
 			sliceid := 0
 			if i > 0 {
 				sliceid = 1
@@ -165,15 +164,15 @@ func main() {
 				log.Fatalf("did not connect: %v", err)
 			}
 			defer workConn.Close()
-			workClient := wpb.NewWorkerClient(workConn)
+			workClient := sdb.NewWorkerClient(workConn)
 
 			// Contact the server and print out its response.
 			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*60)
 			defer workCancel()
 
-			workinfos := make(map[int32]*wpb.WorkerInfo, 0)
+			workinfos := make(map[int32]*sdb.WorkerInfo, 0)
 			for j := int32(1); j < 5; j++ {
-				workinfo := &wpb.WorkerInfo{
+				workinfo := &sdb.WorkerInfo{
 					Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
 					Id:    int64(j),
 					Segid: j,
@@ -182,9 +181,9 @@ func main() {
 			}
 
 			localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &wpb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
+			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
 
-			query := &wpb.PrepareTaskRequest{
+			query := &sdb.PrepareTaskRequest{
 				TaskIdentify: taskid,
 				Sessionid:    1,
 				Uid:          1,
@@ -212,8 +211,8 @@ func main() {
 			}
 
 			time.Sleep(2 * time.Second)
-
-			query1 := &wpb.StartTaskRequest{
+			// all ok , start request
+			query1 := &sdb.StartTaskRequest{
 				TaskIdentify: taskid,
 			}
 

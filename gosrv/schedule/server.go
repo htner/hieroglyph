@@ -146,32 +146,30 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
-	r, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: "select * from student"})
+	optimizerResult, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: "select * from student"})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
-	err = mgr.WriterOptimizerResult(0, r)
+	err = mgr.WriterOptimizerResult(0, optimizerResult)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("Greeting: %s %d %d %d", string(r.PlanDxlStr), len(r.PlanDxlStr), len(r.PlanstmtStr), len(r.PlanParamsStr))
+	log.Printf("Greeting: %s %d %d %d", string(optimizerResult.PlanDxlStr), len(optimizerResult.PlanDxlStr), len(optimizerResult.PlanstmtStr), len(optimizerResult.PlanParamsStr))
 
-	for i, slice := range r.Slices {
-		if int32(i) != slice.SliceIndex {
-			log.Fatalf("slice index not match %d.%s", i, slice.String())
-		}
-		log.Printf("%d.%s", i, slice.String())
+	var workerMgr schedule.WorkerMgr
+	workerList, workerSliceList, err := workerMgr.GetServerSliceList(optimizerResult.Slices)
+	if err != nil {
+		return nil, err
 	}
-
 	// prepare segments
 	var sliceTable sdb.PBSliceTable
 	sliceTable.InstrumentOptions = 0
 	sliceTable.HasMotions = false
 	// Slice Info
-	sliceTable.Slices = make([]*sdb.PBExecSlice, len(r.Slices))
+	sliceTable.Slices = make([]*sdb.PBExecSlice, len(optimizerResult.Slices))
 	segindex := int32(1)
-	for i, planSlice := range r.Slices {
+	for i, planSlice := range optimizerResult.Slices {
 		log.Printf("%d.%s", i, planSlice.String())
 		execSlice := new(sdb.PBExecSlice)
 		execSlice.SliceIndex = planSlice.SliceIndex
@@ -179,7 +177,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 		rootIndex := int32(0)
 		parentIndex := planSlice.ParentIndex
-		if parentIndex < -1 || int(parentIndex) >= len(r.Slices) {
+		if parentIndex < -1 || int(parentIndex) >= len(optimizerResult.Slices) {
 			log.Fatal("invalid parent slice index %d", parentIndex)
 		}
 		if parentIndex >= 0 {
@@ -192,11 +190,11 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 			rootIndex = execSlice.SliceIndex
 			count := 0
-			for r.Slices[rootIndex].ParentIndex >= 0 {
-				rootIndex = r.Slices[rootIndex].ParentIndex
+			for optimizerResult.Slices[rootIndex].ParentIndex >= 0 {
+				rootIndex = optimizerResult.Slices[rootIndex].ParentIndex
 
 				count++
-				if count > len(r.Slices) {
+				if count > len(optimizerResult.Slices) {
 					log.Fatal("circular parent-child relationship")
 				}
 			}
@@ -244,13 +242,14 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	log.Printf("------------------------------------")
 
 	workinfos := make(map[int32]*sdb.WorkerInfo, 0)
-	for j := int32(1); j < 5; j++ {
-		workinfo := &sdb.WorkerInfo{
-			Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
-			Id:    int64(j),
-			Segid: j,
-		}
-		workinfos[j] = workinfo
+	//workerList
+	for _, worker := range workerList {
+		//workinfo := &sdb.WorkerInfo{
+		//	Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
+		//	Id:    int64(j),
+		//	Segid: j,
+		//}
+		workinfos[worker.Id] = worker
 	}
 
 	query := sdb.PrepareTaskRequest{
@@ -262,9 +261,9 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		MaxXid:       1,
 		Sql:          "select * from student",
 		QueryInfo:    nil,
-		PlanInfo:     r.PlanstmtStr,
+		PlanInfo:     optimizerResult.PlanstmtStr,
 		//PlanInfoDxl: r.PlanDxlStr,
-		PlanParams: r.PlanParamsStr,
+		PlanParams: optimizerResult.PlanParamsStr,
 		GucVersion: 1,
 		Workers:    workinfos,
 		SliceTable: &sliceTable,
@@ -275,23 +274,20 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		return nil, err
 	}
 
-	for i := int32(0); i < 4; i++ {
+	for _, workerSlice := range workerSliceList {
 		// Send To Work
-		go func(i int32, query sdb.PrepareTaskRequest) {
+		go func(query sdb.PrepareTaskRequest, worker *sdb.WorkerSliceInfo) {
 			sliceid := 0
-			if i > 0 {
-				sliceid = 1
-			}
 			//localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
+			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(worker.Sliceid), SegId: worker.Segid}
 			query.TaskIdentify = taskid
 			query.SliceTable.LocalSlice = int32(sliceid)
 
 			//localSliceTable := sliceTable
-			addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
-			log.Printf("addr:%s", addr)
+			//addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
+			log.Printf("addr:%s", worker.WorkerInfo.Addr)
 
-			workConn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			workConn, err := grpc.Dial(worker.WorkerInfo.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Fatalf("did not connect: %v", err)
 			}
@@ -326,9 +322,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 				log.Printf("start reply: %v", reply1.String())
 			}
 			time.Sleep(2 * time.Second)
-		}(i, proto.Clone(query))
-
-		log.Printf("start next: %d", i)
+		}(proto.Clone(query), workerSlice)
 		time.Sleep(1 * time.Second)
 	}
 

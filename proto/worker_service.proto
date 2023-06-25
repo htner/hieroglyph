@@ -22,6 +22,8 @@ package sdb;
 option cc_generic_services = true;
 option go_package="./sdb";
 
+import  "workerinfo.proto";
+
 // The greeting service definition.
 // Sends a greeting
 service Worker {
@@ -48,11 +50,7 @@ message PBSliceTable {
   uint32 ic_instance_id = 6;
 }
 
-message WorkerInfo {
-  string addr = 1;
-  int64 id = 2; // global id
-  int32 segid = 3;  // loacl id for query
-}
+
 
 message TaskIdentify {
   uint64 query_id = 1;
@@ -83,7 +81,7 @@ message PrepareTaskRequest {
   //repeated WorkerInfo workers = 22;
   PBSliceTable slice_table = 23;
 
-  map<int32, WorkerInfo> workers = 24;
+  map<int32, WorkerInfo> workers = 24;  // worker id -> info
 }
 
 // The response message containing the greetings
