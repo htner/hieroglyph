@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -128,6 +129,13 @@ func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *sdb.WorkerR
 func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {
 	log.Printf("get request %s", in.Sql)
 	// Set up a connection to the server.
+
+	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
+	err := mgr.WriterQueryDetail(in)
+	if err != nil {
+		return nil, err
+	}
+
 	conn, err := grpc.Dial(*optimizerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -142,6 +150,11 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
+	err = mgr.WriterOptimizerResult(0, r)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Printf("Greeting: %s %d %d %d", string(r.PlanDxlStr), len(r.PlanDxlStr), len(r.PlanstmtStr), len(r.PlanParamsStr))
 
 	for i, slice := range r.Slices {
@@ -230,13 +243,50 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 	log.Printf("------------------------------------")
 
+	workinfos := make(map[int32]*sdb.WorkerInfo, 0)
+	for j := int32(1); j < 5; j++ {
+		workinfo := &sdb.WorkerInfo{
+			Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
+			Id:    int64(j),
+			Segid: j,
+		}
+		workinfos[j] = workinfo
+	}
+
+	query := sdb.PrepareTaskRequest{
+		TaskIdentify: &sdb.TaskIdentify{QueryId: 1, SliceId: 0, SegId: 0},
+		Sessionid:    1,
+		Uid:          1,
+		Dbid:         1,
+		MinXid:       1,
+		MaxXid:       1,
+		Sql:          "select * from student",
+		QueryInfo:    nil,
+		PlanInfo:     r.PlanstmtStr,
+		//PlanInfoDxl: r.PlanDxlStr,
+		PlanParams: r.PlanParamsStr,
+		GucVersion: 1,
+		Workers:    workinfos,
+		SliceTable: &sliceTable,
+	}
+
+	err = mgr.WriterExecDetail(query)
+	if err != nil {
+		return nil, err
+	}
+
 	for i := int32(0); i < 4; i++ {
 		// Send To Work
-		go func(i int32, localSliceTable sdb.PBSliceTable) {
+		go func(i int32, query sdb.PrepareTaskRequest) {
 			sliceid := 0
 			if i > 0 {
 				sliceid = 1
 			}
+			//localSliceTable.LocalSlice = int32(sliceid)
+			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
+			query.TaskIdentify = taskid
+			query.SliceTable.LocalSlice = int32(sliceid)
+
 			//localSliceTable := sliceTable
 			addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
 			log.Printf("addr:%s", addr)
@@ -251,36 +301,6 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 			// Contact the server and print out its response.
 			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*60)
 			defer workCancel()
-
-			workinfos := make(map[int32]*sdb.WorkerInfo, 0)
-			for j := int32(1); j < 5; j++ {
-				workinfo := &sdb.WorkerInfo{
-					Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
-					Id:    int64(j),
-					Segid: j,
-				}
-				workinfos[j] = workinfo
-			}
-
-			localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
-
-			query := &sdb.PrepareTaskRequest{
-				TaskIdentify: taskid,
-				Sessionid:    1,
-				Uid:          1,
-				Dbid:         1,
-				MinXid:       1,
-				MaxXid:       1,
-				Sql:          "select * from student",
-				QueryInfo:    nil,
-				PlanInfo:     r.PlanstmtStr,
-				//PlanInfoDxl: r.PlanDxlStr,
-				PlanParams: r.PlanParamsStr,
-				GucVersion: 1,
-				Workers:    workinfos,
-				SliceTable: &localSliceTable,
-			}
 
 			reply, err := workClient.Prepare(ctx, query)
 			log.Println("----- query -----")
@@ -306,7 +326,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 				log.Printf("start reply: %v", reply1.String())
 			}
 			time.Sleep(2 * time.Second)
-		}(i, sliceTable)
+		}(i, proto.Clone(query))
 
 		log.Printf("start next: %d", i)
 		time.Sleep(1 * time.Second)
