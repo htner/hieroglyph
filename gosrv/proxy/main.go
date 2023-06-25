@@ -24,7 +24,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&options.listenAddress, "listen", "127.0.0.1:5432", "Proxy listen address")
+	flag.StringVar(&options.listenAddress, "listen", "127.0.0.1:65432", "Proxy listen address")
 	flag.StringVar(&options.remoteAddress, "remote", "127.0.0.1:15432", "Remote schedule server address")
 	flag.Parse()
 

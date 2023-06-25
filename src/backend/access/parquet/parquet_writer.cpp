@@ -236,62 +236,63 @@ bool ParquetWriter::ExecDelete(size_t pos) {
 void ParquetWriter::PrepareUpload() {
 
 	std::unique_ptr<brpc::Channel> channel;
-	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
+	std::unique_ptr<proto::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
+	LOG(ERROR) << "prepare upload";
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
 	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	//options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
-		LOG(ERROR) << "Fail to initialize channel";
+	if (channel->Init("127.0.0.1", 10001, &options) != 0) {
+		LOG(ERROR) << "PrepareUpload: Fail to initialize channel";
 		return;
 	}
-	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
+	stub = std::make_unique<proto::Lake_Stub>(channel.get());
 
-	sdb::PrepareInsertFilesRequest request;
+	proto::PrepareInsertFilesRequest request;
 	auto add_file  = request.add_add_files();
 	*add_file = filename_;
 
-	sdb::PrepareInsertFilesResponse response;
+	proto::PrepareInsertFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
-		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		LOG(ERROR) << "Fail to PrepareInsertFiles, " << cntl.ErrorText();
 		return;
 	}
 }
 
 void ParquetWriter::CommitUpload() {
 	std::unique_ptr<brpc::Channel> channel;
-	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
+	std::unique_ptr<proto::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
-	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	options.protocol = "h2:grpc+proto";
+	//options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
+	if (channel->Init("127.0.0.1", 10001, &options) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
-	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
+	stub = std::make_unique<proto::Lake_Stub>(channel.get());
 
-	sdb::UpdateFilesRequest request;
+	proto::UpdateFilesRequest request;
 	//auto add_file  = prepare_request->add_add_files();
 	//*add_file = filename_;
 
-	sdb::UpdateFilesResponse response;
+	proto::UpdateFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->UpdateFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
-		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		LOG(ERROR) << "Fail to UpdateFiles, " << cntl.ErrorText();
 		return;
 	}
 }

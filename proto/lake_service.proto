@@ -1,5 +1,5 @@
 syntax = "proto3";
-package sdb;
+package proto;
 
 /* to generate service */
 option cc_generic_services = true;
