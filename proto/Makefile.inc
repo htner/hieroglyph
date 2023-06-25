@@ -4,12 +4,12 @@
 #
 #-------------------------------------------------------------------------
 
-include ../Makefile.conf
+include Makefile.conf
 
-subdir = $(SDB_SUB_DIR)
-top_builddir = $(SDB_TOP_BUILD_PREFIX)
+#subdir = $(SDB_SUB_DIR)
+#top_builddir = $(SDB_TOP_BUILD_PREFIX)
 
-include $(SDB_GLOBAL_MAKEFILE)
+# include $(SDB_GLOBAL_MAKEFILE)
 
 CFLAGS += -I${PROTOC_DIR}include `pkg-config --cflags protobuf`
 CXXFLAGS += -I${PROTOC_DIR}include `pkg-config --cflags protobuf`
@@ -22,7 +22,7 @@ PROTO_GO_SRC = $(patsubst %.proto, %.pb.go, $(PROTO_FILE))
 OBJS = $(patsubst %.cc, %.o, $(PROTO_SRC))
 OBJS += $(patsubst %.cpp, %.o, $(wildcard *.cpp))
 
-include $(SDB_COMMON_MK)
+# include $(SDB_COMMON_MK)
 
 
 $(PROTO_SRC): $(PROTO_FILE)
@@ -36,19 +36,16 @@ go: $(PROTO_GO_SRC)
 # for go-zero
 # goctl rpc protoc $< --go_out=../../gosrv/$(SDB_DIR)/proto --go-grpc_out=../../gosrv/$(SDB_DIR)/proto --zrpc_out=../../gosrv/$(SDB_DIR)
 # for go-micro
-# @protoc --micro_out=../../gosrv/$(SDB_DIR) --go_out=:../../gosrv/$(SDB_DIR) $< 
+# @protoc --micro_out=../gosrv/$(SDB_DIR) --go_out=:../gosrv/$(SDB_DIR) $< 
 # using google grpc here
 
 %_service.pb.go: %_service.proto
-	@mkdir -p ../../gosrv/$(SDB_DIR)/proto
-	protoc $< --go_out=../../gosrv/$(SDB_DIR) --go-grpc_out=../../gosrv/$(SDB_DIR)
+	@mkdir -p ../gosrv/proto
+	protoc $< --go_out=../gosrv/ --go-grpc_out=../gosrv/
 
 %.pb.go: %.proto
-	@mkdir -p ../../gosrv/$(SDB_DIR)/proto
-	@protoc $< --go_out=../../gosrv/$(SDB_DIR)
-
-#$(PROTO_GO_SRC): $(PROTO_FILE)
-#	truss $(wildcard *.proto) --svcout ../../sdb/pkg/
+	@mkdir -p ../gosrv/proto
+	@protoc $< --go_out=../gosrv
 
 clean:
 	rm -f *.go

@@ -45,7 +45,7 @@ extern "C" {
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
-#include "lake/lake_service.pb.h"
+#include "lake_service.pb.h"
 
 #define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
 
@@ -236,7 +236,7 @@ bool ParquetWriter::ExecDelete(size_t pos) {
 void ParquetWriter::PrepareUpload() {
 
 	std::unique_ptr<brpc::Channel> channel;
-	std::unique_ptr<lake::Lake_Stub> stub;//(&channel);
+	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
@@ -250,13 +250,13 @@ void ParquetWriter::PrepareUpload() {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
-	stub = std::make_unique<lake::Lake_Stub>(channel.get());
+	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
-	lake::PrepareInsertFilesRequest request;
+	sdb::PrepareInsertFilesRequest request;
 	auto add_file  = request.add_add_files();
 	*add_file = filename_;
 
-	lake::PrepareInsertFilesResponse response;
+	sdb::PrepareInsertFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
@@ -267,7 +267,7 @@ void ParquetWriter::PrepareUpload() {
 
 void ParquetWriter::CommitUpload() {
 	std::unique_ptr<brpc::Channel> channel;
-	std::unique_ptr<lake::Lake_Stub> stub;//(&channel);
+	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
@@ -281,13 +281,13 @@ void ParquetWriter::CommitUpload() {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
-	stub = std::make_unique<lake::Lake_Stub>(channel.get());
+	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
-	lake::UpdateFilesRequest request;
+	sdb::UpdateFilesRequest request;
 	//auto add_file  = prepare_request->add_add_files();
 	//*add_file = filename_;
 
-	lake::UpdateFilesResponse response;
+	sdb::UpdateFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->UpdateFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {

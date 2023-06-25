@@ -7,7 +7,7 @@
 #include <brpc/server.h>
 #include <brpc/restful.h>
 
-#include "optimizer/optimizer_service.pb.h"
+#include "optimizer_service.pb.h"
 #include "backend/sdb/common/singleton.hpp"
 #include "backend/sdb/common/shared_queue.hpp"
 #include "backend/sdb/optimizer/optimize_task.hpp"

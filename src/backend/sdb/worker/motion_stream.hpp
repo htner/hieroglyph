@@ -3,7 +3,7 @@
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
-#include "worker/worker_service.pb.h"
+#include "worker_service.pb.h"
 //#include <butil/logging.h>
 
 namespace sdb {

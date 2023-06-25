@@ -5,7 +5,7 @@
 #include <memory>
 #include <string_view>
 
-#include "optimizer/optimizer_service.pb.h"
+#include "optimizer_service.pb.h"
 #include "backend/sdb/optimizer/parser.hpp"
 
 namespace sdb {

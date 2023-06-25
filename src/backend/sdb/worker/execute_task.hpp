@@ -12,7 +12,7 @@
 #include <butil/logging.h> // LOG Last
 
 #include "include/sdb/execute.h"
-#include "worker/worker_service.pb.h"
+#include "worker_service.pb.h"
 #include "backend/sdb/common/shared_mutli_queue.hpp"
 #include "backend/sdb/worker/motion_stream.hpp"
 

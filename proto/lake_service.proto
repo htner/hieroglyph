@@ -1,5 +1,5 @@
 syntax = "proto3";
-package lake;
+package sdb;
 
 /* to generate service */
 option cc_generic_services = true;

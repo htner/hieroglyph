@@ -6,7 +6,7 @@
 #include <brpc/restful.h>
 #include <google/protobuf/text_format.h>
 
-#include "worker/worker_service.pb.h"
+#include "worker_service.pb.h"
 #include "backend/sdb/common/singleton.hpp"
 #include "backend/sdb/common/shared_queue.hpp"
 #include "backend/sdb/worker/execute_task.hpp"

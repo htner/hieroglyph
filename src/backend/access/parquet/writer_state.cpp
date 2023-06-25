@@ -29,7 +29,7 @@ extern "C" {
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
-#include "lake/lake_service.pb.h"
+#include "lake_service.pb.h"
 
 /**
  * @brief Create a parquet modify state object
@@ -140,11 +140,11 @@ void ParquetS3WriterState::Upload() {
 }
 
 void ParquetS3WriterState::CommitUpload() {
-	std::list<lake::LakeFile> add_files;
-	std::list<lake::LakeFile> delete_files;
+	std::list<sdb::LakeFile> add_files;
+	std::list<sdb::LakeFile> delete_files;
 
 	std::unique_ptr<brpc::Channel> channel;
-	std::unique_ptr<lake::Lake_Stub> stub;//(&channel);
+	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
@@ -158,10 +158,10 @@ void ParquetS3WriterState::CommitUpload() {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
-	stub = std::make_unique<lake::Lake_Stub>(channel.get());
+	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
 
-	lake::UpdateFilesRequest request;
+	sdb::UpdateFilesRequest request;
 	for (auto it = add_files.begin(); it != add_files.end(); ++it) {
 		auto f = request.add_add_files();
 		*f = *it;
@@ -174,7 +174,7 @@ void ParquetS3WriterState::CommitUpload() {
 	//auto add_file  = prepare_request->add_add_files();
 	//add_file->set_file_name(file_name_);
 	//add_file->set_space();
-	lake::UpdateFilesResponse response;
+	sdb::UpdateFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->UpdateFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {

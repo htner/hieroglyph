@@ -1,5 +1,3 @@
-//go:build integration
-
 package main
 
 import (
@@ -13,10 +11,7 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
-	optimizer_pb "github.com/htner/sdb/gosrv/optimizer/proto"
-	"github.com/htner/sdb/gosrv/schedule/proto"
-	pb "github.com/htner/sdb/gosrv/schedule/proto"
-	wpb "github.com/htner/sdb/gosrv/worker/proto"
+	"github.com/htner/sdb/gosrv/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -41,7 +36,7 @@ func rungRPC(done chan bool, port int) error {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterScheduleServer(s, &ScheduleServer{port: port})
+  proto.RegisterScheduleServer(s, &ScheduleServer{port: port})
 	reflection.Register(s)
 
 	go stopWhenDone(done, s)
@@ -121,7 +116,7 @@ func registerService(caddr, name string, port int) error {
 
 }
 
-func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*pb.ExecQueryReply, error) {
+func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest) (*proto.ExecQueryReply, error) {
 	log.Printf("get request %s", in.Sql)
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(*optimizerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -129,12 +124,12 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := optimizer_pb.NewOptimizerClient(conn)
+	c := proto.NewOptimizerClient(conn)
 
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
-	r, err := c.Optimize(ctx, &optimizer_pb.OptimizeRequest{Name: "query", Sql: "select * from student"})
+	r, err := c.Optimize(ctx, &proto.OptimizeRequest{Name: "query", Sql: "select * from student"})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
@@ -148,15 +143,15 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 	}
 
 	// prepare segments
-	var sliceTable wpb.PBSliceTable
+	var sliceTable proto.PBSliceTable
 	sliceTable.InstrumentOptions = 0
 	sliceTable.HasMotions = false
 	// Slice Info
-	sliceTable.Slices = make([]*wpb.PBExecSlice, len(r.Slices))
+	sliceTable.Slices = make([]*proto.PBExecSlice, len(r.Slices))
 	segindex := int32(1)
 	for i, planSlice := range r.Slices {
 		log.Printf("%d.%s", i, planSlice.String())
-		execSlice := new(wpb.PBExecSlice)
+		execSlice := new(proto.PBExecSlice)
 		execSlice.SliceIndex = planSlice.SliceIndex
 		execSlice.PlanNumSegments = planSlice.NumSegments
 
@@ -228,7 +223,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 
 	for i := int32(0); i < 4; i++ {
 		// Send To Work
-		go func(i int32, localSliceTable wpb.PBSliceTable) {
+		go func(i int32, localSliceTable proto.PBSliceTable) {
 			sliceid := 0
 			if i > 0 {
 				sliceid = 1
@@ -242,15 +237,15 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 				log.Fatalf("did not connect: %v", err)
 			}
 			defer workConn.Close()
-			workClient := wpb.NewWorkerClient(workConn)
+			workClient := proto.NewWorkerClient(workConn)
 
 			// Contact the server and print out its response.
 			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*60)
 			defer workCancel()
 
-			workinfos := make(map[int32]*wpb.WorkerInfo, 0)
+			workinfos := make(map[int32]*proto.WorkerInfo, 0)
 			for j := int32(1); j < 5; j++ {
-				workinfo := &wpb.WorkerInfo{
+				workinfo := &proto.WorkerInfo{
 					Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
 					Id:    int64(j),
 					Segid: j,
@@ -259,9 +254,9 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 			}
 
 			localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &wpb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
+			taskid := &proto.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
 
-			query := &wpb.PrepareTaskRequest{
+			query := &proto.PrepareTaskRequest{
 				TaskIdentify: taskid,
 				Sessionid:    1,
 				Uid:          1,
@@ -290,7 +285,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 
 			time.Sleep(2 * time.Second)
 
-			query1 := &wpb.StartTaskRequest{
+			query1 := &proto.StartTaskRequest{
 				TaskIdentify: taskid,
 			}
 
@@ -309,5 +304,5 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 	}
 
 	time.Sleep(160 * time.Second)
-	return &pb.ExecQueryReply{}, nil
+	return &proto.ExecQueryReply{}, nil
 }

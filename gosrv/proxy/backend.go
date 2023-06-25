@@ -10,7 +10,7 @@ import (
 	"reflect"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
-	"github.com/htner/sdb/gosrv/schedule/proto"
+	"github.com/htner/sdb/gosrv/proto"
 	"github.com/jackc/pgproto3/v2"
 
 	_ "github.com/mbobakov/grpc-consul-resolver" // It's important
