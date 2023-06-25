@@ -86,8 +86,8 @@ func main() {
 	signal.Notify(c, os.Interrupt, os.Kill)
 
 	done := make(chan bool, 1)
-	go rungRPC(done, 17000)
-	registerService("127.0.0.1:8500", "SchedulerServer", 17000)
+	go rungRPC(done, 10001)
+	registerService("127.0.0.1:8500", "SchedulerServer", 10001)
 	<-c
 }
 

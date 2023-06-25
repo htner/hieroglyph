@@ -240,14 +240,15 @@ void ParquetWriter::PrepareUpload() {
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
+	LOG(ERROR) << "prepare upload";
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
 	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	//options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
-		LOG(ERROR) << "Fail to initialize channel";
+	if (channel->Init("127.0.0.1", 10001, &options) != 0) {
+		LOG(ERROR) << "PrepareUpload: Fail to initialize channel";
 		return;
 	}
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
@@ -260,7 +261,7 @@ void ParquetWriter::PrepareUpload() {
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
-		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		LOG(ERROR) << "Fail to PrepareInsertFiles, " << cntl.ErrorText();
 		return;
 	}
 }
@@ -273,11 +274,11 @@ void ParquetWriter::CommitUpload() {
 
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
-	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	options.protocol = "h2:grpc+proto";
+	//options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
+	if (channel->Init("127.0.0.1", 10001, &options) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
@@ -291,7 +292,7 @@ void ParquetWriter::CommitUpload() {
 	//request.set_message("I'm a RPC to connect stream");
 	stub->UpdateFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
-		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		LOG(ERROR) << "Fail to UpdateFiles, " << cntl.ErrorText();
 		return;
 	}
 }
