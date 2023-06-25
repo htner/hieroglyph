@@ -9,10 +9,9 @@ import (
 	"os/signal"
 
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/htner/sdb/gosrv/lake/proto"
-	pb "github.com/htner/sdb/gosrv/lake/proto"
+	"github.com/htner/sdb/gosrv/proto"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
-	"github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -30,7 +29,7 @@ func rungRPC(done chan bool, port int) error {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterLakeServer(s, &LakeServer{port: port})
+	proto.RegisterLakeServer(s, &LakeServer{port: port})
 	reflection.Register(s)
 
 	go stopWhenDone(done, s)
@@ -55,7 +54,7 @@ type LakeServer struct {
 
 // Depart implements proto.ScheduleServer
 // It just returns commid
-func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *pb.PrepareInsertFilesRequest) (*pb.PrepareInsertFilesResponse, error) {
+func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *proto.PrepareInsertFilesRequest) (*proto.PrepareInsertFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
 	lakeop := lakehouse.NewLakeRelOperator(
 		types.DatabaseId(request.Dbid),
@@ -65,10 +64,10 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *pb.Prepare
 	if err != nil {
 		return nil, fmt.Errorf("mark files error")
 	}
-	return &pb.PrepareInsertFilesResponse{}, nil
+	return &proto.PrepareInsertFilesResponse{}, nil
 }
 
-func (s *LakeServer) UpdateFiles(ctx context.Context, request *pb.UpdateFilesRequest) (*pb.UpdateFilesResponse, error) {
+func (s *LakeServer) UpdateFiles(ctx context.Context, request *proto.UpdateFilesRequest) (*proto.UpdateFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
@@ -102,7 +101,7 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *pb.UpdateFilesReq
 	if err != nil {
 		return nil, fmt.Errorf("insert files error")
 	}
-	return &pb.UpdateFilesResponse{}, nil
+	return &proto.UpdateFilesResponse{}, nil
 }
 
 func findNextFreePort() (int, error) {

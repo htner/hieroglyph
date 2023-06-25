@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
+	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 

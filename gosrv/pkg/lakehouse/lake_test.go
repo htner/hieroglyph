@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
+	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 )
 
 func TestLake_1(t *testing.T) { // 模拟需要耗时一秒钟运行的任务

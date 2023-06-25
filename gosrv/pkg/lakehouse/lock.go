@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	kv "github.com/htner/sdb/gosrv/pkg/lakehouse/kvpair"
+	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 

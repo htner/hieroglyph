@@ -49,6 +49,7 @@ message OptimizeRequest {
   uint64 uid = 4;
   uint64 dbid = 5;
   uint64 xid = 6;
+  uint64 commandid = 7;
 }
 
 // The response message containing the greetings

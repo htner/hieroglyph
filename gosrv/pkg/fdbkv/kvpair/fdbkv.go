@@ -2,9 +2,9 @@ package kvpair
 
 import (
 	"bytes"
-	"log"
 	"encoding/binary"
 	"errors"
+	"log"
 )
 
 type FdbKey interface {

@@ -12,4 +12,11 @@ const (
 	LakeFileTag        uint16 = 22
 	CLOGTag            uint16 = 23
 	FileListVersionTag uint16 = 24
+
+  QueryStatusTag uint16 = 30
+  QueryRequestTag uint16 = 31
+  QueryOptimizerResultTag uint16 = 32
+  QueryWorkerRequestTag uint16 = 33
+  QueryWorkerDetailTag uint16 = 34
+  QueryResultTag uint16 = 35
 )

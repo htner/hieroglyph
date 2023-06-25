@@ -11,6 +11,8 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/htner/sdb/gosrv/pkg/schedule"
+	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -114,6 +116,13 @@ func registerService(caddr, name string, port int) error {
 
 	return nil
 
+}
+
+func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *proto.WorkerResultReportRequest) (*proto.WorkerResultReportReply, error) {
+	out := new(proto.WorkerResultReportReply)
+  mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
+  err := mgr.WriterExecResult(in)
+  return out, err 
 }
 
 func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest) (*proto.ExecQueryReply, error) {

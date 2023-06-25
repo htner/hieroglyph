@@ -22,14 +22,10 @@ package sdb;
 option cc_generic_services = false;
 option go_package="./proto";
 
+import  "optimizer_service.proto";
+import  "worker_service.proto";
 import  "schedule_service.proto";
 
-message CommandDetail {
-  uint64 uid = 1;
-  uint64 sessionid = 2;
-  uint64 xid = 3;
-  string query_string = 4;
-}
 
 enum CommandStatus {
   CS_NULL = 0;
@@ -40,17 +36,23 @@ enum CommandStatus {
   CS_DONE = 5;
 }
 
+message CommandDetails {
+  ExecQueryRequest request = 1;
+}
+
+
 message CommandStatusDetail {
   CommandStatus status = 1;
 }
 
 message CommandOptimizerResult {
-
+  OptimizeReply optimizer_result = 1;
 }
 
 message CommandExecDetail {
-
+  PrepareTaskRequest prepare_task_info = 1;
 }
 
-message CommandExecResult {
+message CommandResult {
+  WorkerResultReportRequest result = 1;
 }
