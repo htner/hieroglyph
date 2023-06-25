@@ -9,10 +9,10 @@ import (
 	"os/signal"
 
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/htner/sdb/gosrv/proto"
-	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -29,7 +29,7 @@ func rungRPC(done chan bool, port int) error {
 	}
 
 	s := grpc.NewServer()
-	proto.RegisterLakeServer(s, &LakeServer{port: port})
+	sdb.RegisterLakeServer(s, &LakeServer{port: port})
 	reflection.Register(s)
 
 	go stopWhenDone(done, s)
@@ -48,13 +48,13 @@ func stopWhenDone(done chan bool, server *grpc.Server) {
 
 // server is used to implement proto.ScheduleServer
 type LakeServer struct {
-	proto.UnimplementedLakeServer
+	sdb.UnimplementedLakeServer
 	port int
 }
 
 // Depart implements proto.ScheduleServer
 // It just returns commid
-func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *proto.PrepareInsertFilesRequest) (*proto.PrepareInsertFilesResponse, error) {
+func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.PrepareInsertFilesRequest) (*sdb.PrepareInsertFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
 	lakeop := lakehouse.NewLakeRelOperator(
 		types.DatabaseId(request.Dbid),
@@ -64,10 +64,10 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *proto.Prep
 	if err != nil {
 		return nil, fmt.Errorf("mark files error")
 	}
-	return &proto.PrepareInsertFilesResponse{}, nil
+	return &sdb.PrepareInsertFilesResponse{}, nil
 }
 
-func (s *LakeServer) UpdateFiles(ctx context.Context, request *proto.UpdateFilesRequest) (*proto.UpdateFilesResponse, error) {
+func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRequest) (*sdb.UpdateFilesResponse, error) {
 	//log.Printf("get request %s", in.Sql)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
@@ -101,7 +101,7 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *proto.UpdateFiles
 	if err != nil {
 		return nil, fmt.Errorf("insert files error")
 	}
-	return &proto.UpdateFilesResponse{}, nil
+	return &sdb.UpdateFilesResponse{}, nil
 }
 
 func findNextFreePort() (int, error) {

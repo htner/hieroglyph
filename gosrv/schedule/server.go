@@ -13,7 +13,7 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/types"
-	"github.com/htner/sdb/gosrv/proto"
+	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -38,7 +38,7 @@ func rungRPC(done chan bool, port int) error {
 	}
 
 	s := grpc.NewServer()
-  proto.RegisterScheduleServer(s, &ScheduleServer{port: port})
+	sdb.RegisterScheduleServer(s, &ScheduleServer{port: port})
 	reflection.Register(s)
 
 	go stopWhenDone(done, s)
@@ -57,7 +57,7 @@ func stopWhenDone(done chan bool, server *grpc.Server) {
 
 // server is used to implement proto.ScheduleServer
 type ScheduleServer struct {
-	proto.UnimplementedScheduleServer
+	sdb.UnimplementedScheduleServer
 	port int
 }
 
@@ -118,14 +118,14 @@ func registerService(caddr, name string, port int) error {
 
 }
 
-func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *proto.WorkerResultReportRequest) (*proto.WorkerResultReportReply, error) {
-	out := new(proto.WorkerResultReportReply)
-  mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
-  err := mgr.WriterExecResult(in)
-  return out, err 
+func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *sdb.WorkerResultReportRequest) (*sdb.WorkerResultReportReply, error) {
+	out := new(sdb.WorkerResultReportReply)
+	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
+	err := mgr.WriterExecResult(in)
+	return out, err
 }
 
-func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest) (*proto.ExecQueryReply, error) {
+func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {
 	log.Printf("get request %s", in.Sql)
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(*optimizerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -133,12 +133,12 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := proto.NewOptimizerClient(conn)
+	c := sdb.NewOptimizerClient(conn)
 
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
-	r, err := c.Optimize(ctx, &proto.OptimizeRequest{Name: "query", Sql: "select * from student"})
+	r, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: "select * from student"})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
@@ -152,15 +152,15 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 	}
 
 	// prepare segments
-	var sliceTable proto.PBSliceTable
+	var sliceTable sdb.PBSliceTable
 	sliceTable.InstrumentOptions = 0
 	sliceTable.HasMotions = false
 	// Slice Info
-	sliceTable.Slices = make([]*proto.PBExecSlice, len(r.Slices))
+	sliceTable.Slices = make([]*sdb.PBExecSlice, len(r.Slices))
 	segindex := int32(1)
 	for i, planSlice := range r.Slices {
 		log.Printf("%d.%s", i, planSlice.String())
-		execSlice := new(proto.PBExecSlice)
+		execSlice := new(sdb.PBExecSlice)
 		execSlice.SliceIndex = planSlice.SliceIndex
 		execSlice.PlanNumSegments = planSlice.NumSegments
 
@@ -232,7 +232,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 
 	for i := int32(0); i < 4; i++ {
 		// Send To Work
-		go func(i int32, localSliceTable proto.PBSliceTable) {
+		go func(i int32, localSliceTable sdb.PBSliceTable) {
 			sliceid := 0
 			if i > 0 {
 				sliceid = 1
@@ -246,15 +246,15 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 				log.Fatalf("did not connect: %v", err)
 			}
 			defer workConn.Close()
-			workClient := proto.NewWorkerClient(workConn)
+			workClient := sdb.NewWorkerClient(workConn)
 
 			// Contact the server and print out its response.
 			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*60)
 			defer workCancel()
 
-			workinfos := make(map[int32]*proto.WorkerInfo, 0)
+			workinfos := make(map[int32]*sdb.WorkerInfo, 0)
 			for j := int32(1); j < 5; j++ {
-				workinfo := &proto.WorkerInfo{
+				workinfo := &sdb.WorkerInfo{
 					Addr:  fmt.Sprintf("127.0.0.1:%d", 40000+j),
 					Id:    int64(j),
 					Segid: j,
@@ -263,9 +263,9 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 			}
 
 			localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &proto.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
+			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(sliceid), SegId: i + 1}
 
-			query := &proto.PrepareTaskRequest{
+			query := &sdb.PrepareTaskRequest{
 				TaskIdentify: taskid,
 				Sessionid:    1,
 				Uid:          1,
@@ -294,7 +294,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 
 			time.Sleep(2 * time.Second)
 
-			query1 := &proto.StartTaskRequest{
+			query1 := &sdb.StartTaskRequest{
 				TaskIdentify: taskid,
 			}
 
@@ -313,5 +313,5 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *proto.ExecQueryRequest)
 	}
 
 	time.Sleep(160 * time.Second)
-	return &proto.ExecQueryReply{}, nil
+	return &sdb.ExecQueryReply{}, nil
 }

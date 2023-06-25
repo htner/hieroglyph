@@ -41,11 +41,11 @@ go: $(PROTO_GO_SRC)
 
 %_service.pb.go: %_service.proto
 	@mkdir -p ../gosrv/proto
-	protoc $< --go_out=../gosrv/ --go-grpc_out=../gosrv/
+	protoc $< --go_out=../gosrv/proto/ --go-grpc_out=../gosrv/proto/
 
 %.pb.go: %.proto
 	@mkdir -p ../gosrv/proto
-	@protoc $< --go_out=../gosrv
+	@protoc $< --go_out=../gosrv/proto/
 
 clean:
 	rm -f *.go

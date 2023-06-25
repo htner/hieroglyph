@@ -20,7 +20,7 @@ syntax = "proto3";
 package sdb;
 
 option cc_generic_services = true;
-option go_package="./proto";
+option go_package="./sdb";
 
 // The greeting service definition.
 // Sends a greeting

@@ -10,7 +10,7 @@ import (
 	"reflect"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
-	"github.com/htner/sdb/gosrv/proto"
+	"github.com/htner/sdb/gosrv/proto/sdb"
 	"github.com/jackc/pgproto3/v2"
 
 	_ "github.com/mbobakov/grpc-consul-resolver" // It's important
@@ -208,10 +208,10 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 			}
 			defer conn.Close()
 			// create a client and call the server
-			client := proto.NewScheduleClient(conn)
+			client := sdb.NewScheduleClient(conn)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			resp, err := client.Depart(ctx, &proto.ExecQueryRequest{Sql: msg.String})
+			resp, err := client.Depart(ctx, &sdb.ExecQueryRequest{Sql: msg.String})
 			log.Println("get resp:", resp, err)
 			//port, err := strconv.Atoi(resp.Message)
 
