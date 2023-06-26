@@ -10,9 +10,9 @@ import (
 
 const (
 	SessionTransactionInvaild int8 = -1
-	SessionTransactionIdle    int8 = 1
+	SessionTransactionIdle    int8 = 2
 	SessionTransactionStart   int8 = 2
-	SessionTransactionCommit  int8 = 3
+	SessionTransactionCommit  int8 = 4
 )
 
 type Session struct {

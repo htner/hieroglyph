@@ -1,15 +1,16 @@
 syntax = "proto3";
-package proto;
+package sdb;
 
 /* to generate service */
 option cc_generic_services = true;
 
-option go_package="./proto";
+option go_package="./sdb";
 
 service Lake {
     rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {}
+    rpc AllocateXid(AllocateXidRequest) returns (AllocateXidResponse) {}
     rpc Commit(CommitRequest) returns (CommitResponse) {}
-    rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
+    rpc Abort(AbortRequest) returns (AbortResponse) {}
 
     rpc PrepareInsertFiles(PrepareInsertFilesRequest) returns (PrepareInsertFilesResponse) {}
     rpc UpdateFiles(UpdateFilesRequest) returns (UpdateFilesResponse) {}
@@ -29,22 +30,32 @@ message StartTransactionRequest {
 message StartTransactionResponse {
 }
 
+message AllocateXidRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    bool read = 3;
+    bool write = 4;
+}
+
+message AllocateXidResponse {
+    uint64 read_xid = 1;
+    uint64 write_xid = 2;
+}
+
 message CommitRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 commit_xid = 3;
 }
 
 message CommitResponse {
 }
 
-message RollbackRequest {
+message AbortRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 commit_xid = 3;
 }
 
-message RollbackResponse {
+message AbortResponse {
 }
 
 /* enums for type of operation represented by a Query or PlanTree */

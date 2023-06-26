@@ -11,6 +11,7 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
@@ -87,8 +88,8 @@ func main() {
 	signal.Notify(c, os.Interrupt, os.Kill)
 
 	done := make(chan bool, 1)
-	go rungRPC(done, 10001)
-	registerService("127.0.0.1:8500", "SchedulerServer", 10001)
+	go rungRPC(done, 10002)
+	registerService("127.0.0.1:8500", "SchedulerServer", 10002)
 	<-c
 }
 
@@ -154,6 +155,10 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	if err != nil {
 		return nil, err
 	}
+
+  // start transtion
+  tr := lakehouse.NewTranscation(1, 1) 
+  tr.Start(true)
 
 	log.Printf("Greeting: %s %d %d %d", string(optimizerResult.PlanDxlStr), len(optimizerResult.PlanDxlStr), len(optimizerResult.PlanstmtStr), len(optimizerResult.PlanParamsStr))
 
@@ -249,7 +254,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		//	Id:    int64(j),
 		//	Segid: j,
 		//}
-		workinfos[worker.Id] = worker
+		workinfos[worker.Segid] = worker
 	}
 
 	query := sdb.PrepareTaskRequest{
@@ -269,25 +274,28 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		SliceTable: &sliceTable,
 	}
 
-	err = mgr.WriterExecDetail(query)
+	err = mgr.WriterExecDetail(&query)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, workerSlice := range workerSliceList {
 		// Send To Work
-		go func(query sdb.PrepareTaskRequest, worker *sdb.WorkerSliceInfo) {
+    var cloneTask *sdb.PrepareTaskRequest 
+    cloneTask = proto.Clone(&query).(*sdb.PrepareTaskRequest)
+    //proto.Clone(&workerSlice)
+		go func(query *sdb.PrepareTaskRequest, workerSlice *sdb.WorkerSliceInfo) {
 			sliceid := 0
 			//localSliceTable.LocalSlice = int32(sliceid)
-			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(worker.Sliceid), SegId: worker.Segid}
+			taskid := &sdb.TaskIdentify{QueryId: 1, SliceId: int32(workerSlice.Sliceid), SegId: workerSlice.WorkerInfo.Segid}
 			query.TaskIdentify = taskid
 			query.SliceTable.LocalSlice = int32(sliceid)
 
 			//localSliceTable := sliceTable
 			//addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
-			log.Printf("addr:%s", worker.WorkerInfo.Addr)
+			log.Printf("addr:%s", workerSlice.WorkerInfo.Addr)
 
-			workConn, err := grpc.Dial(worker.WorkerInfo.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			workConn, err := grpc.Dial(workerSlice.WorkerInfo.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Fatalf("did not connect: %v", err)
 			}
@@ -322,7 +330,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 				log.Printf("start reply: %v", reply1.String())
 			}
 			time.Sleep(2 * time.Second)
-		}(proto.Clone(query), workerSlice)
+		}(cloneTask, workerSlice)
 		time.Sleep(1 * time.Second)
 	}
 

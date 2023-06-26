@@ -86,7 +86,7 @@ func (mgr *QueryMgr) UpdateQueryStatus(commandid uint64, status sdb.CommandStatu
 	return e
 }
 
-func (mgr *QueryMgr) UpdateQueryStatusInTran(tr fdb.Transaction, commandid uint64, status proto.CommandStatus) error {
+func (mgr *QueryMgr) UpdateQueryStatusInTran(tr fdb.Transaction, commandid uint64, status sdb.CommandStatus) error {
 
 	kvOp := fdbkv.NewKvOperator(tr)
 
@@ -106,7 +106,7 @@ func (mgr *QueryMgr) WriterOptimizerResult(commandid uint64, req *sdb.OptimizeRe
 		kvOp := fdbkv.NewKvOperator(tr)
 
 		key := NewQueryKey(commandid, kvpair.QueryOptimizerResultTag)
-		value := new(proto.CommandOptimizerResult)
+		value := new(sdb.CommandOptimizerResult)
 		value.OptimizerResult = req
 		err = kvOp.WritePB(key, value)
 		if err != nil {

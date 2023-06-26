@@ -44,3 +44,19 @@ func (s *SessionOperator) CommitCurrectTransaction(tr fdb.Transaction, sess *kv.
   transcation := NewTranscationWithXid(sess.DbId, sess.WriteTranscationId, sess.Id)
   return transcation.Commit()
 }
+
+func WriteSession(sess* kv.Session) error {
+	// 更新事务状态
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, err = db.Transact(
+		func(tr fdb.Transaction) (interface{}, error) {
+      op := NewSessionOperator(tr, sess.Id)
+      return nil, op.Write(sess)
+    })
+  return err
+}
+    
+	

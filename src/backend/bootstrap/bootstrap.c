@@ -555,6 +555,14 @@ void CopyPGClassTableToParquet() {
  *	 The bootstrap backend doesn't speak SQL, but instead expects
  *	 commands in a special bootstrap language.
  */
+
+extern bool SDB_StartTransaction(uint64 dbid, uint64 sid);
+extern bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* read_xid, uint64* write_xid);
+extern bool SDB_CommitTransaction(uint64 dbid, uint64 sid);
+
+extern uint64_t dbid;
+extern uint64_t sessionid;
+
 static void
 BootstrapModeMain(void)
 {
@@ -588,6 +596,10 @@ BootstrapModeMain(void)
 	 * Process bootstrap input.type <list>  boot_index_params
 	 */
 	StartTransactionCommand();
+	dbid = 1;
+	sessionid = 1;
+	SDB_StartTransaction(1, 1);
+	SDB_AlloccateXid(1, 1, true, true, NULL, NULL);
 	boot_yyparse();
 	CopyTableToParquet(1247); // "pg_proc"
 	CopyTableToParquet(1255); // "pg_type"
@@ -596,6 +608,7 @@ BootstrapModeMain(void)
 	CopyPGClassTableToParquet();
 
 	ParquetWriterUpload();
+	SDB_CommitTransaction(1, 1);
 
 	CommitTransactionCommand();
 

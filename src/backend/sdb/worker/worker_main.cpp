@@ -35,6 +35,10 @@ DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
 
+uint64_t commit_xid;
+uint64_t dbid;
+uint64_t sessionid;
+
 int WorkerServerRun(int argc, char** argv);
 
 int WorkerServiceMain(int argc, char* argv[]) {

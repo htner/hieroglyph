@@ -21,6 +21,12 @@
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include "backend/new_executor/arrow/recordbatch_builder.hpp"
 
+extern "C" {
+#include "access/tupdesc.h"
+#include "executor/tuptable.h"
+#include "postgres.h"
+}
+
 /*
  * ParquetWriter
  *      - Read parquet file and cache this value
@@ -62,15 +68,19 @@ class ParquetWriter {
 
   void SetOldBatch(std::string filename, std::shared_ptr<arrow::RecordBatch> batch);
 
+  void SetRel(char *name, Oid id);
+
  private:
   /* column num */
-  size_t column_num_;
-  size_t data_size_;
+  size_t column_num_ = 0;
+  size_t data_size_ = 0;
 
   /* true if cache data has been modified */
   bool is_insert_ = false;
   bool is_delete_ = false;
 
+  std::string rel_name;
+  Oid rel_id;
   std::string old_filename_;
   std::string filename_;
   std::vector<std::string> column_names_;

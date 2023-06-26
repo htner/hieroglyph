@@ -1030,6 +1030,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
                                             tupleDesc, use_threads);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
+    elog(WARNING, "set rel: %s %d", RelationGetRelationName(rel), RelationGetRelid(rel));
     for (size_t i = 0; i < filenames.size(); ++i) {
       // fmstate->add_file(i, filenames[i].data());
     }
@@ -1099,6 +1100,7 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
         CreateParquetModifyState(rel, tmp_cxt, "s3://template1", s3client, desc, true);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
+    elog(WARNING, "set rel: %s %d", RelationGetRelationName(rel), RelationGetRelid(rel));
   }
   //ExecStoreVirtualTuple(slot);
 

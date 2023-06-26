@@ -93,6 +93,7 @@ ParquetS3WriterState::~ParquetS3WriterState() {}
 std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
     const char *filename, TupleTableSlot *slot) {
   auto reader = CreateParquetWriter(filename, tuple_desc);
+  reader->SetRel(rel_name, rel_id);
   // reader->Open(filename, s3_client);
   // reader->set_options(use_threads, use_mmap);
 
@@ -191,6 +192,7 @@ void ParquetS3WriterState::CommitUpload() {
  */
 bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
   if (inserter_ != nullptr && inserter_->DataSize() > 100 * 1024 * 0124) {
+	LOG(ERROR) << "upload " << inserter_->DataSize();
     inserter_->Upload(dirname, s3_client);
     uploads_.push_back(inserter_);
     inserter_ = nullptr;

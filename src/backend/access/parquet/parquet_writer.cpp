@@ -45,6 +45,7 @@ extern "C" {
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
+
 #include "lake_service.pb.h"
 
 #define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
@@ -59,6 +60,11 @@ extern "C" {
  * @param reader_id reder id
  * @return ParquetWriter* modify parquet reader object
  */
+
+extern uint64_t commit_xid;
+extern uint64_t dbid;
+extern uint64_t sessionid;
+
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
     const char *filename, TupleDesc tuple_desc) {
   return std::make_shared<ParquetWriter>(filename, tuple_desc);
@@ -257,6 +263,11 @@ void ParquetWriter::PrepareUpload() {
 	auto add_file  = request.add_add_files();
 	*add_file = filename_;
 
+	request.set_dbid(dbid);
+	request.set_sessionid(sessionid);
+	request.set_commit_xid(commit_xid);
+	request.set_rel(rel_id);
+
 	sdb::PrepareInsertFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
@@ -287,6 +298,10 @@ void ParquetWriter::CommitUpload() {
 	sdb::UpdateFilesRequest request;
 	//auto add_file  = prepare_request->add_add_files();
 	//*add_file = filename_;
+	request.set_dbid(dbid);
+	request.set_sessionid(sessionid);
+	request.set_commit_xid(commit_xid);
+	request.set_rel(rel_id);
 
 	sdb::UpdateFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
@@ -301,4 +316,9 @@ void ParquetWriter::SetOldBatch(std::string filename,
 								std::shared_ptr<arrow::RecordBatch> batch) {
 	old_filename_ = filename;
 	record_batch_ = batch;
+}
+
+void ParquetWriter::SetRel(char *name, Oid id) { 
+	rel_name = name; 
+	rel_id = id;
 }

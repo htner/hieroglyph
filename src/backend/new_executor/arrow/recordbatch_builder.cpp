@@ -44,7 +44,7 @@ std::shared_ptr<arrow::RecordBatch> RecordBatchBuilder::Finish() {
 	for (size_t i = 0; i < builders_.size(); ++i) {
 		std::shared_ptr<arrow::Array> arr;
 		builders_[i]->GetArrayBuilder()->Finish(&arr);
-		elog(WARNING, "finish col %d size %d", i, arr->length());
+		// elog(WARNING, "finish col %d size %d", i, arr->length());
 		columns.push_back(arr);
 		builders_[i]->GetArrayBuilder()->Reset();
 	}

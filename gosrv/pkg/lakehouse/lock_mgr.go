@@ -22,10 +22,13 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
 			err := L.TryLockAndWatch(tr, lock)
 			fmt.Println(db, tr, lock, i)
 			if i != 0 {
-				log.Printf("do with auto lock retry")
+				log.Printf("do with auto lock retry %d", i)
 			}
 			return nil, err
 		})
+    if err == nil {
+      break
+    }
 		fmt.Printf("xxx %v", err)
 		//fmt.Printf("xxx %v", err)
 	}
@@ -36,12 +39,12 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
 			return f(tr)
 		})
 		if err != nil {
+		 fmt.Printf("do function %v", err)
 			return nil, err
 		}
 		_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			return nil, L.Unlock(tr, lock)
 		})
-		//fmt.Printf("xxx %v", err)
 	}
 	return data, err
 }
@@ -59,7 +62,7 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 	if err != nil {
 		return false, err
 	}
-	//log.Println("read-prefix", checkLock)
+  log.Println("check lock:", checkLock)
 	//log.Println(pr)
 	// Read and process the range
 	kvs, err := tr.GetRange(pr, fdb.RangeOptions{}).GetSliceWithError()
@@ -82,7 +85,7 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 			return false, err
 		}
 
-		// log.Printf("get other lock: %v\n", fdblock)
+		 log.Printf("get other lock: %v\n", fdblock)
 		// 支持重入
 		if fdblock.Sid == checkLock.Sid && fdblock.LockType == realType {
 			log.Printf("reentry %v\n", checkLock)
@@ -108,7 +111,7 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 	sessOp := NewSessionOperator(tr, lock.Sid)
 	sess, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
 	if err != nil {
-		log.Printf("CheckAndGet error %v", err)
+		log.Printf("CheckAndGet error %v %v %v %v", err, L, sessOp, lock)
 		return err
 	}
 	log.Printf("lock in session %v", sess)

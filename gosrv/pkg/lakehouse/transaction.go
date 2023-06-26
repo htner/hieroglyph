@@ -180,6 +180,9 @@ func (t *Transaction) Commit() error {
 			if err != nil {
 				return nil, err
 			}
+      if tkv == nil {
+        return nil, nil
+      }
 			tkv.Status = XS_COMMIT
 			kvOp := NewKvOperator(tr)
 			err = kvOp.Write(tkv, tkv)
@@ -199,4 +202,34 @@ func (t *Transaction) Commit() error {
 		// go t.CommitKV(XS_COMMIT)
 	}
 	return err
+}
+
+func (t *Transaction) WriteAble() (*kv.Session, error) {
+	// 更新事务状态
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return nil, err
+	}
+  sess, err := db.Transact(
+			func(tr fdb.Transaction) (interface{}, error) {
+        return t.CheckWriteAble(tr)
+      })
+		// 异步更新
+		// go t.CommitKV(XS_COMMIT)
+	return sess.(*kv.Session), err
+}
+
+func (t *Transaction) ReadAble() (*kv.Session, error) {
+	// 更新事务状态
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return nil, err
+	}
+  sess, err := db.Transact(
+			func(tr fdb.Transaction) (interface{}, error) {
+        return t.CheckReadAble(tr)
+	    })
+		// 异步更新
+		// go t.CommitKV(XS_COMMIT)
+	return sess.(*kv.Session), err
 }

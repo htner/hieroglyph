@@ -17,5 +17,5 @@ message WorkerDetailInfo {
 
 message WorkerSliceInfo {
     WorkerInfo worker_info = 1;
-    int32 SliceId = 2;
+    int32 sliceid = 2;
 }
