@@ -9,6 +9,7 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/htner/sdb/gosrv/pkg/service"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -55,14 +56,15 @@ func findNextFreePort() (int, error) {
 }
 
 func main() {
-  fdb.MustAPIVersion(610)
+  fdb.MustAPIVersion(710)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 
+  port := 10001
 	done := make(chan bool, 1)
-	go rungRPC(done, 10001)
-	registerService("127.0.0.1:8500", "SchedulerServer", 10001)
+	go rungRPC(done, port)
+	registerService("127.0.0.1:8500", service.LakeName(), port)
 	<-c
 }
 

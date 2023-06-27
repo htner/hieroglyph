@@ -4,15 +4,18 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
 	"time"
 
+	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
+	"github.com/htner/sdb/gosrv/pkg/service"
+	log "github.com/sirupsen/logrus"
+	"github.com/htner/sdb/gosrv/pkg/utils/slog"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/grpc"
@@ -84,12 +87,15 @@ func findNextFreePort() (int, error) {
 }
 
 func main() {
+  fdb.MustAPIVersion(710)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
+  slog.SetLogger(true)
 
+  port := 10002 
 	done := make(chan bool, 1)
-	go rungRPC(done, 10002)
-	registerService("127.0.0.1:8500", "SchedulerServer", 10002)
+	go rungRPC(done, port)
+	registerService("127.0.0.1:8500", service.ScheduleName(), port)
 	<-c
 }
 
@@ -149,10 +155,12 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	defer cancel()
 	optimizerResult, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: "select * from student"})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Printf("could not optimize: %v", err)
+    return nil, fmt.Errorf("optimizer error")
 	}
 	err = mgr.WriterOptimizerResult(0, optimizerResult)
 	if err != nil {
+		log.Printf("write optimize result error: %v", err)
 		return nil, err
 	}
 
@@ -165,6 +173,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	var workerMgr schedule.WorkerMgr
 	workerList, workerSliceList, err := workerMgr.GetServerSliceList(optimizerResult.Slices)
 	if err != nil {
+		log.Printf("get server list error: %v", err)
 		return nil, err
 	}
 	// prepare segments
@@ -183,7 +192,8 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		rootIndex := int32(0)
 		parentIndex := planSlice.ParentIndex
 		if parentIndex < -1 || int(parentIndex) >= len(optimizerResult.Slices) {
-			log.Fatal("invalid parent slice index %d", parentIndex)
+			log.Errorf("invalid parent slice index %d", parentIndex)
+		  return nil, fmt.Errorf("get server list error")
 		}
 		if parentIndex >= 0 {
 			parentExecSlice := sliceTable.Slices[parentIndex]
@@ -200,7 +210,8 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 				count++
 				if count > len(optimizerResult.Slices) {
-					log.Fatal("circular parent-child relationship")
+					log.Errorf("circular parent-child relationship")
+          return nil, fmt.Errorf("?")
 				}
 			}
 			sliceTable.HasMotions = true
@@ -297,7 +308,9 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 			workConn, err := grpc.Dial(workerSlice.WorkerInfo.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
-				log.Fatalf("did not connect: %v", err)
+				log.Errorf("did not connect: %v", err)
+        //return nil, fmt.Errorf("?")
+        return
 			}
 			defer workConn.Close()
 			workClient := sdb.NewWorkerClient(workConn)
@@ -310,10 +323,12 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 			log.Println("----- query -----")
 			log.Println(query)
 			if err != nil {
-				log.Fatalf("could not prepare: %v", err)
+				log.Errorf("could not prepare: %v", err)
+        return
 			}
 			if reply != nil {
-				log.Printf("prepare reply: %v", reply.String())
+				log.Errorf("prepare reply: %v", reply.String())
+        return
 			}
 
 			time.Sleep(2 * time.Second)
@@ -324,7 +339,8 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 
 			reply1, err := workClient.Start(ctx, query1)
 			if err != nil {
-				log.Fatalf("could not start: %v", err)
+				log.Errorf("could not start: %v", err)
+        return
 			}
 			if reply1 != nil {
 				log.Printf("start reply: %v", reply1.String())
