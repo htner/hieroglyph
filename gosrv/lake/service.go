@@ -149,7 +149,7 @@ func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) 
   }
 
   var response sdb.GetFilesResponse
-  response.iiFiles = lakeFiles
+  response.Files = lakeFiles
 
   return &response, nil
 }
