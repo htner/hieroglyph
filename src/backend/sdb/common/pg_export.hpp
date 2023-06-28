@@ -22,6 +22,8 @@ extern "C" {
 #include "parser/parser.h"
 #include "optimizer/orca.h"
 
+// TODO FIXME
+// sp c / c++
 #undef DEBUG5
 #undef DEBUG4
 #undef DEBUG3
@@ -38,9 +40,16 @@ extern "C" {
 #undef PANIC
 #undef elog
 #undef elogif
+#undef DAY
+#undef SECOND
+#undef IsPowerOf2
+#undef Abs
+#undef NIL
 
 #define PG_LOG			15
 #define PG_INFO 17
+#define ELOG_INFO 17
+#define ELOG_ERROR 20 
 
 extern Bitmapset *
 getExecParamsToDispatch(PlannedStmt *stmt, ParamExecData *intPrm,

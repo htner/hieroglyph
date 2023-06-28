@@ -7,19 +7,25 @@ option cc_generic_services = true;
 option go_package="./sdb";
 
 service Lake {
-    rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {}
-    rpc AllocateXid(AllocateXidRequest) returns (AllocateXidResponse) {}
+    rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {} rpc AllocateXid(AllocateXidRequest) returns (AllocateXidResponse) {}
     rpc Commit(CommitRequest) returns (CommitResponse) {}
     rpc Abort(AbortRequest) returns (AbortResponse) {}
 
     rpc PrepareInsertFiles(PrepareInsertFilesRequest) returns (PrepareInsertFilesResponse) {}
     rpc UpdateFiles(UpdateFilesRequest) returns (UpdateFilesResponse) {}
+    rpc GetFileList(GetFilesRequest) returns (GetFilesResponse) {}
 }
 
 message LakeFile {
-    string file_name = 1;
-    uint64 space = 2;
-    map<string, string> meta = 3;
+    uint64 fileid = 1;
+    string file_name = 2;
+    uint64 space = 3;
+    map<string, string> meta = 4;
+}
+
+message LakeFileHandle {
+  uint64 id  = 1;
+  string name = 2;
 }
 
 message StartTransactionRequest {
@@ -104,7 +110,7 @@ message UpdateFilesRequest {
     uint64 commandid = 4;
     uint64 rel = 5;
     repeated LakeFile add_files = 6;
-    repeated LakeFile remove_files = 7;
+    repeated LakeFileHandle remove_files = 7;
 }
 
 message UpdateFilesResponse {
@@ -113,11 +119,13 @@ message UpdateFilesResponse {
 message GetFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 xid = 3;
-    uint64 commandid = 4;
-    uint64 rel = 5;
-    uint64 slice_count = 6;
-    uint64 slice_seg_index = 7;
+    uint64 read_xid = 3;
+    uint64 commit_xid = 4;
+    uint64 commandid = 5;
+    uint64 rel = 6;
+    uint64 slice_count = 7;
+    uint64 slice_seg_index = 8;
+    bool is_write = 9;
 }
 
 message GetFilesResponse {

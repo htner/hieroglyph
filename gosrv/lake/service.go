@@ -71,7 +71,7 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.Prepar
 		types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
 		types.TransactionId(request.CommitXid))
-	err := lakeop.MarkFiles(types.RelId(request.Rel), request.AddFiles)
+	err := lakeop.PrepareFiles(types.RelId(request.Rel), request.AddFiles)
 	if err != nil {
 		return nil, fmt.Errorf("mark files error")
 	}
@@ -85,17 +85,22 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRe
 		types.SessionId(request.Sessionid),
 		types.TransactionId(request.CommitXid))
 
-	newFiles := make([]*kvpair.FileMeta, 0)
-	removeFiles := make([]*kvpair.FileMeta, 0)
-	for _, file := range request.AddFiles {
-		var f kvpair.FileMeta
-		f.Database = types.DatabaseId(request.Dbid)
-		f.Relation = types.RelId(request.Rel)
-		f.Filename = file.FileName
+	newFiles := make([]*sdb.LakeFileDetail, 0)
+	for _, f := range request.AddFiles {
+    file := &sdb.LakeFileDetail{}
+    file.Dbid = request.Dbid
+    file.Rel = request.Rel
+    file.BaseInfo = f
 
-		newFiles = append(newFiles, &f)
+
+    file.Xmin = request.CommitXid
+    file.Xmax = uint64(lakehouse.InvaildTranscaton)
+    file.XminState = uint32(lakehouse.XS_START)
+    file.XmaxState = uint32(lakehouse.XS_NULL)
+		newFiles = append(newFiles, file)
 	}
 
+  /*
 	for _, file := range request.RemoveFiles {
 		var f kvpair.FileMeta
 		f.Database = types.DatabaseId(request.Dbid)
@@ -104,17 +109,47 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRe
 
 		removeFiles = append(removeFiles, &f)
 	}
+  */
 
-	err := lakeop.InsertFiles(types.RelId(request.Rel), newFiles)
+	err := lakeop.ChangeFiles(types.RelId(request.Rel), newFiles, request.RemoveFiles)
 	if err != nil {
-    log.Printf("insert files error: %s", err.Error())
+    log.Printf("change files error: %s", err.Error())
 		return nil, fmt.Errorf("insert files error")
 	}
-	err = lakeop.DeleleFiles(types.RelId(request.Rel), removeFiles)
+  /*
+	err = lakeop.DeleleFiles(types.RelId(request.Rel), request.GetRemoveFiles())
 	if err != nil {
 		return nil, fmt.Errorf("delete files error")
 	}
+  */
 	return &sdb.UpdateFilesResponse{}, nil
 }
 
 
+func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) (*sdb.GetFilesResponse, error) {
+	lakeop := lakehouse.NewLakeRelOperator(
+		types.DatabaseId(req.Dbid),
+		types.SessionId(req.Sessionid),
+		types.TransactionId(req.CommitXid))
+  files := make([]*sdb.LakeFileDetail, 0)
+  var err error
+  if req.GetIsWrite() {
+    files, err = lakeop.GetAllFileForUpdate(types.RelId(req.Rel), types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid))
+  } else {
+    //files, err = lakeop.GetAllFileForRead(types.RelId(req.Rel), req.ReadXid, req.CommitXid)
+    files, err = lakeop.GetAllFileForRead(types.RelId(req.Rel), types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid))
+  }
+  if err != nil {
+    return nil, err
+  }
+
+  lakeFiles := make([]*sdb.LakeFile, 0)
+  for _, file := range files {
+    lakeFiles = append(lakeFiles, file.BaseInfo)
+  }
+
+  var response sdb.GetFilesResponse
+  response.iiFiles = lakeFiles
+
+  return &response, nil
+}

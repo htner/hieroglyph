@@ -14,10 +14,11 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/service"
-	log "github.com/sirupsen/logrus"
-	"github.com/htner/sdb/gosrv/pkg/utils/slog"
 	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/utils/slog"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -133,9 +134,23 @@ func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *sdb.WorkerR
 	return out, err
 }
 
+
 func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {
 	log.Printf("get request %s", in.Sql)
 	// Set up a connection to the server.
+
+  // start transtion
+  tr := lakehouse.NewTranscation(1, 1) 
+  tr.Start(true)
+
+  var catalogFiles map[uint32][]*sdb.LakeFileDetail
+  lakeop := lakehouse.NewLakeRelOperator(1, 1, tr.Xid)
+  for oid, _:= range postgres.CatalogNames {
+    files,  err := lakeop.GetAllFileForRead(types.RelId(oid), 1, 1)
+    if err != nil {
+    }
+    catalogFiles[oid] = files
+  }
 
 	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
 	err := mgr.WriterQueryDetail(in)
@@ -164,9 +179,6 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		return nil, err
 	}
 
-  // start transtion
-  tr := lakehouse.NewTranscation(1, 1) 
-  tr.Start(true)
 
 	log.Printf("Greeting: %s %d %d %d", string(optimizerResult.PlanDxlStr), len(optimizerResult.PlanDxlStr), len(optimizerResult.PlanstmtStr), len(optimizerResult.PlanParamsStr))
 

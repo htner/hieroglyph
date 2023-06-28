@@ -331,6 +331,10 @@ void simple_parquet_update(Relation relation, ItemPointer otid,
 {
 
 }
+
+
+
+
 /*
  * Release resources and deallocate scan. If TableScanDesc.temp_snap,
  * TableScanDesc.rs_snapshot needs to be unregistered.
@@ -404,4 +408,10 @@ static const TableAmRoutine parquet_methods = {
 Datum parquet_tableam_handler(PG_FUNCTION_ARGS)
 {
   PG_RETURN_POINTER(&parquet_methods);
+}
+
+const TableAmRoutine *
+GetParquetamTableAmRoutine(void)
+{
+	return &parquet_methods;
 }

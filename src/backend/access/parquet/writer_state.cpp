@@ -142,7 +142,7 @@ void ParquetS3WriterState::Upload() {
 
 void ParquetS3WriterState::CommitUpload() {
 	std::list<sdb::LakeFile> add_files;
-	std::list<sdb::LakeFile> delete_files;
+	std::list<sdb::LakeFileHandle> delete_files;
 
 	std::unique_ptr<brpc::Channel> channel;
 	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
@@ -220,6 +220,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
  */
 bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
+  
   auto it = updates.find(block_id);
   if (it != updates.end()) {
     return it->second->ExecDelete(tid->ip_posid);
@@ -236,3 +237,5 @@ void ParquetS3WriterState::SetRel(char *name, Oid id) {
 	rel_name = name; 
 	rel_id = id;
 }
+
+//oid ParquetS3WriterStateAddFile(uint64_t blockid, const char *filename)

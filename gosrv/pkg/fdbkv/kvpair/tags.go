@@ -4,11 +4,11 @@ const (
 	SessionTag         uint16 = 10
 	TranscationTag     uint16 = 11
 	SessionTickTag     uint16 = 16
-	MAXTIDTag          uint16 = 17
+  TransactionChangeRelKeyTag uint16 = 17
 	SeqTag             uint16 = 18
 	LockTag            uint16 = 19
-	LakeLogTag         uint16 = 20
-	LakeLogItemTag     uint16 = 21
+	LakeLogKeyTag         uint16 = 20
+	LakeLogItemKeyTag     uint16 = 21
 	LakeFileTag        uint16 = 22
 	CLOGTag            uint16 = 23
 	FileListVersionTag uint16 = 24
@@ -19,4 +19,8 @@ const (
   QueryWorkerRequestTag uint16 = 33
   QueryWorkerDetailTag uint16 = 34
   QueryResultTag uint16 = 35
+
+	MAXTIDTag          uint16 = 40
+	MAXFILEIDTag          uint16 = 41
+	MaxDeleteVersionTag uint16 = 42
 )

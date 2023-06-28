@@ -25,6 +25,7 @@ option go_package="./sdb";
 import  "optimizer_service.proto";
 import  "worker_service.proto";
 import  "schedule_service.proto";
+import  "lake_service.proto";
 
 
 enum CommandStatus {
@@ -56,3 +57,33 @@ message CommandExecDetail {
 message CommandResult {
   WorkerResultReportRequest result = 1;
 }
+
+
+
+message DeleteLakeFiles {
+  repeated LakeFileHandle files = 1;
+}
+
+message InsertLakeFiles {
+  repeated LakeFileDetail files = 1;
+}
+
+message PrepareLakeFiles {
+  repeated string filenames = 1;
+}
+
+message LakeLogDetail {
+  DeleteLakeFiles deletes = 1;
+  InsertLakeFiles inserts = 2;
+}
+
+message LakeFileDetail {
+  uint64 dbid = 1;
+  uint64 rel = 2;
+  LakeFile base_info = 3;
+	uint64 xmin = 4; 
+	uint64 xmax = 5;
+	uint32 xmin_state = 6; 
+	uint32 xmax_state = 7; 
+} 
+

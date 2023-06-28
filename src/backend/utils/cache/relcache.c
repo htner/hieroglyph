@@ -1996,7 +1996,7 @@ formrdesc(const char *relationName, Oid relationReltype,
 	relation->rd_rel->relallvisible = 0;
 	relation->rd_rel->relkind = RELKIND_RELATION;
 	relation->rd_rel->relnatts = (int16) natts;
-	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
+	relation->rd_rel->relam = PARQUET_TABLE_AM_OID;
 
 	/*
 	 * initialize attribute tuple form
@@ -2067,8 +2067,8 @@ formrdesc(const char *relationName, Oid relationReltype,
 	/*
 	 * initialize the table am handler
 	 */
-	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
-	relation->rd_tableam = GetHeapamTableAmRoutine();
+	relation->rd_rel->relam = PARQUET_TABLE_AM_OID;
+	relation->rd_tableam = GetParquetamTableAmRoutine();
 
 	/*
 	 * initialize the rel-has-index flag, using hardwired knowledge
@@ -3942,7 +3942,7 @@ RelationCacheInitializePhase2(void)
 	/*
 	 * relation mapper needs initialized too
 	 */
-	RelationMapInitializePhase2();
+	// RelationMapInitializePhase2();
 
 	/*
 	 * In bootstrap mode, the shared catalogs aren't there yet anyway, so do

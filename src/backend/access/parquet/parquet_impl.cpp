@@ -14,33 +14,13 @@
 // basename comes from string.h on Linux,
 // but from libgen.h on other POSIX systems (see man basename)
 #ifndef GNU_SOURCE
-#include <libgen.h>
+//#include <libgen.h>
 #endif
 
-#include <math.h>
-#include <sys/stat.h>
-
-#include <list>
-#include <set>
-
-#include "arrow/api.h"
-#include "arrow/array.h"
-#include "arrow/io/api.h"
-#include "backend/access/parquet/common.hpp"
-#include "backend/access/parquet/reader_state.hpp"
-#include "backend/access/parquet/heap.hpp"
-#include "backend/access/parquet/writer_state.hpp"
-#include "backend/access/parquet/parquet_reader.hpp"
-#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
-#include "backend/access/parquet/parquet_writer.hpp"
-#include "backend/access/parquet/slvars.hpp"
-#include "parquet/arrow/reader.h"
-#include "parquet/arrow/schema.h"
-#include "parquet/exception.h"
-#include "parquet/file_reader.h"
-#include "parquet/statistics.h"
-
 extern "C" {
+#include "pg_config.h"
+#include "c.h"
+#include "postgres.h"
 #include "access/htup_details.h"
 #include "access/nbtree.h"
 #include "access/parallel.h"
@@ -89,6 +69,7 @@ extern "C" {
 #else
 #include "access/relation.h"
 #include "access/table.h"
+#include "access/valid.h"
 #include "optimizer/optimizer.h"
 #endif
 
@@ -98,6 +79,34 @@ extern "C" {
 #include "catalog/pg_am_d.h"
 #endif
 }
+
+#include "backend/sdb/common/pg_export.hpp"
+
+#include <math.h>
+#include <sys/stat.h>
+
+#include <list>
+#include <set>
+
+#include <arrow/api.h>
+#include "arrow/array.h"
+#include "arrow/io/api.h"
+#include "backend/access/parquet/common.hpp"
+#include "backend/access/parquet/reader_state.hpp"
+#include "backend/access/parquet/heap.hpp"
+#include "backend/access/parquet/writer_state.hpp"
+#include "backend/access/parquet/parquet_reader.hpp"
+#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
+#include "backend/access/parquet/parquet_writer.hpp"
+#include "backend/access/parquet/slvars.hpp"
+#include "backend/sdb/common/lake_file_mgr.hpp"
+#include "parquet/arrow/reader.h"
+#include "parquet/arrow/schema.h"
+#include "parquet/exception.h"
+#include "parquet/file_reader.h"
+#include "parquet/statistics.h"
+
+#include "backend/sdb/common/singleton.hpp"
 
 /* from costsize.c */
 #define LOG2(x) (log(x) / 0.693147180559945)
@@ -223,8 +232,8 @@ newc->constvalue = OidInputFunctionCall(input_fn, str,
       return newc;
     }
     default:
-      elog(ERROR, "parquet_s3_fdw: cast function to %s is not found",
-           format_type_be(dst_oid));
+     LOG(ERROR) << "parquet_s3_fdw: cast function to " << format_type_be(dst_oid)
+				<<" is not found";
   }
   return c;
 }
@@ -360,7 +369,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
                              bool schemaless) noexcept {
   std::unique_ptr<parquet::arrow::FileReader> reader;
   arrow::Status status;
-  List *rowgroups = NIL;
+  List *rowgroups = (List*)NULL;
   ReaderCacheEntry *reader_entry = NULL;
   std::string error;
 
@@ -417,8 +426,8 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
              */
             if ((match = parquet_s3_column_is_existed(manifest, pg_colname)) ==
                 false) {
-              elog(DEBUG1, "parquet_s3_fdw: skip file %s", filename);
-              return NIL;
+              LOG(DEBUG) << "parquet_s3_fdw: skip file " << filename;
+              return NULL;
             }
             continue;
           }
@@ -491,7 +500,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
             if (stats && !row_group_matches_filter(
                              stats.get(), field->type().get(), &filter)) {
               match = false;
-              elog(DEBUG1, "parquet_s3_fdw: skip rowgroup %d", r + 1);
+              LOG(DEBUG) << "parquet_s3_fdw: skip rowgroup " <<  r + 1;
             }
           }
           PG_CATCH();
@@ -530,9 +539,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
   }
   if (!error.empty()) {
     if (reader_entry) reader_entry->file_reader->reader = std::move(reader);
-    elog(ERROR,
-         "parquet_s3_fdw: failed to exctract row groups from Parquet file: %s",
-         error.c_str());
+    LOG(ERROR) << "parquet_s3_fdw: failed to exctract row groups from Parquet file:" << error.c_str();
   }
 
   return rowgroups;
@@ -549,7 +556,7 @@ struct FieldInfo {
  */
 List *extract_parquet_fields(const char *path, const char *dirname,
                              Aws::S3::S3Client *s3_client) noexcept {
-  List *res = NIL;
+  List *res = NULL;
   std::string error;
 
   try {
@@ -641,7 +648,8 @@ List *extract_parquet_fields(const char *path, const char *dirname,
   } catch (std::exception &e) {
     error = e.what();
   }
-  if (!error.empty()) elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+  if (!error.empty()) 
+		LOG(ERROR) <<  "parquet_s3_fdw: " << error.c_str();
 
   return res;
 }
@@ -673,7 +681,7 @@ static void destroy_parquet_modify_state(void *arg) {
  */
 
 static List *parse_attributes_list(char *start) {
-  List *attrs = NIL;
+  List *attrs = NULL;
   char *token;
   const char *delim = " ";
 
@@ -716,7 +724,9 @@ static Datum OidFunctionCall1NullableArg(Oid functionId, Datum arg,
 
   /* Check for null result, since caller is clearly not expecting one */
   if (fcinfo->isnull)
-    elog(ERROR, "parquet_s3_fdw: function %u returned NULL", flinfo.fn_oid);
+    LOG(ERROR) << "parquet_s3_fdw: function "
+			<< flinfo.fn_oid
+			<< " returned NULL";
 
   return result;
 }
@@ -747,7 +757,9 @@ static Datum OidFunctionCallnNullableArg(Oid functionId, Datum *args,
 
   /* Check for null result, since caller is clearly not expecting one */
   if (fcinfo->isnull)
-    elog(ERROR, "parquet_s3_fdw: function %u returned NULL", flinfo.fn_oid);
+    LOG(ERROR) << "parquet_s3_fdw: function "
+			<< flinfo.fn_oid
+			<< " returned NULL";
 
   return result;
 }
@@ -762,7 +774,7 @@ static List *get_filenames_from_userfunc(const char *funcname,
   Datum *values;
   bool *nulls;
   int num;
-  List *res = NIL;
+  List *res = NULL;
   ArrayType *arr;
 
   if (funcarg)
@@ -773,25 +785,23 @@ static List *get_filenames_from_userfunc(const char *funcname,
 
   arr = DatumGetArrayTypeP(filenames);
   if (ARR_ELEMTYPE(arr) != TEXTOID)
-    elog(ERROR,
-         "parquet_s3_fdw: function returned an array with non-TEXT element "
-         "type");
+    LOG(ERROR) << 
+         "parquet_s3_fdw: function returned an array with non-TEXT element type";
 
   deconstruct_array(arr, TEXTOID, -1, false, 'i', &values, &nulls, &num);
 
   if (num == 0) {
-    elog(WARNING,
-         "parquet_s3_fdw: '%s' function returned an empty array; foreign table "
-         "wasn't created",
-         get_func_name(funcid));
-    return NIL;
+    LOG(WARNING) <<
+         "parquet_s3_fdw:" << get_func_name(funcid) << " function returned an empty array; foreign table "
+         "wasn't created";
+    return NULL;
   }
 
   for (int i = 0; i < num; ++i) {
     if (nulls[i])
-      elog(ERROR,
+      LOG(ERROR) <<
            "parquet_s3_fdw: user function returned an array containing NULL "
-           "value(s)");
+           "value(s)";
     res = lappend(res, makeString(TextDatumGetCString(values[i])));
   }
 
@@ -884,6 +894,15 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
   scan->rs_base.rs_flags = flags;
   scan->rs_base.rs_parallel = parallel_scan;
 
+  	if (nkeys > 0) {
+		scan->rs_base.rs_key = (ScanKey) palloc(sizeof(ScanKeyData) * nkeys);
+		memcpy(scan->rs_base.rs_key, key, nkeys * sizeof(ScanKeyData));
+	} else {
+		scan->rs_base.rs_key = NULL;
+	}
+
+
+
   TupleDesc tupDesc = RelationGetDescr(relation);
   GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
 
@@ -907,7 +926,9 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
     error = e.what();
   }
 
-  if (!error.empty()) elog(ERROR, "parquet_am: %s", error.c_str());
+  if (!error.empty()) {
+		LOG(ERROR) << "parquet_am: " << error.c_str();
+	}
 
   /*
    * Enable automatic execution state destruction by using memory context
@@ -934,6 +955,10 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
   &segfile_count, NULL);
                                                           */
   std::list<std::string> filenames;
+  auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
+  for (size_t i = 0; i < lake_files.size(); ++i) {
+		filenames.push_back(lake_files[i].file_name());
+  }
 
   parquet_desc = ParquetBeginRangeScanInternal(relation, snapshot, filenames,
                                                // appendOnlyMetaDataSnapshot,
@@ -943,6 +968,53 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                NULL, flags, NULL);
 
   return (TableScanDesc)parquet_desc;
+}
+
+extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction) {
+  ParquetScanDesc pscan = (ParquetScanDesc)sscan;
+  ParquetS3ReaderState *festate = pscan->state;
+  // TupleTableSlot             *slot = pscan->ss_ScanTupleSlot;
+  std::string error;
+
+  TupleTableSlot* slot = MakeSingleTupleTableSlot(RelationGetDescr(pscan->rs_base.rs_rd),
+									&TTSOpsVirtual);
+  try {
+	while (true) {
+			festate->next(slot);
+			if (slot == nullptr) {
+				return nullptr;
+			}
+
+			bool		shouldFree = true;
+			HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
+
+			ScanKey	  key = pscan->rs_base.rs_key;
+			int		  nkeys = pscan->rs_base.rs_nkeys;
+			bool valid;
+			if (valid && key != NULL) {
+				HeapKeyTest(tuple, RelationGetDescr(pscan->rs_base.rs_rd), nkeys, key,
+						valid);
+			}
+			if (valid) {
+				return tuple;
+			}
+	}
+	
+  } catch (std::exception &e) {
+    error = e.what();
+  }
+  if (!error.empty()) {
+    LOG(ERROR) << "ParquetGetNext:" << error.c_str();
+    return nullptr;
+  }
+
+  return nullptr;
+}
+
+extern "C" TM_Result ParquetDelete(Relation relation, ItemPointer tid,
+							CommandId cid, Snapshot crosscheck, bool wait,
+							TM_FailureData *tmfd, bool changingPart) {
+
 }
 
 extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
@@ -959,7 +1031,7 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
     error = e.what();
   }
   if (!error.empty()) {
-    elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+    LOG(ERROR) << "parquet_s3_fdw: " << error.c_str();
     return false;
   }
 
@@ -1030,9 +1102,10 @@ extern "C" void ParquetDmlInit(Relation rel) {
                                             tupleDesc, use_threads);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
-    elog(WARNING, "set rel: %s %d", RelationGetRelationName(rel), RelationGetRelid(rel));
-    for (size_t i = 0; i < filenames.size(); ++i) {
-      // fmstate->add_file(i, filenames[i].data());
+    LOG(WARNING)  << "set rel: " <<  RelationGetRelationName(rel) << " " <<  RelationGetRelid(rel);
+	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
+	for (size_t i = 0; i < lake_files.size(); ++i) {
+       //fmstate->add_file(i, filenames[i].data());
     }
 
     // if (plstate->selector_function_name)
@@ -1041,7 +1114,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
     error = e.what();
   }
   if (!error.empty()) {
-    elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+    LOG(ERROR) << "parquet_s3_fdw: " << error.c_str();
   }
 
   /*
@@ -1082,9 +1155,8 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
   TupleTableSlot *slot;
   TupleDesc desc;
   desc = RelationGetDescr(rel);
-  elog(INFO, "parquet insert finish: %s 1", error.c_str());
+  LOG(INFO) << "parquet insert finish: " << error.c_str();
   //slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
-  // elog(ERROR, "parquet insert finish: %s 2", error.c_str());
 	slot = MakeSingleTupleTableSlot(RelationGetDescr(rel),
 									&TTSOpsVirtual);
 	slot->tts_tableOid = RelationGetRelid(rel);
@@ -1100,23 +1172,23 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
         CreateParquetModifyState(rel, tmp_cxt, "s3://template1", s3client, desc, true);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
-    elog(WARNING, "set rel: %s %d", RelationGetRelationName(rel), RelationGetRelid(rel));
+    LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
   }
   //ExecStoreVirtualTuple(slot);
 
   try {
     fmstate->ExecInsert(slot);
-    elog(INFO, "parquet insert finish ok?");
+    LOG(INFO) << "parquet insert finish ok?";
     // if (plstate->selector_function_name)
     //     fmstate->set_user_defined_func(plstate->selector_function_name);
   } catch (std::exception &e) {
     error = e.what();
   }
   if (!error.empty()) {
-    elog(ERROR, "parquet_s3_fdw: %s", error.c_str());
+    LOG(ERROR) << "parquet_s3_fdw: " << error.c_str();
   }
 
-  elog(INFO, "parquet insert finish: %s", error.c_str());
+  LOG(INFO) << "parquet insert finish: " << error.c_str();
 
 	MemoryContextSwitchTo(old_cxt);
   // return slot;

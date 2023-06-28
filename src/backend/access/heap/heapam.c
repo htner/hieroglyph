@@ -35,6 +35,7 @@
 #include "access/bufmask.h"
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "access/heapam_xlog.h"
 #include "access/hio.h"
 #include "access/multixact.h"
@@ -1360,6 +1361,10 @@ HeapTuple
 heap_getnext(TableScanDesc sscan, ScanDirection direction)
 {
 	HeapScanDesc scan = (HeapScanDesc) sscan;
+
+	if (likely(sscan->rs_rd->rd_tableam == GetParquetamTableAmRoutine())) {
+		return ParquetGetNext(sscan, direction);
+	}
 
 	/*
 	 * This is still widely used directly, without going through table AM, so

@@ -14,6 +14,10 @@
 #include "utils/relcache.h"
 #include "utils/snapshot.h"
 
+extern HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction);
+extern TM_Result ParquetDelete(Relation relation, ItemPointer tid,
+							CommandId cid, Snapshot crosscheck, bool wait,
+							TM_FailureData *tmfd, bool changingPart);
 
 extern void simple_parquet_insert(Relation relation, HeapTuple tup);
 extern void simple_parquet_delete(Relation relation, ItemPointer tid);

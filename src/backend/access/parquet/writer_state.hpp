@@ -62,7 +62,7 @@ class ParquetS3WriterState {
   ~ParquetS3WriterState();
 
   /* create reader for `filename` and add to list file */
-  // void add_file(uint64_t blockid, const char *filename, std);
+  //void AddFile(uint64_t blockid, const char *filename);
   /* create new file and its temporary cache data */
   std::shared_ptr<ParquetWriter> NewInserter(const char *filename,
                                               TupleTableSlot *slot);

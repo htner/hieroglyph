@@ -183,12 +183,15 @@ func (t *Transaction) Commit() error {
       if tkv == nil {
         return nil, nil
       }
+      
 			tkv.Status = XS_COMMIT
 			kvOp := NewKvOperator(tr)
 			err = kvOp.Write(tkv, tkv)
 			if err != nil {
 				return nil, err
 			}
+
+      // Update All Table Version
 			return nil, nil
 		})
 	if err == nil {

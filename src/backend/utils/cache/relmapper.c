@@ -165,6 +165,9 @@ static void perform_relmap_update(bool shared, const RelMapFile *updates);
 Oid
 RelationMapOidToFilenode(Oid relationId, bool shared)
 {
+	// we do not care in sdb
+	return relationId;
+
 	const RelMapFile *map;
 	int32		i;
 
