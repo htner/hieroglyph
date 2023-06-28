@@ -1244,7 +1244,7 @@ extern "C" void ParquetWriterUpload() {
     it->second->Upload();
   }
   fmstates.clear();
-  MemoryContextDelete(tmp_cxt);
-  tmp_cxt = NULL;
+  //MemoryContextDelete(tmp_cxt);
+  //tmp_cxt = NULL;
 }
  
