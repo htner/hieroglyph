@@ -360,7 +360,7 @@ ScanPgRelation(Oid targetRelId, bool indexOK, bool force_non_historic)
 	 * it probably means a relcache entry that needs to be nailed isn't.
 	 */
 	if (!OidIsValid(MyDatabaseId))
-		elog(FATAL, "cannot read pg_class without having selected a database");
+		elog(PANIC, "cannot read pg_class without having selected a database");
 
 	/*
 	 * form a scan key
@@ -4387,7 +4387,7 @@ BuildHardcodedDescriptor(int natts, const FormData_pg_attribute *attrs)
 	return result;
 }
 
-static TupleDesc
+TupleDesc
 GetPgClassDescriptor(void)
 {
 	static TupleDesc pgclassdesc = NULL;

@@ -129,6 +129,14 @@ int			PostAuthDelay = 0;
 /* Time between checks that the client is still connected. */
 int         client_connection_check_interval = 0;
 
+uint64_t read_xid = 1;
+uint64_t commit_xid = 1;
+uint64_t dbid = 1;
+uint64_t sessionid = 1;
+uint64_t query_id = 1;
+uint64_t slice_count = 1;
+uint64_t slice_seg_index = 1;
+
 
 /*
  * Hook for extensions, to get notified when query cancel or DIE signal is

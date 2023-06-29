@@ -9,6 +9,8 @@ import (
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 )
 
+var EmptyDataErr error = errors.New("empty")
+
 type KvOperator struct {
 	t fdb.Transaction
 }
@@ -52,10 +54,14 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	future := t.t.Get(fKey)
 
 	v, e := future.Get()
-	log.Println("v e", key, v, e)
+  //log.Println("key, value, error:", key, len(key), len(v), v, e)
 	if e != nil {
+    log.Printf("kv not found")
 		return errors.New("kv not found")
 	}
+  if len(v) == 0 {
+    return EmptyDataErr 
+  }
 	return kv.UnmarshalValue(v, value)
 }
 
@@ -85,7 +91,8 @@ func (t *KvOperator) ReadPB(key kv.FdbKey, msg proto.Message) error {
 	future := t.t.Get(fKey)
 
 	v, e := future.Get()
-	log.Println("v e", key, v, e)
+	//log.Println("v e", key, v, e)
+  log.Println("key, value, error:", key, v, e)
 	if e != nil {
 		return errors.New("kv not found")
 	}

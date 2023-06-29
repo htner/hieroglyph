@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+  "reflect"
+  "runtime"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
@@ -13,6 +15,10 @@ import (
 var ErrorRetry = errors.New("retry")
 
 type LockMgr struct {
+}
+
+func GetFunctionName(i interface{}) string {
+    return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
 func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
@@ -29,7 +35,7 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
     if err == nil {
       break
     }
-		fmt.Printf("xxx %v", err)
+		fmt.Printf("lock and watch error%v", err)
 		//fmt.Printf("xxx %v", err)
 	}
 
@@ -39,7 +45,7 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
 			return f(tr)
 		})
 		if err != nil {
-		 fmt.Printf("do function %v", err)
+      fmt.Printf("do function %s error : %v", GetFunctionName(f), err)
 			return nil, err
 		}
 		_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {

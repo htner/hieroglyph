@@ -2,6 +2,7 @@ package lakehouse
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
@@ -22,9 +23,11 @@ func (s *SessionOperator) CheckAndGet(state int8) (*kv.Session, error) {
   sess := kv.NewSession(s.Sid)
   err := kvOp.Read(sess, sess)
   if err != nil {
+    log.Println("not found session")
     return nil, err
   }
   if sess.State != state {
+    log.Println("session states mismatch")
 		return nil, fmt.Errorf("session mismatch %v %v", sess, state)
 	}
   return sess, nil

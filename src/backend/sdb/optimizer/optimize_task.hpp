@@ -79,7 +79,7 @@ public:
   // FIXME_SDB call pg function now
   std::string PrepareParams(PlannedStmt* plannedstmt) {
     ParamExecData* exec_params = NULL;
-    if (plannedstmt->paramExecTypes != NIL) {
+    if (plannedstmt->paramExecTypes != NULL) {
       int param_exec = list_length(plannedstmt->paramExecTypes);
       exec_params = (ParamExecData*) palloc0(param_exec * sizeof(ParamExecData));
     }

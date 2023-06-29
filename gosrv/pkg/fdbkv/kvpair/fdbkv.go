@@ -60,6 +60,7 @@ func UnmarshalKey(data []byte, key FdbKey) error {
 		return err
 	}
 	if tag != key.Tag() {
+    log.Printf("read tag mismatch %d-%d", tag, key.Tag())
 		return errors.New("")
 	}
 	return key.DecFdbKey(reader)

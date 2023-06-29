@@ -37,9 +37,14 @@ DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
 
+extern Oid MyDatabaseId;
+extern Oid MyDatabaseTableSpace;
+
 int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
+	MyDatabaseId = 1;
+	MyDatabaseTableSpace = 1;
     InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
 	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);

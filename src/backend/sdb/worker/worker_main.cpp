@@ -35,14 +35,6 @@ DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
 
-uint64_t read_xid;
-uint64_t commit_xid;
-uint64_t dbid;
-uint64_t sessionid;
-uint64_t query_id;
-uint64_t slice_count;
-uint64_t slice_seg_index;
-
 int WorkerServerRun(int argc, char** argv);
 
 int WorkerServiceMain(int argc, char* argv[]) {

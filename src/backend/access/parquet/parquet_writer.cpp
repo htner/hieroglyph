@@ -296,7 +296,10 @@ void ParquetWriter::CommitUpload() {
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
 	sdb::UpdateFilesRequest request;
-	//auto add_file  = prepare_request->add_add_files();
+	auto add_file = request.add_add_files();
+	add_file->set_fileid(0);
+	add_file->set_file_name(filename_);
+	add_file->set_space(1);
 	//*add_file = filename_;
 	request.set_dbid(dbid);
 	request.set_sessionid(sessionid);

@@ -3,8 +3,10 @@ package lakehouse
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
@@ -69,6 +71,7 @@ func (t *Transaction) CheckReadAble(tr fdb.Transaction) (*kv.Session, error) {
   sessOp := NewSessionOperator(tr, t.Sid)
   sess, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
   if err != nil {
+    log.Printf("check and get error")
 		return nil, err
 	}
 
@@ -79,12 +82,16 @@ func (t *Transaction) CheckReadAble(tr fdb.Transaction) (*kv.Session, error) {
 	maxTid := &kv.MaxTid{Max: 0, DbId: t.Database}
 	err = kvOp.Read(maxTid, maxTid)
 	if err != nil {
-		return nil, err
+    if err != fdbkv.EmptyDataErr {
+      log.Printf("read max tid error")
+      return nil, err
+    }
 	}
 
 	sess.ReadTranscationId = maxTid.Max
 	err = kvOp.Write(sess, sess)
 	if err != nil {
+    log.Printf("write sess error")
 		return nil, err
 	}
 	return sess, nil

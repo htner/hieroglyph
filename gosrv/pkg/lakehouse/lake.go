@@ -3,8 +3,10 @@ package lakehouse
 import (
 	"errors"
 	"log"
+	"math"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
@@ -72,19 +74,27 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
 			kvOp := NewKvOperator(tr)
       var max_id kvpair.MaxFileID
       err = kvOp.Read(&max_id, &max_id)
+			if err != nil {
+        if err != fdbkv.EmptyDataErr {
+          log.Println("read maxfile id error:", err)
+          return nil, err
+        }
+			}
 
-      fileid := max_id.Max + 1
+      fileid := max_id.Max
 
       //var inserts []*LakeFileDetail 
       var log_details sdb.InsertLakeFiles
       log_details.Files = make([]*sdb.LakeFileDetail, 0)
 			for _, file := range insertFiles {
+        fileid += 1
+
         var key kvpair.FileKey
         key.Database = L.T.Database 
         key.Relation = rel  
         key.Fileid = fileid 
-        fileid += 1
 
+        file.BaseInfo.Fileid = fileid
 				file.Dbid = uint64(L.T.Database)
 				file.Rel = uint64(rel)
 				file.Xmin = uint64(t.Xid)
@@ -92,6 +102,7 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
 				file.XminState = uint32(XS_START)
 				file.XmaxState = uint32(XS_NULL)
 
+        log.Println("insert file:", file)
 				err = kvOp.WritePB(&key, file)
 				if err != nil {
 					return nil, err
@@ -143,7 +154,7 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
       if err != nil {
         return nil, err
       }
-
+      log.Printf("change files finish")
 			return nil, nil
 		}, 3)
 	return e
@@ -173,6 +184,12 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
 			kvOp := NewKvOperator(tr)
       var max_id kvpair.MaxFileID
       err = kvOp.Read(&max_id, &max_id)
+			if err != nil {
+        if err != fdbkv.EmptyDataErr {
+          log.Println("read maxfile id error:", err)
+          return nil, err
+        }
+			}
 
       fileid := max_id.Max + 1
 
@@ -293,6 +310,7 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, readXid, writeXid t
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = ReadLock
+	fdblock.Sid = L.T.Sid
 
 	var session *kvpair.Session
 
@@ -301,17 +319,27 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, readXid, writeXid t
 			t := L.T
 			session, err = t.CheckReadAble(tr)
 			if err != nil {
+        log.Printf("check read able error %v", err)
 				return nil, err
 			}
 
       var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
 
-			sKey, err := kvpair.MarshalRangePerfix(&key)
+			sKeyStart, err := kvpair.MarshalRangePerfix(&key)
 			if err != nil {
+        log.Printf("marshal ranage perfix %v", err)
 				return nil, err
 			}
-			fKey := fdb.Key(sKey)
-			rr := tr.GetRange(fdb.KeyRange{Begin: fKey, End: fdb.Key{0xFF}},
+      key.Fileid = math.MaxUint64 
+      sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
+			if err != nil {
+        log.Printf("marshal ranage perfix %v", err)
+				return nil, err
+			}
+
+			keyStart := fdb.Key(sKeyStart)
+			keyEnd := fdb.Key(sKeyEnd)
+			rr := tr.GetRange(fdb.KeyRange{Begin:keyStart, End: keyEnd},
 				fdb.RangeOptions{Limit: 10000})
 			ri := rr.Iterator()
 
@@ -327,10 +355,12 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, readXid, writeXid t
         var key kvpair.FileKey
 				err = kvpair.UnmarshalKey(data.Key, &key)
 				if err != nil {
+          log.Printf("UnmarshalKey error ? %v %v", data, err)
 					return nil, err
 				}
         proto.Unmarshal(data.Value, file)
 				if err != nil {
+          log.Printf("Unmarshal error %v", err)
 					return nil, err
 				}
         files = append(files, file)
@@ -365,6 +395,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, readXid, writeXid
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = UpdateLock
+	fdblock.Sid = L.T.Sid
 
 	var session *kvpair.Session
 
@@ -422,7 +453,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, readXid, writeXid
 }
 
 func (L *LakeRelOperator) SatisfiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) []*sdb.LakeFileDetail {
-	satisfiesFiles := make([]*sdb.LakeFileDetail, len(files))
+	satisfiesFiles := make([]*sdb.LakeFileDetail, 0)
 	for _, file := range files {
     if uint64(currTid) == file.Xmax {
       break;

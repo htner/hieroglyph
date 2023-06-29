@@ -5,7 +5,13 @@
 #include "backend/sdb/worker/worker_service.hpp"
 #include "sdb/execute.h"
 
-extern "C"
+extern uint64_t read_xid;
+extern uint64_t commit_xid;
+extern uint64_t dbid;
+extern uint64_t sessionid;
+extern uint64_t query_id;
+extern uint64_t slice_count;
+extern uint64_t slice_seg_index;
 
 namespace sdb {
 
@@ -21,6 +27,7 @@ void ExecuteTask::Run() {
 	LOG(INFO) << "MPPEXEC: execute run";
 	//kGlobalTask = shared_from_this();
 	StartTransactionCommand();
+	Prepare();
 	PrepareGuc();
 	PrepareCatalog();
 	HandleQuery();
@@ -45,7 +52,11 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 }
 
 void ExecuteTask::Prepare() {
-
+read_xid = request_.read_xid();
+commit_xid = request_.commit_xid();
+dbid = request_.dbid();
+sessionid = request_.sessionid();
+query_id = request_.task_identify().query_id();
 }
 
 void ExecuteTask::PrepareGuc() {
@@ -91,12 +102,18 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 	LOG(ERROR) << "localSegindex " << table->localSegIndex; 
 	LOG(ERROR) << "localSlice" << table->localSlice; 
 
+
 	for (int i = 0; i < pb_table.slices_size(); ++i) {
 		auto& pb_exec_slice = pb_table.slices()[i];
 		ExecSlice* exec_slice = &table->slices[i];
 
 		exec_slice->sliceIndex = pb_exec_slice.slice_index();
 		exec_slice->planNumSegments = pb_exec_slice.plan_num_segments();
+
+		if (i == table->localSlice) {
+			// set global
+			slice_count = exec_slice->planNumSegments;
+		}
 
 		auto children = pb_exec_slice.children();
 		for (int j = 0; j < children.size(); ++j) {
@@ -106,6 +123,11 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 		auto segments = pb_exec_slice.segments();
 		for (int j = 0; j < segments.size(); ++j) {
 			exec_slice->segments = lappend_int(exec_slice->segments, segments[j]);
+			if (segments[j] == table->localSegIndex) {
+				slice_seg_index = j;
+				LOG(ERROR) << "total seg num:" << slice_count << " my index:" << slice_seg_index; 
+
+			}
 		}
 
 		exec_slice->primaryGang = NULL;

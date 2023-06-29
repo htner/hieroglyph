@@ -2087,7 +2087,8 @@ setup_cdb_schema(FILE *cmdfd)
 	if (!dir)
 	{
 		pg_log_error("could not open cdb_init.d directory: %m");
-		exit(1);
+		//exit(1);
+		return;
 	}
 
 	/* Collect all files with .sql suffix in array. */

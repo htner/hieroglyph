@@ -920,7 +920,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
         sorted_cols);
 
     for (auto it = filenames.begin(); it != filenames.end(); ++it) {
-      // state->add_file(it->data(), NULL);
+      state->add_file(it->data(), NULL);
     }
   } catch (std::exception &e) {
     error = e.what();
@@ -949,6 +949,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                           uint32 flags) {
   ParquetScanDesc parquet_desc;
 
+  LOG(ERROR) << "parquet begin scan";
   /*
   seginfo = GetAllFileSegInfo(relation,
                                                           snapshot,
@@ -957,6 +958,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
   std::list<std::string> filenames;
   auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
+		LOG(ERROR) << lake_files[i].file_name();
 		filenames.push_back(lake_files[i].file_name());
   }
 
@@ -995,6 +997,7 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 				HeapKeyTest(tuple, RelationGetDescr(pscan->rs_base.rs_rd), nkeys, key,
 						valid);
 			}
+
 			if (valid) {
 				return tuple;
 			}
@@ -1105,6 +1108,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
     LOG(WARNING)  << "set rel: " <<  RelationGetRelationName(rel) << " " <<  RelationGetRelid(rel);
 	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
 	for (size_t i = 0; i < lake_files.size(); ++i) {
+		LOG(INFO) << lake_files[i].file_name();
        //fmstate->add_file(i, filenames[i].data());
     }
 

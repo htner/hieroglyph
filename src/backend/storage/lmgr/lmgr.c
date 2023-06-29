@@ -116,6 +116,7 @@ SetLocktagRelationOid(LOCKTAG *tag, Oid relid)
 void
 LockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
@@ -159,6 +160,7 @@ LockRelationOid(Oid relid, LOCKMODE lockmode)
 bool
 ConditionalLockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+	return true;
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
@@ -192,6 +194,7 @@ ConditionalLockRelationOid(Oid relid, LOCKMODE lockmode)
 void
 UnlockRelationId(LockRelId *relid, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag, relid->dbId, relid->relId);
@@ -207,6 +210,7 @@ UnlockRelationId(LockRelId *relid, LOCKMODE lockmode)
 void
 UnlockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SetLocktagRelationOid(&tag, relid);
@@ -224,6 +228,7 @@ UnlockRelationOid(Oid relid, LOCKMODE lockmode)
 void
 LockRelation(Relation relation, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
@@ -284,6 +289,7 @@ LockRelationNoWait(Relation relation, LOCKMODE lockmode)
 bool
 ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 {
+	return true;
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
@@ -319,6 +325,7 @@ ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 void
 UnlockRelation(Relation relation, LOCKMODE lockmode)
 {
+	return true;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag,
@@ -339,6 +346,7 @@ UnlockRelation(Relation relation, LOCKMODE lockmode)
 bool
 CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
+	return true;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag,
@@ -382,6 +390,7 @@ CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 bool
 LockHasWaitersRelation(Relation relation, LOCKMODE lockmode)
 {
+	return false;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag,
@@ -406,6 +415,7 @@ LockHasWaitersRelation(Relation relation, LOCKMODE lockmode)
 void
 LockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag, relid->dbId, relid->relId);
@@ -419,6 +429,7 @@ LockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 void
 UnlockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag, relid->dbId, relid->relId);
@@ -439,6 +450,7 @@ UnlockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 void
 LockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -457,6 +469,7 @@ LockRelationForExtension(Relation relation, LOCKMODE lockmode)
 bool
 ConditionalLockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+	return true;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -474,6 +487,7 @@ ConditionalLockRelationForExtension(Relation relation, LOCKMODE lockmode)
 int
 RelationExtensionLockWaiterCount(Relation relation)
 {
+	return 0;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -489,6 +503,7 @@ RelationExtensionLockWaiterCount(Relation relation)
 void
 UnlockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION_EXTEND(tag,

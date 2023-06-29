@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/lakehouse"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair" 
+  "github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
@@ -80,7 +80,6 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.Prepar
 
 func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRequest) (*sdb.UpdateFilesResponse, error) {
 	log.Println("update files", request)
-	//log.Printf("get request %s", in.Sql)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
 		types.TransactionId(request.CommitXid))
@@ -127,6 +126,7 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRe
 
 
 func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) (*sdb.GetFilesResponse, error) {
+  log.Println("get file list", req)
 	lakeop := lakehouse.NewLakeRelOperator(
 		types.DatabaseId(req.Dbid),
 		types.SessionId(req.Sessionid),
@@ -143,6 +143,9 @@ func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) 
     return nil, err
   }
 
+
+  log.Println("get files from lake:", files)
+
   lakeFiles := make([]*sdb.LakeFile, 0)
   for _, file := range files {
     lakeFiles = append(lakeFiles, file.BaseInfo)
@@ -150,6 +153,8 @@ func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) 
 
   var response sdb.GetFilesResponse
   response.Files = lakeFiles
+
+  log.Println("files :", lakeFiles, response.String())
 
   return &response, nil
 }

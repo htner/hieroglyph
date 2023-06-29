@@ -560,8 +560,13 @@ extern bool SDB_StartTransaction(uint64 dbid, uint64 sid);
 extern bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* read_xid, uint64* write_xid);
 extern bool SDB_CommitTransaction(uint64 dbid, uint64 sid);
 
+extern uint64_t read_xid;
+extern uint64_t commit_xid;
 extern uint64_t dbid;
 extern uint64_t sessionid;
+extern uint64_t query_id;
+extern uint64_t slice_count;
+extern uint64_t slice_seg_index;
 
 static void
 BootstrapModeMain(void)
@@ -598,6 +603,13 @@ BootstrapModeMain(void)
 	StartTransactionCommand();
 	dbid = 1;
 	sessionid = 1;
+	read_xid = 1;
+	commit_xid = 1;
+
+	query_id = 1;
+	slice_count = 1;
+	slice_seg_index = 1;
+
 	SDB_StartTransaction(1, 1);
 	SDB_AlloccateXid(1, 1, true, true, NULL, NULL);
 	boot_yyparse();

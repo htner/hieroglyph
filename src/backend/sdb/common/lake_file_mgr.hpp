@@ -71,6 +71,7 @@ public:
     }
     for (int i = 0; i < response.files_size(); i++) {
       files.push_back(response.files(i)); 
+      LOG(INFO) << "get a file: " << response.files(i).file_name();
     }
     return files;
   }
