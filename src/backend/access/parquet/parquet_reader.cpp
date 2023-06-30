@@ -178,10 +178,10 @@ class DefaultParquetReader : public ParquetReader {
    * The reader_id parameter is only used for parallel execution of
    * MultifileExecutionState.
    */
-  DefaultParquetReader(const char *filename, MemoryContext cxt,
+  DefaultParquetReader(Oid rel, const char *filename, MemoryContext cxt,
                        TupleDesc tuple_desc, int reader_id = -1)
       : ParquetReader(cxt), row_group_(-1), num_rows_(0) {
-    exchanger_ = std::make_shared<pdb::RecordBatchExchanger>(tuple_desc);
+    exchanger_ = std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc);
     reader_entry_ = NULL;
     filename_ = filename;
     reader_id_ = reader_id;
@@ -195,12 +195,13 @@ class DefaultParquetReader : public ParquetReader {
   }
 
   void Open(const char *dirname, Aws::S3::S3Client *s3_client) {
+    // elog(WARNING, "parquet reader: open Parquet file on S3. %s%s", dname, fname);
     arrow::Status status;
     char *dname;
     char *fname;
     parquetSplitS3Path(dirname, filename_.c_str(), &dname, &fname);
     reader_entry_ = parquetGetFileReader(s3_client, dname, fname);
-    elog(DEBUG1, "parquet reader: open Parquet file on S3. %s%s", dname, fname);
+    elog(WARNING, "parquet reader: open Parquet file on S3.  bucket: %s file:%s", dname, fname);
     pfree(dname);
     pfree(fname);
 
@@ -269,6 +270,7 @@ class DefaultParquetReader : public ParquetReader {
     if (!recordbatch.status().ok())
       throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
                   status.message().c_str());
+    elog(WARNING, "parquet reader size. %d%d", table_->num_rows(), (*recordbatch)->num_rows());
     exchanger_->SetRecordBatch(*recordbatch);
 
     num_rows_ = table_->num_rows();
@@ -278,9 +280,8 @@ class DefaultParquetReader : public ParquetReader {
 
   ReadStatus Next(TupleTableSlot *slot, bool fake = false) {
     allocator_->recycle();
-
     auto result = exchanger_->FetchNextTuple();
-    if (!result.status().ok()) {
+    while (!result.status().ok()) {
       /*
        * Read next row group. We do it in a loop to skip possibly empty
        * row groups.
@@ -300,10 +301,9 @@ class DefaultParquetReader : public ParquetReader {
   }
 };
 
-ParquetReader *CreateParquetReader(const char *filename, MemoryContext cxt,
-                                   TupleDesc tuple_desc, int reader_id,
-                                   bool caching) {
-  return new DefaultParquetReader(filename, cxt, tuple_desc, reader_id);
+ParquetReader *CreateParquetReader(Oid rel, const char *filename, MemoryContext cxt,
+                                   TupleDesc tuple_desc, int reader_id) {
+  return new DefaultParquetReader(rel, filename, cxt, tuple_desc, reader_id);
 }
 
 /* Default destructor is required */

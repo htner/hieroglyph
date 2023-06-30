@@ -63,13 +63,13 @@ ParquetS3WriterState *create_parquet_modify_state(
  * @param use_mmap use_mmap option
  */
 ParquetS3WriterState::ParquetS3WriterState(MemoryContext reader_cxt,
-                                           const char *dirname,
+                                           const char *dir,
                                            Aws::S3::S3Client *s3_client,
                                            TupleDesc tuple_desc,
                                            std::set<int> target_attrs,
                                            bool use_threads, bool use_mmap)
     : cxt(reader_cxt),
-      dirname(dirname),
+      dirname(dir),
       s3_client(s3_client),
       tuple_desc(tuple_desc),
       target_attrs(target_attrs),
@@ -92,7 +92,7 @@ ParquetS3WriterState::~ParquetS3WriterState() {}
  */
 std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
     const char *filename, TupleTableSlot *slot) {
-  auto reader = CreateParquetWriter(filename, tuple_desc);
+  auto reader = CreateParquetWriter(rel_id, filename, tuple_desc);
   reader->SetRel(rel_name, rel_id);
   // reader->Open(filename, s3_client);
   // reader->set_options(use_threads, use_mmap);
@@ -123,13 +123,13 @@ bool ParquetS3WriterState::HasS3Client() {
  */
 void ParquetS3WriterState::Upload() {
   for (auto update : updates) {
-    update.second->Upload(dirname, s3_client);
+    update.second->Upload(dirname.c_str(), s3_client);
     uploads_.push_back(update.second);
   }
   updates.clear();
 
   if (inserter_ != nullptr) {
-    inserter_->Upload(dirname, s3_client);
+    inserter_->Upload(dirname.c_str(), s3_client);
     uploads_.push_back(inserter_);
     inserter_ = nullptr;
   }
@@ -193,7 +193,7 @@ void ParquetS3WriterState::CommitUpload() {
 bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
   if (inserter_ != nullptr && inserter_->DataSize() > 100 * 1024 * 0124) {
 	LOG(ERROR) << "upload " << inserter_->DataSize();
-    inserter_->Upload(dirname, s3_client);
+    inserter_->Upload(dirname.c_str(), s3_client);
     uploads_.push_back(inserter_);
     inserter_ = nullptr;
   }
@@ -202,7 +202,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
     char uuid[1024];
     static uint32_t local_index = 0;
     uint64_t worker_uuid = 1;
-    sprintf(uuid, "%s_%d_%d_%d.parquet", rel_name, rel_id, worker_uuid, local_index++);
+    sprintf(uuid, "%d%d%d.parquet", MyDatabaseId, rel_name, rel_id, worker_uuid, local_index++);
     inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {

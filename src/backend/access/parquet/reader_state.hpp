@@ -40,18 +40,24 @@ class ParquetS3ReaderState
 {
 public:
     virtual ~ParquetS3ReaderState() {};
+    virtual void SetRel(Oid rel) {
+      rel_ = rel;
+    }
     virtual bool next(TupleTableSlot *slot, bool fake=false) = 0;
     virtual void rescan(void) = 0;
     virtual void add_file(const char *filename, List *rowgroups) = 0;
     virtual void set_coordinator(ParallelCoordinator *coord) = 0;
     virtual Size estimate_coord_size() = 0;
     virtual void init_coord() = 0;
+protected:
+    Oid rel_;
 };
 
 ParquetS3ReaderState *create_parquet_execution_state(ReaderType reader_type,
                                                          MemoryContext reader_cxt,
                                                          const char *dirname,
                                                          Aws::S3::S3Client *s3_client,
+                                                          Oid rel,
                                                          TupleDesc tuple_desc,
                                                          std::set<int> &attrs_used,
                                                          std::list<SortSupportData> sort_keys,

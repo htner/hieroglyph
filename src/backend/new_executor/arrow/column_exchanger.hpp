@@ -16,10 +16,10 @@ using GetDatumFunc = std::function<arrow::Status(arrow::Array*, int64_t, Datum*)
 
 class ColumnExchanger {
 public:
-  ColumnExchanger(Form_pg_attribute attr);
+  ColumnExchanger(Oid rel, Form_pg_attribute attr);
   ColumnExchanger(int16_t typid);
 
-  GetDatumFunc GetFunction(Form_pg_attribute attr);
+  GetDatumFunc GetFunction(Oid rel, Form_pg_attribute attr);
 
   GetDatumFunc GetFunction(Oid typid);
 
@@ -42,7 +42,7 @@ public:
 private:
   GetDatumFunc func_;
   std::shared_ptr<arrow::Array> array_;
-
+  Oid rel_;
 };
 
 }

@@ -1,7 +1,17 @@
 #include "backend/new_executor/arrow/column_exchanger.hpp"
-
+#include "backend/new_executor/arrow/boot.hpp"
 extern "C" {
 #include "access/relation.h"
+}
+
+extern bool NeedForwardLookupFromPgType(Oid id);
+
+bool kInitSyscacheFinish = false;
+
+bool NeedForwardLookupFromPgType(Oid id) {
+	if (id == 1259 || id == 2617 || id == 1247 || id == 1259)
+		return false;
+	return true;
 }
 
 namespace pdb {
@@ -23,9 +33,6 @@ Datum GetStringToDatum(arrow::Array* a, int64_t i) {
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
   auto array = reinterpret_cast<ArrayType*>(a);
   auto view = array->GetView(i);
-  if (view.size() > 100000) {
-    elog(PANIC, "");
-  }
 
   char* resultptr = (char*)palloc(view.size() + VARHDRSZ);
   SET_VARSIZE(resultptr, view.size() + VARHDRSZ);
@@ -38,13 +45,7 @@ arrow::Status GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i, Datum*
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
   auto array = reinterpret_cast<ArrayType*>(a);
   auto view = array->GetView(i);
-  if (view.size() > 100000) {
-    elog(PANIC, "");
-  }
-  if (view.size() > len) {
-    elog(PANIC, "");
-  }
-
+ 
   char* resultptr = (char*)palloc(len);
   memcpy(resultptr, view.data(), view.size());
   *datum = PointerGetDatum(resultptr);
@@ -233,8 +234,8 @@ arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs,
   return arrow::Status::OK();
 }
 
-ColumnExchanger::ColumnExchanger(Form_pg_attribute attr) {
-  func_ = GetFunction(attr);
+ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
+  func_ = GetFunction(rel, attr);
 }
 
 ColumnExchanger::ColumnExchanger(int16_t typid) { func_ = GetFunction(typid); }
@@ -243,15 +244,21 @@ ColumnExchanger::ColumnExchanger(int16_t typid) { func_ = GetFunction(typid); }
   case oid:                              \
     return GetDatum<oid>;
 
-GetDatumFunc ColumnExchanger::GetFunction(Form_pg_attribute attr) {
+GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
   HeapTuple tup;
   Form_pg_type elem_type;
   auto atttypid = attr->atttypid;
   auto atttypmod = attr->atttypmod;
   auto typlen = attr->attlen;
-  char typtype;
+  char typtype = 'b';
+  auto attbyval = attr->attbyval;
+  auto attalign = attr->attalign;
+  char attelem = 0;
+  Oid  attrelid = 0;
+  rel_ = rel;
+  
   /* walk down to the base type */
-  for (;;) {
+  while (NeedForwardLookupFromPgType(rel_)) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
     // elog(ERROR, "cache lookup failed for type: %u", atttypid);
     if (!HeapTupleIsValid(tup)) {
@@ -263,14 +270,20 @@ GetDatumFunc ColumnExchanger::GetFunction(Form_pg_attribute attr) {
 
 	if (typtype != TYPTYPE_DOMAIN) {
       atttypmod = elem_type->typtypmod;
+	  typtype = elem_type->typtype;
+	  attbyval = elem_type->typbyval;
+	  attalign = elem_type->typalign;
+	  attelem = elem_type->typelem;
+	  attrelid = elem_type->typrelid;
       break;
     }
     atttypid = elem_type->typbasetype;
 	ReleaseSysCache(tup);
   }
-  return GetFunction(atttypid, typlen, elem_type->typbyval,
-                     elem_type->typalign, elem_type->typtype, atttypmod,
-                     elem_type->typelem, elem_type->typrelid);
+
+  return GetFunction(atttypid, typlen, attbyval,
+                     attalign, typtype, atttypmod,
+                     attelem, attrelid);
 }
 
 GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
@@ -281,8 +294,21 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   char typtype;
   bool first = true;
   int typlen;  
+  int32_t atttypmod;
+  bool attbyval = false;
+  char attalign;
+  Oid attelem;
+  Oid  attrelid;
+
+  if (!NeedForwardLookupFromPgType(rel_)) {
+	bool ret = GetBootTypeInfo(typid, &atttypmod, &typtype, &typlen, 
+							&attbyval, &attalign, &attelem, &attrelid);
+	assert(ret);
+	if (!ret) {
+	}
+  }
   /* walk down to the base type */
-  for (;;) {
+  while (NeedForwardLookupFromPgType(rel_)) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
     // elog(ERROR, "cache lookup failed for type: %u", atttypid);
     if (!HeapTupleIsValid(tup)) {
@@ -298,16 +324,26 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
       typmod = elem_type->typtypmod;
+	  typtype = elem_type->typtype;
+	  attbyval = elem_type->typbyval;
+	  attalign = elem_type->typalign;
+	  attelem = elem_type->typelem;
+	  attrelid = elem_type->typrelid;
       break;
     }
 
     typid = elem_type->typbasetype;
     ReleaseSysCache(tup);
   }
+	/*
   return GetFunction(typid, elem_type->typlen, elem_type->typbyval,
                      elem_type->typalign, elem_type->typtype,
                      elem_type->typtypmod, elem_type->typelem,
                      elem_type->typrelid);
+					 */
+  return GetFunction(typid, typlen, attbyval,
+                     attalign, typtype, atttypmod,
+                     attelem, attrelid);
 }
 
 GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
@@ -340,10 +376,12 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     // relation = relation_open(typrelid, AccessShareLock);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
-      auto sub_data_type = GetFunction(attr);
+			/*
+      auto sub_data_type = GetFunction(0, attr);
       if (sub_data_type == nullptr) {
         return nullptr;
       }
+	  */
       auto sub_typeid = attr->atttypid;
       auto sub_func = GetFunction(sub_typeid);
       sub_funcs.push_back(sub_func);

@@ -45,7 +45,7 @@ class ParquetWriter {
   void RemoveRow(size_t idx);
 
  public:
-  ParquetWriter(const char *filename, TupleDesc tuple_desc);
+  ParquetWriter(Oid rel, const char *filename, TupleDesc tuple_desc);
 
   ~ParquetWriter();
 
@@ -93,4 +93,4 @@ class ParquetWriter {
 };
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
-    const char *filename, TupleDesc tuple_desc);
+    Oid rel, const char *filename, TupleDesc tuple_desc);

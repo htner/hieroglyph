@@ -914,8 +914,10 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
   reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
                                      ALLOCSET_DEFAULT_SIZES);
   try {
+	char dirname[100];
+	sprintf(dirname, "sdb%d", MyDatabaseId);
     state = create_parquet_execution_state(
-        reader_type, reader_cxt, dirname, s3client, tupleDesc, attrs_used,
+        reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc, attrs_used,
         sort_keys, use_threads, use_mmap, max_open_files, schemaless, slcols,
         sorted_cols);
 
@@ -1029,7 +1031,7 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 
   ExecClearTuple(slot);
   try {
-    festate->next(slot);
+    return festate->next(slot);
   } catch (std::exception &e) {
     error = e.what();
   }
@@ -1094,7 +1096,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
   }
 
   char dirname[100];
-  sprintf(dirname, "%d/%d/", rel->rd_node.dbNode, rel->rd_node.relNode);
+  sprintf(dirname, "sdb%d", MyDatabaseId);
 
   temp_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
                                    ALLOCSET_DEFAULT_SIZES);
@@ -1171,9 +1173,11 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
   auto fmstate = GetModifyState(rel);
 
   if (fmstate == nullptr) {
+		char dirname[100];
+		sprintf(dirname, "sdb%d", MyDatabaseId);
     auto s3client = ParquetGetConnectionByRelation(rel);
     fmstate =
-        CreateParquetModifyState(rel, tmp_cxt, "s3://template1", s3client, desc, true);
+        CreateParquetModifyState(rel, tmp_cxt, dirname, s3client, desc, true);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
     LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);

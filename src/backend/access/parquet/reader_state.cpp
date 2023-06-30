@@ -67,8 +67,7 @@ public:
 };
 
 
-class SingleFileExecutionStateS3 : public ParquetS3ReaderState
-{
+class SingleFileExecutionStateS3 : public ParquetS3ReaderState {
 private:
     ParquetReader      *reader;
     MemoryContext       cxt;
@@ -77,7 +76,7 @@ private:
     std::set<int>       attrs_used;
     bool                use_mmap;
     bool                use_threads;
-    const char *dirname;
+	std::string dirname;
     Aws::S3::S3Client *s3_client;
     bool                schemaless;
     std::set<std::string> slcols;
@@ -131,11 +130,11 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        reader = CreateParquetReader(filename, cxt, tuple_desc);
+        reader = CreateParquetReader(rel_, filename, cxt, tuple_desc, -1);
         reader->SetOptions(use_threads, use_mmap);
         reader->SetRowgroupsList(rg);
         if (s3_client)
-            reader->Open(dirname, s3_client);
+            reader->Open(dirname.c_str(), s3_client);
         else
             reader->Open();
     }
@@ -178,7 +177,7 @@ private:
     bool                    use_mmap;
 
     ParallelCoordinator    *coord;
-    const char             *dirname;
+		std::string dirname;
     Aws::S3::S3Client      *s3_client;
     bool                    schemaless;
     std::set<std::string>   slcols;
@@ -199,12 +198,12 @@ private:
         if (cur_reader >= files.size() || cur_reader < 0)
             return NULL;
 
-        r = CreateParquetReader(files[cur_reader].filename.c_str(), cxt, tuple_desc, cur_reader);
+        r = CreateParquetReader(rel_, files[cur_reader].filename.c_str(), cxt, tuple_desc, cur_reader);
         r->SetRowgroupsList(files[cur_reader].rowgroups);
         r->SetOptions(use_threads, use_mmap);
         r->SetCoordinator(coord);
         if (s3_client)
-            r->Open(dirname, s3_client);
+            r->Open(dirname.c_str(), s3_client);
         else
             r->Open();
 
@@ -347,7 +346,7 @@ protected:
      */
     Heap<ReaderSlot>    slots;
     bool                slots_initialized;
-    const char         *dirname;
+	std::string dirname;
     Aws::S3::S3Client  *s3_client;
     bool                schemaless;
     std::set<std::string> slcols;
@@ -554,11 +553,11 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        r = CreateParquetReader(filename, cxt, tuple_desc, reader_id);
+        r = CreateParquetReader(rel_, filename, cxt, tuple_desc, reader_id);
         r->SetRowgroupsList(rg);
         r->SetOptions(use_threads, use_mmap);
         if (s3_client)
-            r->Open(dirname, s3_client);
+            r->Open(dirname.c_str(), s3_client);
         else
             r->Open();
         readers.push_back(r);
@@ -665,7 +664,7 @@ private:
         gettimeofday(&tv, NULL);
         ts_active[reader->id()] = tv.tv_sec*1000LL + tv.tv_usec/1000;
         if (s3_client)
-            reader->Open(dirname, s3_client);
+            reader->Open(dirname.c_str(), s3_client);
         else
             reader->Open();
         num_active_readers++;
@@ -787,7 +786,7 @@ public:
         foreach (lc, rowgroups)
             rg.push_back(lfirst_int(lc));
 
-        r = CreateParquetReader(filename, cxt, tuple_desc, reader_id, true);
+        r = CreateParquetReader(rel_, filename, cxt, tuple_desc, reader_id);
         r->SetRowgroupsList(rg);
         r->SetOptions(use_threads, use_mmap);
         readers.push_back(r);
@@ -803,6 +802,7 @@ ParquetS3ReaderState *create_parquet_execution_state(ReaderType reader_type,
                                                          MemoryContext reader_cxt,
                                                          const char *dirname,
                                                          Aws::S3::S3Client *s3_client,
+                                                         Oid rel,
                                                          TupleDesc tuple_desc,
                                                          std::set<int> &attrs_used,
                                                          std::list<SortSupportData> sort_keys,
@@ -813,28 +813,36 @@ ParquetS3ReaderState *create_parquet_execution_state(ReaderType reader_type,
                                                          std::set<std::string> slcols,
                                                          std::set<std::string> sorted_cols)
 {
+	ParquetS3ReaderState* result;
     switch (reader_type)
     {
         case RT_TRIVIAL:
-            return new TrivialExecutionStateS3();
+            result = new TrivialExecutionStateS3();
+			break;
         case RT_SINGLE:
-            return new SingleFileExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
+            result = new SingleFileExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
                                                          attrs_used, use_threads,
                                                          use_mmap, schemaless, slcols, sorted_cols);
+			break;
         case RT_MULTI:
-            return new MultifileExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
+            result = new MultifileExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
                                                         attrs_used, use_threads,
                                                         use_mmap, schemaless, slcols, sorted_cols);
+			break;
         case RT_MULTI_MERGE:
-            return new MultifileMergeExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
+            result = new MultifileMergeExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
                                                         attrs_used, sort_keys, 
                                                         use_threads, use_mmap, schemaless, slcols, sorted_cols);
+			break;
         case RT_CACHING_MULTI_MERGE:
-            return new CachingMultifileMergeExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
+            result = new CachingMultifileMergeExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
                                                            attrs_used, sort_keys, 
                                                            use_threads, use_mmap,
                                                            max_open_files, schemaless, slcols, sorted_cols);
+			break;
         default:
             throw std::runtime_error("unknown reader type");
     }
+	result->SetRel(rel);
+	return result;
 }

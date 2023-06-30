@@ -15,7 +15,7 @@ namespace pdb
 
 class RecordBatchBuilder {
 public:
-  RecordBatchBuilder(TupleDesc tuple_desc);
+  RecordBatchBuilder(Oid rel, TupleDesc tuple_desc);
   ~RecordBatchBuilder();
 
   RecordBatchBuilder(const RecordBatchBuilder&) = delete;
@@ -33,6 +33,7 @@ public:
 
 
 private:
+  Oid rel_;
   std::shared_ptr<arrow::Schema> schema_;
   std::vector<std::unique_ptr<ColumnBuilder> > builders_; 
   TupleDesc tuple_desc_;

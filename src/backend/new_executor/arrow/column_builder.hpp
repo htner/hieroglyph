@@ -17,7 +17,7 @@ using PutDatumFunc = std::function<arrow::Status(arrow::ArrayBuilder*, Datum, bo
 
 class ColumnBuilder {
 public:
-  ColumnBuilder(Form_pg_attribute attr);
+  ColumnBuilder(Oid, Form_pg_attribute attr);
 //  ColumnBuilder(int16_t typid);
 
   arrow::Status AppendDatum(Datum d, bool isnull) {
@@ -49,6 +49,7 @@ public:
   }
 
 private:
+  Oid rel_;
 	Oid atttypid_;
 	int32 atttypmod_;
 	char typtype_;

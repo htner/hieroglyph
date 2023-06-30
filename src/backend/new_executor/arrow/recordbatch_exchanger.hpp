@@ -13,7 +13,7 @@ class ColumnExchanger;
 
 class RecordBatchExchanger {
 public:
-  RecordBatchExchanger(TupleDesc tuple_desc);
+  RecordBatchExchanger(Oid rel, TupleDesc tuple_desc);
   RecordBatchExchanger(const RecordBatchExchanger&) = delete;
   RecordBatchExchanger& operator= (const RecordBatchExchanger&) = delete;
 
@@ -24,6 +24,7 @@ public:
   arrow::Result<TupleTableSlot*> FetchNextTuple();
 
 private:
+  Oid rel_;
   int64_t index_= 0;
   TupleTableSlot* slot_;
   TupleDesc					 tuple_desc_;

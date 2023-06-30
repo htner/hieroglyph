@@ -2,7 +2,7 @@
 
 namespace pdb {
 
-RecordBatchBuilder::RecordBatchBuilder(TupleDesc tuple_desc) {
+RecordBatchBuilder::RecordBatchBuilder(Oid rel, TupleDesc tuple_desc) {
 	tuple_desc_ = CreateTupleDescCopy(tuple_desc);
 	arrow::FieldVector fields;
 
@@ -11,7 +11,7 @@ RecordBatchBuilder::RecordBatchBuilder(TupleDesc tuple_desc) {
 		if (att->atttypid == 0) {
 			elog(PANIC, "typid == 0");
 		}
-		auto builder = std::make_unique<ColumnBuilder>(att);
+		auto builder = std::make_unique<ColumnBuilder>(rel, att);
 
 		auto array_builder = builder->GetArrayBuilder();
 		std::shared_ptr<arrow::Field> field = 

@@ -2152,6 +2152,174 @@ RelationInitAppendOnlyInfo(Relation relation)
  *		Caller should eventually decrement count.  (Usually,
  *		that happens by calling RelationClose().)
  */
+static Relation 
+GetPgClassRelation()
+{
+	bool isshared = false;
+	const char* relationName = "pg_class";
+	Oid relationReltype = RelationRelation_Rowtype_Id;
+	int natts = Natts_pg_class; 
+	const FormData_pg_attribute* attrs = Desc_pg_class;
+
+	Relation	relation;
+	int			i;
+	bool		has_not_null;
+
+	/*
+	 * allocate new relation desc, clear all fields of reldesc
+	 */
+	relation = (Relation) palloc0(sizeof(RelationData));
+
+	/* make sure relation is marked as having no open file yet */
+	relation->rd_smgr = NULL;
+
+	/*
+	 * initialize reference count: 1 because it is nailed in cache
+	 */
+	relation->rd_refcnt = 1;
+
+	/*
+	 * all entries built with this routine are nailed-in-cache; none are for
+	 * new or temp relations.
+	 */
+	relation->rd_isnailed = true;
+	relation->rd_createSubid = InvalidSubTransactionId;
+	relation->rd_newRelfilenodeSubid = InvalidSubTransactionId;
+	relation->rd_backend = InvalidBackendId;
+	relation->rd_islocaltemp = false;
+
+	/*
+	 * initialize relation tuple form
+	 *
+	 * The data we insert here is pretty incomplete/bogus, but it'll serve to
+	 * get us launched.  RelationCacheInitializePhase3() will read the real
+	 * data from pg_class and replace what we've done here.  Note in
+	 * particular that relowner is left as zero; this cues
+	 * RelationCacheInitializePhase3 that the real data isn't there yet.
+	 */
+	relation->rd_rel = (Form_pg_class) palloc0(CLASS_TUPLE_SIZE);
+
+	namestrcpy(&relation->rd_rel->relname, relationName);
+	relation->rd_rel->relnamespace = PG_CATALOG_NAMESPACE;
+	relation->rd_rel->reltype = relationReltype;
+
+	/*
+	 * It's important to distinguish between shared and non-shared relations,
+	 * even at bootstrap time, to make sure we know where they are stored.
+	 */
+	relation->rd_rel->relisshared = isshared;
+	if (isshared)
+		relation->rd_rel->reltablespace = GLOBALTABLESPACE_OID;
+
+	/* formrdesc is used only for permanent relations */
+	relation->rd_rel->relpersistence = RELPERSISTENCE_PERMANENT;
+
+	/* ... and they're always populated, too */
+	relation->rd_rel->relispopulated = true;
+
+	relation->rd_rel->relreplident = REPLICA_IDENTITY_NOTHING;
+	relation->rd_rel->relpages = 0;
+	relation->rd_rel->reltuples = 0;
+	relation->rd_rel->relallvisible = 0;
+	relation->rd_rel->relkind = RELKIND_RELATION;
+	relation->rd_rel->relnatts = (int16) natts;
+	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
+
+	/*
+	 * initialize attribute tuple form
+	 *
+	 * Unlike the case with the relation tuple, this data had better be right
+	 * because it will never be replaced.  The data comes from
+	 * src/include/catalog/ headers via genbki.pl.
+	 */
+	relation->rd_att = CreateTemplateTupleDesc(natts);
+	relation->rd_att->tdrefcount = 1;	/* mark as refcounted */
+
+	relation->rd_att->tdtypeid = relationReltype;
+	relation->rd_att->tdtypmod = -1;	/* unnecessary, but... */
+
+	/*
+	 * initialize tuple desc info
+	 */
+	has_not_null = false;
+	for (i = 0; i < natts; i++)
+	{
+		memcpy(TupleDescAttr(relation->rd_att, i),
+			   &attrs[i],
+			   ATTRIBUTE_FIXED_PART_SIZE);
+		has_not_null |= attrs[i].attnotnull;
+		/* make sure attcacheoff is valid */
+		TupleDescAttr(relation->rd_att, i)->attcacheoff = -1;
+	}
+
+	/* initialize first attribute's attcacheoff, cf RelationBuildTupleDesc */
+	TupleDescAttr(relation->rd_att, 0)->attcacheoff = 0;
+
+	/* mark not-null status */
+	if (has_not_null)
+	{
+		TupleConstr *constr = (TupleConstr *) palloc0(sizeof(TupleConstr));
+
+		constr->has_not_null = true;
+		relation->rd_att->constr = constr;
+	}
+
+	/*
+	 * initialize relation id from info in att array (my, this is ugly)
+	 */
+	RelationGetRelid(relation) = TupleDescAttr(relation->rd_att, 0)->attrelid;
+
+	/*
+	 * All relations made with formrdesc are mapped.  This is necessarily so
+	 * because there is no other way to know what filenode they currently
+	 * have.  In bootstrap mode, add them to the initial relation mapper data,
+	 * specifying that the initial filenode is the same as the OID.
+	 */
+	relation->rd_rel->relfilenode = InvalidOid;
+	if (IsBootstrapProcessingMode())
+		RelationMapUpdateMap(RelationGetRelid(relation),
+							 RelationGetRelid(relation),
+							 isshared, true);
+
+	/*
+	 * initialize the relation lock manager information
+	 */
+	RelationInitLockInfo(relation); /* see lmgr.c */
+
+	/*
+	 * initialize physical addressing information for the relation
+	 */
+	RelationInitPhysicalAddr(relation);
+
+	/*
+	 * initialize the table am handler
+	 */
+	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
+	relation->rd_tableam = GetHeapamTableAmRoutine();
+
+	/*
+	 * initialize the rel-has-index flag, using hardwired knowledge
+	 */
+	if (IsBootstrapProcessingMode())
+	{
+		/* In bootstrap mode, we have no indexes */
+		relation->rd_rel->relhasindex = false;
+	}
+	else
+	{
+		/* Otherwise, all the rels formrdesc is used for have indexes */
+		relation->rd_rel->relhasindex = true;
+	}
+
+	/*
+	 * add new reldesc to relcache
+	 */
+	RelationCacheInsert(relation, false);
+
+	/* It's fully valid */
+	relation->rd_isvalid = true;
+}
+
 Relation
 RelationIdGetRelation(Oid relationId)
 {
@@ -2199,7 +2367,29 @@ RelationIdGetRelation(Oid relationId)
 	 * no reldesc in the cache, so have RelationBuildDesc() build one and add
 	 * it.
 	 */
-	rd = RelationBuildDesc(relationId, true);
+	if (relationId == RelationRelationId) 
+	{
+		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
+				  Natts_pg_class, Desc_pg_class);
+		formrdesc("pg_attribute", AttributeRelation_Rowtype_Id, false,
+				  Natts_pg_attribute, Desc_pg_attribute);
+		formrdesc("pg_proc", ProcedureRelation_Rowtype_Id, false,
+				  Natts_pg_proc, Desc_pg_proc);
+		formrdesc("pg_type", TypeRelation_Rowtype_Id, false,
+				  Natts_pg_type, Desc_pg_type);
+		elog(WARNING, "type to open relation pg_class, add to cache");
+		return RelationIdGetRelation(relationId);
+			/*
+		rd = GetPgClassRelation(); 	
+		if (RelationIsValid(rd))
+			RelationIncrementReferenceCount(rd);
+			*/
+	} 
+	else 
+	{
+		rd = RelationBuildDesc(relationId, true);
+		elog(WARNING, "type to open relation pg_class %d != %d ()", relationId, RelationRelationId);
+	}
 	if (RelationIsValid(rd))
 		RelationIncrementReferenceCount(rd);
 	return rd;
@@ -3939,6 +4129,7 @@ RelationCacheInitializePhase2(void)
 {
 	MemoryContext oldcxt;
 
+	elog(WARNING, "RelationCacheInitializePhase2 1");
 	/*
 	 * relation mapper needs initialized too
 	 */
@@ -3960,8 +4151,10 @@ RelationCacheInitializePhase2(void)
 	 * Try to load the shared relcache cache file.  If unsuccessful, bootstrap
 	 * the cache with pre-made descriptors for the critical shared catalogs.
 	 */
+	elog(WARNING, "RelationCacheInitializePhase2 3");
 	if (!load_relcache_init_file(true))
 	{
+		elog(WARNING, "RelationCacheInitializePhase2 4");
 		formrdesc("pg_database", DatabaseRelation_Rowtype_Id, true,
 				  Natts_pg_database, Desc_pg_database);
 		formrdesc("pg_authid", AuthIdRelation_Rowtype_Id, true,
@@ -3998,6 +4191,7 @@ RelationCacheInitializePhase2(void)
 void
 RelationCacheInitializePhase3(void)
 {
+	elog(WARNING, "RelationCacheInitializePhase3 1");
 	HASH_SEQ_STATUS status;
 	RelIdCacheEnt *idhentry;
 	MemoryContext oldcxt;
@@ -4025,9 +4219,11 @@ RelationCacheInitializePhase3(void)
 	 * the cache with pre-made descriptors for the critical "nailed-in" system
 	 * catalogs.
 	 */
+	elog(WARNING, "RelationCacheInitializePhase3 2");
 	if (IsBootstrapProcessingMode() ||
 		!load_relcache_init_file(false))
 	{
+		elog(WARNING, "RelationCacheInitializePhase3 3");
 		needNewCacheFile = true;
 
 		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
@@ -4047,6 +4243,7 @@ RelationCacheInitializePhase3(void)
 	/* In bootstrap mode, the faked-up formrdesc info is all we'll have */
 	if (IsBootstrapProcessingMode())
 		return;
+	elog(WARNING, "RelationCacheInitializePhase3 4");
 
 	/*
 	 * If we didn't get the critical system indexes loaded into relcache, do
@@ -4094,6 +4291,7 @@ RelationCacheInitializePhase3(void)
 
 		criticalRelcachesBuilt = true;
 	}
+	elog(WARNING, "RelationCacheInitializePhase3 5");
 
 	/*
 	 * Process critical shared indexes too.
@@ -4130,6 +4328,7 @@ RelationCacheInitializePhase3(void)
 
 		criticalSharedRelcachesBuilt = true;
 	}
+	elog(WARNING, "RelationCacheInitializePhase3 6");
 
 	/*
 	 * Now, scan all the relcache entries and update anything that might be

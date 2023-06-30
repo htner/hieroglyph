@@ -164,8 +164,7 @@ class ParquetReader {
   int32_t id();
 };
 
-ParquetReader *CreateParquetReader(const char *filename, MemoryContext cxt,
-                                   TupleDesc tuple_desc, int reader_id = -1,
-                                   bool caching = false);
+ParquetReader *CreateParquetReader(Oid rel_id, const char *filename, MemoryContext cxt,
+                                   TupleDesc tuple_desc, int reader_id);
 
 #endif

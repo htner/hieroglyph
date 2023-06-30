@@ -5,13 +5,13 @@
 
 namespace pdb {
 
-RecordBatchExchanger::RecordBatchExchanger(TupleDesc tuple_desc) {
+RecordBatchExchanger::RecordBatchExchanger(Oid rel, TupleDesc tuple_desc) {
   slot_ = MakeSingleTupleTableSlot(tuple_desc, &TTSOpsVirtual);
   tuple_desc_ = CreateTupleDescCopy(tuple_desc);
   for (int i = 0; i < tuple_desc->natts; ++i) {
     Form_pg_attribute att = TupleDescAttr(tuple_desc_, i);        
 	// std::shared_ptr<DataType> data_type = TypeMapping(att);
-	auto column_exchanger = std::make_shared<ColumnExchanger>(att); 
+	auto column_exchanger = std::make_shared<ColumnExchanger>(rel, att); 
 	column_exchangers_.push_back(column_exchanger);
   }
 }
@@ -42,7 +42,6 @@ arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchNextTuple() {
 	}
 	elog(WARNING, "fetch next tuple, index %d", index_);
 	++index_;
-
 	return ExecStoreVirtualTuple(slot_);
 }
 

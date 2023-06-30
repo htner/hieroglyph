@@ -633,18 +633,9 @@ bool parquetIsS3Filenames(List *filenames) {
  */
 void parquetSplitS3Path(const char *dirname, const char *filename,
                         char **bucket, char **filepath) {
-  if (dirname != NULL && dirname[0] != '\0') {
-    *bucket = pstrdup(dirname + 5); /* Remove "s3://" */
-    Assert(filename);
-    *filepath = pstrdup(filename);
-  } else {
-    char *copied = pstrdup(filename + 5); /* Remove "s3://" */
-    char *sep;
-    *bucket = copied;
-    sep = strchr(copied, '/');
-    *sep = '\0';
-    *filepath = pstrdup(sep + 1);
-  }
+  
+  *bucket = pstrdup(dirname);
+  *filepath = pstrdup(filename);
 }
 
 /*

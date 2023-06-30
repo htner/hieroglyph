@@ -34,7 +34,7 @@ class ParquetS3WriterState {
   /* memory context of reader */
   MemoryContext cxt;
   /* target directory name */
-  const char *dirname;
+  std::string dirname;
   /* S3 system client */
   Aws::S3::S3Client *s3_client;
   /* foreign table desc */

@@ -66,8 +66,8 @@ extern uint64_t dbid;
 extern uint64_t sessionid;
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
-    const char *filename, TupleDesc tuple_desc) {
-  return std::make_shared<ParquetWriter>(filename, tuple_desc);
+    Oid rel, const char *filename, TupleDesc tuple_desc) {
+  return std::make_shared<ParquetWriter>(rel, filename, tuple_desc);
 }
 /**
  * @brief Construct a new Modify Parquet Reader:: Modify Parquet Reader object
@@ -78,12 +78,13 @@ std::shared_ptr<ParquetWriter> CreateParquetWriter(
  * @param is_new_file where target file is new
  * @param reader_id reder id
  */
-ParquetWriter::ParquetWriter(const char *filename, TupleDesc tuple_desc) {
+ParquetWriter::ParquetWriter(Oid rel, const char *filename, TupleDesc tuple_desc) {
   filename_ = filename;
   is_delete_ = false;
   is_insert_ = false;
   lake_2pc_state_ = LAKE2PC_NULL;
-  builder_ = std::make_shared<pdb::RecordBatchBuilder>(tuple_desc);
+  builder_ = std::make_shared<pdb::RecordBatchBuilder>(rel, tuple_desc);
+  rel_id = rel;
   Assert(builder_ != nullptr);
 }
 
