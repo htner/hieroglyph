@@ -2,6 +2,8 @@
 #include "backend/new_executor/arrow/boot.hpp"
 extern "C" {
 #include "access/relation.h"
+#include "catalog/pg_proc.h"
+#include "catalog/pg_database.h"
 }
 #include "backend/sdb/common/pg_export.hpp"
 #include <brpc/server.h>
@@ -10,14 +12,12 @@ extern "C" {
 #include <butil/logging.h>
 #include "backend/new_executor/arrow/boot.hpp"
 
-extern bool NeedForwardLookupFromPgType(Oid id);
-
-bool kInitSyscacheFinish = true;
-
 bool NeedForwardLookupFromPgType(Oid id) {
-	if (id == 1259 || id == 1247 || id == 1262 || id == 1249 || id == 1255)
+	if (id == TypeRelationId || id == AttributeRelationId || 
+		id == ProcedureRelationId || id == DatabaseRelationId ||
+		id == RelationRelationId )
 		return false;
-	return kInitSyscacheFinish;
+	return true;
 }
 
 namespace pdb {

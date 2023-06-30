@@ -19,6 +19,8 @@
 
 extern bool NeedForwardLookupFromPgType(Oid id);
 
+extern bool NeedForwardLookupFromPgType(Oid id);
+
 namespace pdb {
 
 template <class TYPE_CLASS, class Value>

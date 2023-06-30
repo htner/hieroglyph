@@ -387,7 +387,7 @@ create_parquet_execution_state(ReaderType reader_type,
                                                         use_threads,
                                                         use_mmap);
 			break;
-       default:
+        default:
             throw std::runtime_error("unknown reader type");
     }
 	result->SetRel(rel);
