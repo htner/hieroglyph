@@ -30,6 +30,7 @@ extern "C" {
 #include <butil/iobuf.h>
 #include <butil/logging.h>
 #include "lake_service.pb.h"
+#include "auto_mem.hpp"
 
 /**
  * @brief Create a parquet modify state object
@@ -81,7 +82,9 @@ ParquetS3WriterState::ParquetS3WriterState(MemoryContext reader_cxt,
  * @brief Destroy the Parquet S 3 Fdw Modify State:: Parquet S3 Fdw Modify State
  * object
  */
-ParquetS3WriterState::~ParquetS3WriterState() {}
+ParquetS3WriterState::~ParquetS3WriterState() {
+	MemoryContextDelete(cxt);
+}
 
 /**
  * @brief add a new parquet file
@@ -92,6 +95,8 @@ ParquetS3WriterState::~ParquetS3WriterState() {}
  */
 std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
     const char *filename, TupleTableSlot *slot) {
+  //auto old_cxt = MemoryContextSwitchTo(ctx);
+  auto auto_switch = AutoSwitch(cxt);
   auto reader = CreateParquetWriter(rel_id, filename, tuple_desc);
   reader->SetRel(rel_name, rel_id);
   // reader->Open(filename, s3_client);
@@ -102,7 +107,6 @@ std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
   // reader->create_new_file_temp_cache();
 
   reader->PrepareUpload();
-
   return reader;
 }
 
@@ -122,6 +126,7 @@ bool ParquetS3WriterState::HasS3Client() {
  * @brief upload all cached data on readers list
  */
 void ParquetS3WriterState::Upload() {
+  auto auto_switch = AutoSwitch(cxt);
   for (auto update : updates) {
     update.second->Upload(dirname.c_str(), s3_client);
     uploads_.push_back(update.second);
@@ -138,9 +143,11 @@ void ParquetS3WriterState::Upload() {
   for (auto upload : uploads_) {
     upload->CommitUpload();
   }
+  uploads_.clear();
 }
 
 void ParquetS3WriterState::CommitUpload() {
+	auto auto_switch = AutoSwitch(cxt);
 	std::list<sdb::LakeFile> add_files;
 	std::list<sdb::LakeFileHandle> delete_files;
 
@@ -191,6 +198,7 @@ void ParquetS3WriterState::CommitUpload() {
  * @return true if insert successfully
  */
 bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
+  auto auto_switch = AutoSwitch(cxt);
   if (inserter_ != nullptr && inserter_->DataSize() > 100 * 1024 * 0124) {
 	LOG(ERROR) << "upload " << inserter_->DataSize();
     inserter_->Upload(dirname.c_str(), s3_client);
@@ -202,7 +210,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
     char uuid[1024];
     static uint32_t local_index = 0;
     uint64_t worker_uuid = 1;
-    sprintf(uuid, "%d%d%d.parquet", MyDatabaseId, rel_name, rel_id, worker_uuid, local_index++);
+    sprintf(uuid, "%s_%d_%lu_%u.parquet", rel_name, rel_id, worker_uuid, local_index++);
     inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {
@@ -219,6 +227,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
  * @return true if delete successfully
  */
 bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
+  auto auto_switch = AutoSwitch(cxt);
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
   
   auto it = updates.find(block_id);

@@ -1,14 +1,21 @@
+
+#include "backend/new_executor/arrow/boot.hpp"
 #include "backend/new_executor/arrow/column_builder.hpp"
+#include "backend/new_executor/arrow/type_mapping.hpp"
+
+#include <brpc/server.h>
+#include <brpc/channel.h>
+#include <butil/iobuf.h>
+#include <butil/logging.h>
+
+//#include "backend/new_executor/arrow/column_builder.hpp"
 
 #include <arrow/status.h>
 #include <arrow/type_fwd.h>
 
-#include "backend/new_executor/arrow/type_mapping.hpp"
 #include "backend/new_executor/arrow/boot.hpp"
 
-extern "C" {
-#include "access/relation.h"
-}
+
 
 extern bool NeedForwardLookupFromPgType(Oid id);
 
@@ -257,13 +264,24 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
   HeapTuple tup;
   Form_pg_type elem_type;
   char typtype;
+  Oid attrelid;
+  Oid attelem;
+
+  if (!NeedForwardLookupFromPgType(rel)) {
+	  bool ret = GetBootTypeInfo(typid, nullptr, &typtype, nullptr, 
+							  nullptr, nullptr, &attelem, &attrelid);	
+	  if (ret == false) {
+		LOG(ERROR) << "get boot type error" << rel << " " << typid;
+	   }
+	  assert(ret);
+  }
 
   /* walk down to the base type */
   while (NeedForwardLookupFromPgType(rel)) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
     if (!HeapTupleIsValid(tup)) {
       // TODO failure
-      elog(PANIC, "cache lookup failed for type: %u", typid);
+      //elog(PANIC, "cache lookup failed for type: %u", typid);
       return;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
@@ -271,6 +289,9 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
       typmod = elem_type->typtypmod;
+	  typtype = elem_type->typtype;
+	  attelem = elem_type->typelem;
+	  attrelid = elem_type->typrelid;
       break;
     }
 
@@ -278,8 +299,8 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
     ReleaseSysCache(tup);
   }
   put_value_func_ =
-      GetPutValueFunction(typid, typlen, elem_type->typtype, typmod,
-                          elem_type->typelem, elem_type->typrelid);
+      GetPutValueFunction(typid, typlen, typtype, typmod,
+                          attelem, attrelid);
 
   arrow_type_ = TypeMapping::GetDataType(attr);
 
@@ -303,8 +324,14 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
   char typtype = 'b';
   auto attbyval = attr->attbyval;
   auto attalign = attr->attalign;
-  char attelem = 0;
+  Oid attelem = 0;
   Oid  attrelid = 0;
+
+  if (!NeedForwardLookupFromPgType(rel_)) {
+	  bool ret = GetBootTypeInfo(atttypid, nullptr, &typtype, nullptr, 
+							  nullptr, nullptr, &attelem, &attrelid);	
+	  assert(ret);
+  }
   /* walk down to the base type */
   while (NeedForwardLookupFromPgType(rel_)) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
@@ -449,7 +476,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
     if (sub_func == nullptr) {
       return nullptr;
     }
-	assert(NeedForwardLookupFromPgType(rel_));
+	//assert(NeedForwardLookupFromPgType(rel_));
 	int32_t typemod; 
 	char typtype;
 	int attlen;

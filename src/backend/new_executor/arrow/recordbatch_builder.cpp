@@ -1,4 +1,5 @@
 #include "backend/new_executor/arrow/recordbatch_builder.hpp"
+#include <butil/logging.h>
 
 namespace pdb {
 
@@ -9,7 +10,7 @@ RecordBatchBuilder::RecordBatchBuilder(Oid rel, TupleDesc tuple_desc) {
 	for (int i = 0; i < tuple_desc_->natts; ++i) {
 		Form_pg_attribute att = TupleDescAttr(tuple_desc_, i);        
 		if (att->atttypid == 0) {
-			elog(PANIC, "typid == 0");
+			LOG(ERROR) << "typid == 0";
 		}
 		auto builder = std::make_unique<ColumnBuilder>(rel, att);
 
@@ -32,7 +33,7 @@ arrow::Status RecordBatchBuilder::AppendTuple(TupleTableSlot* tuple) {
 		try {
 			builders_[i]->AppendDatum(tuple->tts_values[i], tuple->tts_isnull[i]);
 		} catch (const std::exception &e) {
-			elog(ERROR, "record batch : %s", e.what());
+			LOG(ERROR) << "record batch : " << e.what();
 			return arrow::Status::UnknownError("");
 		}
 	}

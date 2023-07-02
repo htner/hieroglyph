@@ -130,6 +130,7 @@ static int num_columns_read = 0;
 %token <kw> XDECLARE INDEX ON USING XBUILD INDICES UNIQUE XTOAST
 %token <kw> OBJ_ID XBOOTSTRAP XSHARED_RELATION XROWTYPE_OID
 %token <kw> XFORCE XNOT XNULL
+%token <kw> XUPLOADALL XCOPYTOPARQUET
 
 %start TopLevel
 
@@ -154,6 +155,8 @@ Boot_Query :
 		| Boot_DeclareUniqueIndexStmt
 		| Boot_DeclareToastStmt
 		| Boot_BuildIndsStmt
+		| Boot_UploadAllStmt
+		| Boot_CopyToParquetStmt
 		;
 
 Boot_OpenStmt:
@@ -250,7 +253,7 @@ Boot_CreateStmt:
 													  $6,
 													  InvalidOid,
 													  BOOTSTRAP_SUPERUSERID,
-													  PARQUET_TABLE_AM_OID,
+													  HEAP_TABLE_AM_OID,
 													  tupdesc,
 													  NIL,
 													  RELKIND_RELATION,
@@ -327,7 +330,7 @@ Boot_DeclareIndexStmt:
 					/* locks and races need not concern us in bootstrap mode */
 					relationId = RangeVarGetRelid(stmt->relation, NoLock,
 												  false);
-					/*DefineIndex(relationId,
+					DefineIndex(relationId,
 								stmt,
 								$4,
 								InvalidOid,
@@ -337,7 +340,7 @@ Boot_DeclareIndexStmt:
 								false,
 								true,  //skip_build 
 								false,
-								false  ); // is_new_table  */
+								false  ); // is_new_table 
 					do_end();
 				}
 		;
@@ -378,7 +381,6 @@ Boot_DeclareUniqueIndexStmt:
 					relationId = RangeVarGetRelid(stmt->relation, NoLock,
 												  false);
 
-/*
 					DefineIndex(relationId,
 								stmt,
 								$5,
@@ -390,7 +392,6 @@ Boot_DeclareUniqueIndexStmt:
 								true,
 								false,
 								false);
-								*/
 					do_end();
 				}
 		;
@@ -402,7 +403,7 @@ Boot_DeclareToastStmt:
 
 					do_start();
 
-					//BootstrapToastTable($6, $3, $4);
+					// BootstrapToastTable($6, $3, $4);
 					do_end();
 				}
 		;
@@ -411,10 +412,31 @@ Boot_BuildIndsStmt:
 		  XBUILD INDICES
 				{
 					do_start();
-					//build_indices();
+					build_indices();
 					do_end();
 				}
 		;
+
+Boot_UploadAllStmt:
+		  XUPLOADALL
+				{
+					do_start();
+					upload_all();
+					do_end();
+				}
+		;
+
+Boot_CopyToParquetStmt:
+		  XCOPYTOPARQUET boot_ident
+				{
+					do_start();
+					copy_to_parquet($2);
+					do_end();
+				}
+		;
+
+
+
 
 
 boot_index_params:

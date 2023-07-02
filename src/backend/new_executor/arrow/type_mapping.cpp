@@ -177,7 +177,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
   if (typelem != 0 && typlen == -1) {
     std::shared_ptr<arrow::DataType> elem_data_type = GetDataType(typelem);
     if (elem_data_type != nullptr) {
-	  elog(WARNING, "sub type %s %c", elem_data_type->name(), typtype);
+	  //elog(WARNING, "sub type %s %c", elem_data_type->name(), typtype);
       return arrow::list(elem_data_type);
     }
 	  elog(WARNING, "sub type not found %d", typelem);

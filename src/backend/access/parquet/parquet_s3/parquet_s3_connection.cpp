@@ -1042,8 +1042,8 @@ bool parquet_upload_file_to_s3(const char *dirname,
   outcome = s3_client->PutObject(request);
 
   if (outcome.IsSuccess()) {
-    elog(WARNING, "parquet_s3_fdw: added object %s (%s, %s) to bucket %s", filepath,
-         dirname, local_file, bucket);
+   // elog(WARNING, "parquet_s3_fdw: added object %s (%s, %s) to bucket %s", filepath,
+    //     dirname, local_file, bucket);
     return true;
   } else {
     elog(ERROR, "parquet_s3_fdw: PutObject: %s",

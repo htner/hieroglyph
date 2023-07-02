@@ -60,7 +60,7 @@ relation_open(Oid relationId, LOCKMODE lockmode)
 
 	/* GPDB_12_MERGE_FIXME: We had added the errdetail in GPDB. Is it still valid? */
 	if (!RelationIsValid(r))
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode(ERRCODE_UNDEFINED_TABLE),
 				 errmsg("could not open relation with OID %u", relationId),
 				 errdetail("This can be validly caused by a concurrent delete operation on this object.")));

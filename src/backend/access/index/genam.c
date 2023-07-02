@@ -362,6 +362,7 @@ systable_beginscan(Relation heapRelation,
 		!IgnoreSystemIndexes &&
 		!ReindexIsProcessingIndex(indexId))
 		irel = index_open(indexId, AccessShareLock);
+		//irel = NULL;
 	else
 		irel = NULL;
 
@@ -373,10 +374,11 @@ systable_beginscan(Relation heapRelation,
 
 	if (snapshot == NULL)
 	{
-		Oid			relid = RelationGetRelid(heapRelation);
+		//Oid			relid = RelationGetRelid(heapRelation);
 
-		snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
-		sysscan->snapshot = snapshot;
+		//snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
+		// sysscan->snapshot = snapshot;
+		sysscan->snapshot = NULL;
 	}
 	else
 	{
@@ -445,8 +447,11 @@ systable_getnext(SysScanDesc sysscan)
 {
 	HeapTuple	htup = NULL;
 
+
+//	elog(WARNING, "systable_getnext %d", sysscan->scan->rs_rd->rd_tableam->type);
 	if (sysscan->irel)
 	{
+	//	elog(WARNING, "index_getnext_slot");
 		if (index_getnext_slot(sysscan->iscan, ForwardScanDirection, sysscan->slot))
 		{
 			bool		shouldFree;
@@ -468,6 +473,7 @@ systable_getnext(SysScanDesc sysscan)
 	}
 	else
 	{
+	//elog(WARNING, "table_scan_getnextslot");
 		if (table_scan_getnextslot(sysscan->scan, ForwardScanDirection, sysscan->slot))
 		{
 			bool		shouldFree;

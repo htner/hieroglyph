@@ -94,6 +94,7 @@
 #include "utils/syscache.h"
 
 #include "access/transam.h"
+#include "access/relation.h"
 #include "catalog/gp_distribution_policy.h"         /* GpPolicy */
 #include "catalog/heap.h"
 #include "catalog/index.h"
@@ -1879,8 +1880,13 @@ RelationInitTableAccessMethod(Relation relation)
 		/*
 		 * Avoid doing a syscache lookup for catalog tables.
 		 */
-		Assert(relation->rd_rel->relam == HEAP_TABLE_AM_OID);
-		relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+		if (Gp_role == GP_ROLE_EXECUTE) {
+			Assert(relation->rd_rel->relam == PARQUET_TABLE_AM_OID);
+			relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
+		} else {
+			Assert(relation->rd_rel->relam == HEAP_TABLE_AM_OID);
+			relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+		}
 	}
 	else
 	{
@@ -4167,6 +4173,16 @@ RelationCacheInitializePhase2(void)
 				  Natts_pg_subscription, Desc_pg_subscription);
 		formrdesc("pg_auth_time_constraint", AuthTimeConstraint_Rowtype_Id, true,
 				  Natts_pg_auth_time_constraint, Desc_pg_auth_time_constraint_members);
+		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
+				  Natts_pg_class, Desc_pg_class);
+		formrdesc("pg_attribute", AttributeRelation_Rowtype_Id, false,
+				  Natts_pg_attribute, Desc_pg_attribute);
+		formrdesc("pg_proc", ProcedureRelation_Rowtype_Id, false,
+				  Natts_pg_proc, Desc_pg_proc);
+		formrdesc("pg_type", TypeRelation_Rowtype_Id, false,
+				  Natts_pg_type, Desc_pg_type);
+
+
 
 #define NUM_CRITICAL_SHARED_RELS	6	/* fix if you change list above */
 	}
@@ -4270,6 +4286,49 @@ RelationCacheInitializePhase3(void)
 	 * relcache load when a rel does have rules or triggers, so we choose to
 	 * nail them for performance reasons.
 	 */
+	if (true || Gp_role == GP_ROLE_EXECUTE) {
+			elog(WARNING, "try to reindex ---------------------------------");
+			Oid relid = 1259; // pg_class
+			Relation rel;	
+			SysScanDesc scan;
+			HeapTuple tuple;
+
+			rel = relation_open(relid, AccessShareLock);		
+			scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+			while((tuple = systable_getnext(scan)) != NULL) {
+				Datum		datum;
+				Datum		datum_oid;
+				bool		isnull;
+				datum = heap_getattr(tuple, 7,
+						 RelationGetDescr(rel), &isnull);
+				datum_oid = heap_getattr(tuple, 1,
+						 RelationGetDescr(rel), &isnull);
+				elog(WARNING, "reindex %d %d----------------------------------", DatumGetObjectId(datum_oid), DatumGetObjectId(datum));
+				if (DatumGetObjectId(datum) == 403) {
+					datum = heap_getattr(tuple, 1,
+						 RelationGetDescr(rel), &isnull);
+					reindex_index(DatumGetObjectId(datum), true, RELPERSISTENCE_PERMANENT, 0);
+					elog(WARNING, "reindex %d ----------------------------------", DatumGetObjectId(datum));
+				}
+				//simple_parquet_insert(rel, tuple);
+			}
+			relation_close(rel, AccessShareLock);
+			//CurrentResourceOwner = ResourceOwnerCreate(NULL, "reindex test");
+			/*
+			reindex_index(2651, true, true, 0);
+			reindex_index(2652, true, true, 0);
+			reindex_index(2653, true, true, 0);
+			reindex_index(2654, true, true, 0);
+			reindex_index(2656, true, true, 0);
+			reindex_index(2655, true, true, 0);
+			reindex_index(2657, true, true, 0);
+
+			reindex_index(2703, true, true, 0);
+			reindex_index(2704, true, true, 0);
+			*/
+
+		
+	}
 	if (!criticalRelcachesBuilt)
 	{
 		load_critical_index(ClassOidIndexId,

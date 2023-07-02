@@ -45,6 +45,12 @@ extern "C" {
 #endif
 }
 
+#include "backend/sdb/common/pg_export.hpp"
+#include <brpc/server.h>
+#include <brpc/channel.h>
+#include <butil/iobuf.h>
+#include <butil/logging.h>
+
 #define SEGMENT_SIZE (1024 * 1024)
 
 bool parquet_fdw_use_threads = true;
@@ -133,7 +139,7 @@ class FastAllocatorS3 {
       if (error) throw std::runtime_error("garbage segments recycle failed");
 
       this->garbage_segments.clear();
-      elog(DEBUG1, "parquet reader: garbage segments recycled");
+      //elog(DEBUG1, "parquet reader: garbage segments recycled");
     }
   }
 
@@ -201,7 +207,7 @@ class DefaultParquetReader : public ParquetReader {
     char *fname;
     parquetSplitS3Path(dirname, filename_.c_str(), &dname, &fname);
     reader_entry_ = parquetGetFileReader(s3_client, dname, fname);
-    elog(WARNING, "parquet reader: open Parquet file on S3.  bucket: %s file:%s", dname, fname);
+    //LOG(WARNING) <<  "parquet reader: open Parquet file on S3.  bucket: %s file:%s", dname, fname);
     pfree(dname);
     pfree(fname);
 
@@ -234,10 +240,12 @@ class DefaultParquetReader : public ParquetReader {
      * In case of parallel query get the row group index from the
      * coordinator. Otherwise just increment it.
      */
+	//	LOG(ERROR) << "ReadNextRowgroup 1";
     if (coordinator_) {
       coordinator_->lock();
       if ((row_group_ = coordinator_->next_rowgroup(reader_id_)) == -1) {
         coordinator_->unlock();
+//		LOG(ERROR) << "ReadNextRowgroup 2";
         return false;
       }
       coordinator_->unlock();
@@ -249,30 +257,37 @@ class DefaultParquetReader : public ParquetReader {
      * row_group cannot be less than zero at this point so it is safe to cast
      * it to unsigned int
      */
-    if ((uint)row_group_ >= rowgroups_.size()) {
+    if ((uint)row_group_ >= reader_->num_row_groups()) {
+		LOG(ERROR) << "ReadNextRowgroup 3";
       return false;
     }
 
-    int rowgroup = rowgroups_[row_group_];
+    int rowgroup = row_group_;
     auto rowgroup_meta =
         reader_->parquet_reader()->metadata()->RowGroup(rowgroup);
 
     status = reader_->RowGroup(rowgroup)->ReadTable(&table_);
 
-    if (!status.ok())
+    if (!status.ok()) {
+		LOG(ERROR) << "ReadNextRowgroup 4";
       throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
                   status.message().c_str());
+	}
 
-    if (!table_) throw std::runtime_error("parquet reader: got empty table");
+    if (!table_) {
+		LOG(ERROR) << "ReadNextRowgroup 5";
+		throw std::runtime_error("parquet reader: got empty table");
+		}
 
     auto recordbatch = table_->CombineChunksToBatch();
 
-    if (!recordbatch.status().ok())
+    if (!recordbatch.status().ok()) {
+		LOG(ERROR) << "ReadNextRowgroup 5";
       throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
                   status.message().c_str());
-    elog(WARNING, "parquet reader size. %d%d", table_->num_rows(), (*recordbatch)->num_rows());
+	}
+    LOG(ERROR) << "parquet reader size." << table_->num_rows() << ", "  << (*recordbatch)->num_rows();
     exchanger_->SetRecordBatch(*recordbatch);
-
     num_rows_ = table_->num_rows();
 
     return true;
@@ -280,7 +295,9 @@ class DefaultParquetReader : public ParquetReader {
 
   ReadStatus Next(TupleTableSlot *slot, bool fake = false) {
     allocator_->recycle();
+    // LOG(ERROR) << " before fetch next tuple";
     auto result = exchanger_->FetchNextTuple();
+    // LOG(ERROR) << " after fetch next tuple";
     while (!result.status().ok()) {
       /*
        * Read next row group. We do it in a loop to skip possibly empty
@@ -289,9 +306,21 @@ class DefaultParquetReader : public ParquetReader {
       do {
         if (!ReadNextRowgroup()) return RS_EOF;
       } while (!num_rows_);
+	  // LOG(ERROR) << " before fetch next tuple 2";
       result = exchanger_->FetchNextTuple();
-      //*slot = *result;
+      //LOG(ERROR) << " after fetch next tuple 2";
+	  if (result.status().ok()) {
+		// ExecClearTuple(slot);
+		break;
+	  }
+      // *slot = *result;
+		
     }
+	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
+	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
+	ExecCopySlot(slot, *result);
+	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
+	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
     return RS_SUCCESS;
   }
 

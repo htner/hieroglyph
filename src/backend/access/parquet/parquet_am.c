@@ -92,39 +92,22 @@ static void ParquetparallelScanReinitialize(Relation rel,
   elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 }
 
-static IndexFetchTableData *ParquetIndexFetchBegin(Relation rel) {
-  elog(ERROR, "not implemented for Parquet tables");
-  return NULL;
-}
+extern IndexFetchTableData *ParquetIndexFetchBegin(Relation rel);
+	
+extern void ParquetIndexFetchReset(IndexFetchTableData *scan);
 
-static void ParquetIndexFetchReset(IndexFetchTableData *scan) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-  return;
-}
+extern void ParquetIndexFetchEnd(IndexFetchTableData *scan);
 
-static void ParquetIndexFetchEnd(IndexFetchTableData *scan) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-}
-
-static bool ParquetIndexFetchTuple(struct IndexFetchTableData *scan,
+extern bool ParquetIndexFetchTuple(struct IndexFetchTableData *scan,
                                    ItemPointer tid, Snapshot snapshot,
                                    TupleTableSlot *slot, bool *call_again,
-                                   bool *all_dead) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-  return false;
-}
+                                   bool *all_dead);
 
-static bool ParquetIndexFetchTupleVisible(struct IndexFetchTableData *scan,
-                                          ItemPointer tid, Snapshot snapshot) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-  return true;
-}
+extern bool ParquetIndexFetchTupleVisible(struct IndexFetchTableData *scan,
+                                          ItemPointer tid, Snapshot snapshot);
 
-static bool ParquetIndexUniqueCheck(Relation rel, ItemPointer tid,
-                                    Snapshot snapshot, bool *all_dead) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-  return true;
-}
+extern bool ParquetIndexUniqueCheck(Relation rel, ItemPointer tid,
+                                    Snapshot snapshot, bool *all_dead);
 
 extern void ParquetDmlInit(Relation rel);
 

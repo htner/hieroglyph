@@ -1831,6 +1831,9 @@ HeapTupleSatisfiesHistoricMVCC(Relation relation, HeapTuple htup, Snapshot snaps
 bool
 HeapTupleSatisfiesVisibility(Relation relation, HeapTuple tup, Snapshot snapshot, Buffer buffer)
 {
+	if (snapshot == NULL) {
+		return true;
+	}
 	switch (snapshot->snapshot_type)
 	{
 		case SNAPSHOT_MVCC:

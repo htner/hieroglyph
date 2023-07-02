@@ -1190,9 +1190,11 @@ ResourceOwnerForgetTupleDesc(ResourceOwner owner, TupleDesc tupdesc)
 static void
 PrintTupleDescLeakWarning(TupleDesc tupdesc)
 {
+	/*
 	elog(WARNING,
 		 "TupleDesc reference leak: TupleDesc %p (%u,%d) still referenced",
 		 tupdesc, tupdesc->tdtypeid, tupdesc->tdtypmod);
+		 */
 }
 
 /*

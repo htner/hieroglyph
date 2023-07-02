@@ -44,6 +44,7 @@
 #include "catalog/oid_dispatch.h"
 #include "catalog/pg_type.h"
 #include "catalog/namespace.h"
+#include "catalog/index.h"
 #include "commands/async.h"
 #include "commands/extension.h"
 #include "commands/prepare.h"

@@ -931,6 +931,7 @@ CatalogCacheInitializeCache(CatCache *cache)
 	CatalogCacheInitializeCache_DEBUG1;
 
 	relation = table_open(cache->cc_reloid, AccessShareLock);
+	elog(WARNING, "---------- table open %d", cache->cc_reloid);
 
 	/*
 	 * switch to the cache context so our allocations do not vanish at the end
@@ -1417,6 +1418,7 @@ SearchCatCacheMiss(CatCache *cache,
 
 	ct = NULL;
 
+	//elog(WARNING, "heap tuple is vaild");
 	while (HeapTupleIsValid(ntp = systable_getnext(scandesc)))
 	{
 		/*
@@ -1425,6 +1427,7 @@ SearchCatCacheMiss(CatCache *cache,
 		 * fetched. If not fail and contain the damage which maybe caused due to
 		 * index corruption for some reason.
 		 */
+		//elog(WARNING, "heap tuple get tuple");
 		if (scandesc->irel)
 		{
 			CrossCheckTuple(cache->id, v1, v2, v3, v4, ntp);
@@ -2140,12 +2143,14 @@ PrintCatCacheLeakWarning(HeapTuple tuple, const char *resOwnerName)
 	/* Safety check to ensure we were handed a cache entry */
 	Assert(ct->ct_magic == CT_MAGIC);
 
+	/*
 	elog(WARNING, "cache reference leak: cache %s (%d), tuple %u/%u has count %d, resowner '%s'",
 		 ct->my_cache->cc_relname, ct->my_cache->id,
 		 ItemPointerGetBlockNumber(&(tuple->t_self)),
 		 ItemPointerGetOffsetNumber(&(tuple->t_self)),
 		 ct->refcount,
          resOwnerName);
+	*/
 }
 
 void

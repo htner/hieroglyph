@@ -501,7 +501,7 @@ CheckerModeMain(void)
 	proc_exit(0);
 }
 
-void CopyTableToParquet(Oid relid) {
+static void CopyTableToParquet(Oid relid) {
 	Relation rel;	
 	SysScanDesc scan;
 	HeapTuple tuple;
@@ -509,12 +509,17 @@ void CopyTableToParquet(Oid relid) {
 	rel = relation_open(relid, AccessShareLock);		
 	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 	while((tuple = systable_getnext(scan)) != NULL) {
-		simple_parquet_insert(rel, tuple);
+		simple_parquet_insert_cache(rel, tuple);
 	}
+	simple_parquet_upload(rel);
 	relation_close(rel, AccessShareLock);
 }
 
-void CopyPGClassTableToParquet() {
+extern void upload_all() {
+	simple_parquet_uploadall();
+}
+
+static void CopyPGClassTableToParquet() {
 	Oid relid = 1259; // pg_class
 	Relation rel;	
 
@@ -527,7 +532,7 @@ void CopyPGClassTableToParquet() {
 	newvals = (Datum *) palloc(sizeof(Datum));
 	newnulls = (bool *) palloc(sizeof(bool));
 
-	chattrs[0] = 6;
+	chattrs[0] = 7;
 	newvals[0] = ObjectIdGetDatum(5104); // parquet am
 	newnulls[0] = false;
 
@@ -537,14 +542,29 @@ void CopyPGClassTableToParquet() {
 	rel = relation_open(relid, AccessShareLock);		
 	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 	while((tuple = systable_getnext(scan)) != NULL) {
-		heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
-		simple_parquet_insert(rel, tuple);
+		Datum		datum;
+		Datum		datum_tid;
+
+		bool		isnull;
+		datum = heap_getattr(tuple, 7,
+					   RelationGetDescr(rel), &isnull);
+		datum_tid = heap_getattr(tuple, 1,
+					   RelationGetDescr(rel), &isnull);
+		if (DatumGetObjectId(datum) == 2) {
+			heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
+			elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
+		} else if (DatumGetObjectId(datum) == 403) {
+			elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
+		}
+		simple_parquet_insert_cache(rel, tuple);
+		//simple_parquet_insert(rel, tuple);
 	}
 
 	pfree(chattrs);
 	pfree(newvals);
 	pfree(newnulls);
 
+	simple_parquet_upload(rel);
 	relation_close(rel, AccessShareLock);
 }
 
@@ -567,6 +587,26 @@ extern uint64_t sessionid;
 extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
+
+extern void copy_to_parquet(char* table) {
+	int tableid = strtoul(table, NULL, 0);
+	if (tableid == 1247) {
+		elog(WARNING, "copy pg_proc to parquet");
+	} else if (tableid == 1255) {
+		elog(WARNING, "copy pg_type to parquet");
+		CopyTableToParquet(1255);
+	} else if (tableid == 1249) {
+		elog(WARNING, "copy pg_attribute to parquet");
+		CopyTableToParquet(1249);
+	} else if (tableid == 1259) {
+		elog(WARNING, "copy pg_class to parquet");
+		// need change am 
+		CopyPGClassTableToParquet();
+	} else {
+		elog(WARNING, "copy table to parquet %s %d", table, tableid);
+		CopyTableToParquet(tableid); // "pg_proc"
+	}
+}
 
 static void
 BootstrapModeMain(void)
@@ -595,9 +635,7 @@ BootstrapModeMain(void)
 	{
 		attrtypes[i] = NULL;
 		Nulls[i] = false;
-	}
-
-	/*
+	} /*
 	 * Process bootstrap input.type <list>  boot_index_params
 	 */
 	StartTransactionCommand();
@@ -613,13 +651,9 @@ BootstrapModeMain(void)
 	SDB_StartTransaction(1, 1);
 	SDB_AlloccateXid(1, 1, true, true, NULL, NULL);
 	boot_yyparse();
-	CopyTableToParquet(1247); // "pg_proc"
-	CopyTableToParquet(1255); // "pg_type"
-	CopyTableToParquet(1249); // "pg_attribute"
-	// need change am 
-	CopyPGClassTableToParquet();
-
-	ParquetWriterUpload();
+	//ParquetWriterUpload();
+    simple_parquet_uploadall();
+	//
 	SDB_CommitTransaction(1, 1);
 
 	CommitTransactionCommand();
@@ -921,7 +955,7 @@ InsertOneTuple(void)
 		simple_heap_insert(boot_reldesc, tuple);
 //		elog(WARNING, "inserting row to heap");
 	} else if (boot_reldesc->rd_rel->relam == PARQUET_TABLE_AM_OID) {
-		simple_parquet_insert(boot_reldesc, tuple);
+		simple_parquet_insert_cache(boot_reldesc, tuple);
 //		elog(WARNING, "inserting row to parquet");
 	}
 	heap_freetuple(tuple);
@@ -1216,7 +1250,6 @@ index_register(Oid heap,
 	MemoryContextSwitchTo(oldcxt);
 }
 
-
 /*
  * build_indices -- fill in all the indexes registered earlier
  */
@@ -1238,3 +1271,4 @@ build_indices(void)
 		table_close(heap, NoLock);
 	}
 }
+

@@ -46,7 +46,7 @@ int OptimizerServerRun(int argc, char** argv);
 int OptimizerServiceMain(int argc, char* argv[]) {
 	MyDatabaseId = 1;
 	MyDatabaseTableSpace = 1;
-    InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+    InitMinimizePostgresEnv(argc, argv, "template1", "template1");
 
 	kInitSyscacheFinish = true;
 

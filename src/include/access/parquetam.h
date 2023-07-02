@@ -24,4 +24,8 @@ extern void simple_parquet_delete(Relation relation, ItemPointer tid);
 extern void simple_parquet_update(Relation relation, ItemPointer otid,
 							   HeapTuple tup);
 
+extern void simple_parquet_insert_cache(Relation relation, HeapTuple tup);
+extern void simple_parquet_upload(Relation relation);
+extern void simple_parquet_uploadall();
+
 #endif

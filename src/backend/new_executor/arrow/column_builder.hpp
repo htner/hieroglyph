@@ -7,6 +7,10 @@
 #include <arrow/builder.h>
 
 #include "backend/new_executor/pg.hpp"
+extern "C" {
+#include "access/relation.h"
+}
+#include "backend/sdb/common/pg_export.hpp"
 
 namespace pdb
 {

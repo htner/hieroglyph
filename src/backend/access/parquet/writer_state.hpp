@@ -52,9 +52,6 @@ class ParquetS3WriterState {
   std::set<int> target_attrs;
 
  public:
-  MemoryContext fmstate_cxt;
-
- public:
   ParquetS3WriterState(MemoryContext reader_cxt, const char *dirname,
                        Aws::S3::S3Client *s3_client, TupleDesc tuple_desc,
                        std::set<int> target_attrs, bool use_threads,

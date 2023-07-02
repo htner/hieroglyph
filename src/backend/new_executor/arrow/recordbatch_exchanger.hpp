@@ -1,9 +1,11 @@
 #pragma once
 
+#include "backend/new_executor/arrow/column_exchanger.hpp"
+#include "backend/new_executor/arrow/recordbatch_exchanger.hpp"
 #include "backend/new_executor/pg.hpp" 
+#include "backend/sdb/common/pg_export.hpp"
 
 #include <memory>
-
 #include <arrow/record_batch.h>
 
 namespace pdb

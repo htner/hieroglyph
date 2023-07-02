@@ -35,6 +35,7 @@
 #include "catalog/pg_db_role_setting.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/indexing.h"
+#include "catalog/index.h"
 #include "catalog/storage_tablespace.h"
 #include "commands/tablespace.h"
 
@@ -767,6 +768,8 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 */
 	RelationCacheInitialize();
 	InitCatalogCache();
+
+
 	InitPlanCache();
 
 	/* Initialize portal manager */
@@ -781,6 +784,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * at least entries for pg_database and catalogs used for authentication.
 	 */
 	RelationCacheInitializePhase2();
+
 
 	/*
 	 * Set up process-exit callback to do pre-shutdown cleanup.  This is the
@@ -847,12 +851,14 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	{
 		InitializeSessionUserIdStandalone();
 		am_superuser = true;
+		/*
 		if (!ThereIsAtLeastOneRole())
 			ereport(WARNING,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("no roles are defined in this database system"),
 					 errhint("You should immediately run CREATE USER \"%s\" SUPERUSER;.",
 							 username != NULL ? username : "postgres")));
+							 */
 	}
 	else if (IsBackgroundWorker)
 	{
@@ -1006,17 +1012,21 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	}
 	else if (in_dbname != NULL)
 	{
+		MyDatabaseId = TemplateDbOid;
+		MyDatabaseTableSpace = DEFAULTTABLESPACE_OID;
+		/*
 		HeapTuple	tuple;
 		Form_pg_database dbform;
 
 		tuple = GetDatabaseTuple(in_dbname);
 		if (!HeapTupleIsValid(tuple))
-			ereport(FATAL,
+			ereport(PANIC,
 					(errcode(ERRCODE_UNDEFINED_DATABASE),
 					 errmsg("database \"%s\" does not exist", in_dbname)));
 		dbform = (Form_pg_database) GETSTRUCT(tuple);
 		MyDatabaseId = dbform->oid;
 		MyDatabaseTableSpace = dbform->dattablespace;
+		*/
 		/* take database name from the caller, just for paranoia */
 		strlcpy(dbname, in_dbname, sizeof(dbname));
 	}
@@ -1158,6 +1168,10 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * least the minimum set of "nailed-in" cache entries.
 	 */
 	RelationCacheInitializePhase3();
+	
+
+
+
 
 	/* set up ACL framework (so CheckMyDatabase can check permissions) */
 	initialize_acl();

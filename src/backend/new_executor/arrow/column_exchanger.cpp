@@ -3,15 +3,21 @@
 extern "C" {
 #include "access/relation.h"
 }
+#include "backend/sdb/common/pg_export.hpp"
+#include <brpc/server.h>
+#include <brpc/channel.h>
+#include <butil/iobuf.h>
+#include <butil/logging.h>
+#include "backend/new_executor/arrow/boot.hpp"
 
 extern bool NeedForwardLookupFromPgType(Oid id);
 
-bool kInitSyscacheFinish = false;
+bool kInitSyscacheFinish = true;
 
 bool NeedForwardLookupFromPgType(Oid id) {
-	if (id == 1259 || id == 2617 || id == 1247 || id == 1259)
+	if (id == 1259 || id == 1247 || id == 1262 || id == 1249 || id == 1255)
 		return false;
-	return true;
+	return kInitSyscacheFinish;
 }
 
 namespace pdb {
@@ -21,10 +27,13 @@ template <class TYPE_CLASS>
 // decltype(arrow::TypeTraits<TYPE_CLASS>::CType) { decltype(auto)
 // GetValue(arrow::Array* a, int64_t i) { //}-> decltype(CType) {
 auto GetValue(arrow::Array* a, int64_t i) {  //}-> decltype(CType) {
+	//
   // using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
 
+  // LOG(ERROR) << "1 get value " << i;
   auto array = reinterpret_cast<ArrayType*>(a);
+  // LOG(ERROR) << "2 get value " << i;
   return array->Value(i);
 }
 
@@ -47,6 +56,7 @@ arrow::Status GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i, Datum*
   auto view = array->GetView(i);
  
   char* resultptr = (char*)palloc(len);
+  //LOG(ERROR) << "get name data  " << view;
   memcpy(resultptr, view.data(), view.size());
   *datum = PointerGetDatum(resultptr);
   return arrow::Status::OK();
@@ -82,10 +92,16 @@ arrow::Status GetDatum<INT4OID>(arrow::Array* array, int64_t i, Datum* datum) {
   return arrow::Status::OK();
 }
 
+extern int kRow__;
+
 template <>
 arrow::Status GetDatum<OIDOID>(arrow::Array* array, int64_t i, Datum* datum) {
+  //LOG(ERROR) << " get datum oidoid 1";
   auto value = GetValue<arrow::UInt32Type>(array, i);
+  //LOG(ERROR) << " get datum oidoid 2";
   *datum = UInt32GetDatum(value);
+  if (value == 2662)
+	LOG(ERROR) << " get datum ["<< kRow__ << "]["<< i << "] value:" << value;
   return arrow::Status::OK();
 }
 
@@ -241,8 +257,9 @@ ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
 ColumnExchanger::ColumnExchanger(int16_t typid) { func_ = GetFunction(typid); }
 
 #define CASE_RETURN_PUSH_VALUE_FUNC(oid) \
-  case oid:                              \
-    return GetDatum<oid>;
+  case oid: {                              \
+    return GetDatum<oid>; \
+ }
 
 GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
   HeapTuple tup;
@@ -253,15 +270,25 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
   char typtype = 'b';
   auto attbyval = attr->attbyval;
   auto attalign = attr->attalign;
-  char attelem = 0;
+  Oid attelem = 0;
   Oid  attrelid = 0;
   rel_ = rel;
+
+  if (!NeedForwardLookupFromPgType(rel)) {
+	  bool ret = GetBootTypeInfo(atttypid, nullptr, &typtype, nullptr, 
+							  nullptr, nullptr, &attelem, &attrelid);	
+	  if (ret == false) {
+		LOG(ERROR) << "get boot type error" << rel << " " << atttypid;
+	   }
+	  assert(ret);
+  }
   
   /* walk down to the base type */
   while (NeedForwardLookupFromPgType(rel_)) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
     // elog(ERROR, "cache lookup failed for type: %u", atttypid);
     if (!HeapTupleIsValid(tup)) {
+	  LOG(ERROR) << "return null, need crash "; \
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
@@ -297,15 +324,17 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   int32_t atttypmod;
   bool attbyval = false;
   char attalign;
-  Oid attelem;
-  Oid  attrelid;
+  Oid attelem = 0;
+  Oid  attrelid = 0;
 
   if (!NeedForwardLookupFromPgType(rel_)) {
 	bool ret = GetBootTypeInfo(typid, &atttypmod, &typtype, &typlen, 
 							&attbyval, &attalign, &attelem, &attrelid);
-	assert(ret);
-	if (!ret) {
+
+	if (ret == false) {
+		LOG(ERROR) << "get boot type error" << rel_ << " " << typid; 
 	}
+	assert(ret);
   }
   /* walk down to the base type */
   while (NeedForwardLookupFromPgType(rel_)) {
@@ -352,6 +381,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
                                           Oid typrelid) {
   /* array type */
   if (typelem != 0 && typlen == -1) {
+	//LOG(ERROR) << "get array function";
     auto sub_func = GetFunction(typelem);
     if (sub_func == nullptr) {
       return nullptr;
@@ -369,6 +399,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
   /* composite type */
   if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
     // Relation relation;
+	LOG(ERROR) << "get composite function";
     TupleDesc tupdesc;
     std::vector<GetDatumFunc> sub_funcs;
     std::vector<Oid> sub_types;
@@ -410,11 +441,13 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     CASE_RETURN_PUSH_VALUE_FUNC(TIMETZOID);
     CASE_RETURN_PUSH_VALUE_FUNC(NUMERICOID);
     case NAMEOID:
+	 LOG(ERROR) << "get name function";
       assert(typlen == NAMEDATALEN);
       // fallthrougth
     //case CHAROID: 
 			return GetGetFixStringToDatumFunc(typlen); 
 	default: {
+	  //LOG(ERROR) << "try to get default function";
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
@@ -443,11 +476,13 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
       // Elog("PostgreSQL type: '%s' is not supported", typname);
     }
   }
+  LOG(ERROR) << "try to get nullptr function";
   return nullptr;
 }
 
 arrow::Status ColumnExchanger::GetDatumByIndex(int64_t i, Datum* datum,
                                                bool* isnull) {
+  //LOG(ERROR) << " get datum by index 1";
   if (array_ == nullptr) {
     return arrow::Status::IndexError("array empty");
   }
@@ -458,7 +493,11 @@ arrow::Status ColumnExchanger::GetDatumByIndex(int64_t i, Datum* datum,
     *isnull = true;
     return arrow::Status::OK();
   }
-  return func_(array_.get(), i, datum);
+  *isnull = false;
+  //LOG(ERROR) << " get datum by index 2, rel " << rel_ << " " << array_->length();
+  auto ret = func_(array_.get(), i, datum);
+  //LOG(ERROR) << " get datum by index 3";
+  return ret;
 }
 
 }  // namespace pdb
