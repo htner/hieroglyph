@@ -1,17 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"reflect"
+	"time"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
-	"github.com/htner/sdb/gosrv/proto/sdb"
 	"github.com/htner/sdb/gosrv/pkg/service"
+	"github.com/htner/sdb/gosrv/proto/sdb"
 	"github.com/jackc/pgproto3/v2"
 
 	_ "github.com/mbobakov/grpc-consul-resolver" // It's important
@@ -178,7 +183,7 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 	ready.TxStatus = 'I'
 	p.backend.Send(ready)
 
-  stop := false
+	stop := false
 	for !stop {
 		baseMsg, err := p.backend.Receive()
 		fmt.Println(baseMsg, err)
@@ -198,22 +203,22 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 		switch msg := baseMsg.(type) {
 		case *pgproto3.Query:
 			fmt.Println("Query", msg)
-      scheduleServerName := service.ScheduleName() 
-      consul := "consul://127.0.0.1:8500/"+scheduleServerName+"?wait=14s&tag=public"
+			scheduleServerName := service.ScheduleName()
+			consul := "consul://127.0.0.1:8500/" + scheduleServerName + "?wait=14s&tag=public"
 			conn, err := grpc.Dial(
-        consul,
+				consul,
 				grpc.WithInsecure(),
 				grpc.WithBlock(),
 				grpc.WithDefaultServiceConfig(grpcServiceConfig),
 				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(128e+6)),
 			)
 			if err != nil {
-        err = p.backend.Send(&pgproto3.ErrorResponse{Code: "58000"})
-        if err != nil {
-          return // fmt.Errorf("error writing query response: %w", err)
-        }
-        return
-      }
+				err = p.backend.Send(&pgproto3.ErrorResponse{Code: "58000"})
+				if err != nil {
+					return // fmt.Errorf("error writing query response: %w", err)
+				}
+				return
+			}
 			defer conn.Close()
 			// create a client and call the server
 			client := sdb.NewScheduleClient(conn)
@@ -221,39 +226,86 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 			defer cancel()
 			resp, err := client.Depart(ctx, &sdb.ExecQueryRequest{Sql: msg.String})
 			log.Println("get resp:", resp, err)
-      if err != nil {
-        buf := (&pgproto3.ErrorResponse{Code: "58030"}).Encode(nil)
-        _, err = p.frontendConn.Write(buf)
-        if err != nil {
-          return // fmt.Errorf("error writing query response: %w", err)
-        }
-        return
-      }
-
-      p.backend.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
-				{
-					Name:                 []byte("fortune"),
-					TableOID:             0,
-					TableAttributeNumber: 0,
-					DataTypeOID:          25,
-					DataTypeSize:         -1,
-					TypeModifier:         -1,
-					Format:               0,
-				},
-			}})
-			//buf = (&pgproto3.DataRow{Values: [][]byte{response}}).Encode(buf)
-			p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
-      err = p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
 			if err != nil {
-				return // fmt.Errorf("error writing query response: %w", err)
+				buf := (&pgproto3.ErrorResponse{Code: "58030"}).Encode(nil)
+				_, err = p.frontendConn.Write(buf)
+				if err != nil {
+					return // fmt.Errorf("error writing query response: %w", err)
+				}
+				return
+			}
+
+			time.Sleep(10 * time.Second)
+			err = p.sendQueryResultToFronted(resp)
+			if err != nil {
+				log.Println("send query result to fronted err ", err)
+				return
 			}
 			//port, err := strconv.Atoi(resp.Message)
-  case *pgproto3.CancelRequest:
-      p.frontendConn.Close()
-      p.frontendTLSConn.Close()
-      stop = true
-      return 
+		case *pgproto3.CancelRequest:
+			p.frontendConn.Close()
+			p.frontendTLSConn.Close()
+			stop = true
+			return
 		}
 
 	}
+}
+
+func (p *Proxy) sendQueryResultToFronted(resp *sdb.ExecQueryReply) error {
+	fileName := fmt.Sprintf("%d_%d_%d.queryres", resp.QueryId, resp.Uid, resp.Dbid)
+	resFile := fmt.Sprintf("%s/%s", resp.ResultDir, fileName)
+	file, err := os.Open(resFile)
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(file)
+
+	buf := make([]byte, 8)
+	n, err := reader.Read(buf)
+	if err != nil && err != io.EOF {
+		return err
+	}
+
+	if n == 0 {
+		return nil
+	}
+
+	descSize := binary.BigEndian.Uint64(buf)
+
+	descBuf := make([]byte, descSize)
+	reader.Read(descBuf)
+	var rowDesc pgproto3.RowDescription
+	rowDesc.Decode(descBuf[1:])
+	err = p.backend.Send(&rowDesc)
+
+	for {
+		n, err := reader.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		dataSize := binary.BigEndian.Uint64(buf)
+		dataBuf := make([]byte, dataSize)
+		n, err = reader.Read(dataBuf)
+
+		if err != nil {
+			return nil	
+		}
+
+		var rowData pgproto3.DataRow
+		rowData.Decode(dataBuf[1:])
+		err = p.backend.Send(&rowData)
+	}
+
+	p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
+	err = p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+	if err != nil {
+		return err
+	}
+	return nil
 }

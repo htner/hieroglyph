@@ -123,7 +123,7 @@ CreateDestReceiver(CommandDest dest)
 	{
 		case DestRemote:
 		case DestRemoteExecute:
-			return printtup_create_DR(dest);
+			return printtup_create_DR_object(dest);
 
 		case DestRemoteSimple:
 			return unconstify(DestReceiver *, &printsimpleDR);

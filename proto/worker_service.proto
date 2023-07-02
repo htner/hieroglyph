@@ -48,6 +48,7 @@ message PBSliceTable {
   bool has_motions = 4;
   int64 instrument_options = 5;
   uint32 ic_instance_id = 6;
+  string sql = 7;
 }
 
 
@@ -88,6 +89,7 @@ message PrepareTaskRequest {
   PBSliceTable slice_table = 23;
 
   map<int32, WorkerInfo> workers = 24;  // worker id -> info
+  string result_dir = 25;
 }
 
 // The response message containing the greetings

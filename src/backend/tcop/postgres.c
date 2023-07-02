@@ -6287,15 +6287,19 @@ exec_worker_query(const char *query_string,
 				  PlannedStmt	   *plan,
 				  SerializedParams *paramInfo,
 				  SliceTable *sliceTable,
+				  const char *result_dir,
+				  const char *result_file,
 				  void* task
 )
 {
-	CommandDest dest = whereToSendOutput;
+	CommandDest dest = DestRemote;
 	MemoryContext oldcontext;
 	QueryDispatchDesc *ddesc = NULL;
 	CmdType		commandType = CMD_UNKNOWN;
 	ExecSlice  *slice = NULL;
 	ParamListInfo paramListInfo = NULL;
+	bool root_work = false;
+	FrontendProtocol = PG_PROTOCOL_LATEST;
 
 	Assert(Gp_role == GP_ROLE_EXECUTE);
 	/*
@@ -6390,6 +6394,9 @@ exec_worker_query(const char *query_string,
 					rte->requiredPerms &= ~removeperms;
 			}
 		}
+		else
+			root_work = true;
+
 	}
 
 	/*
@@ -6493,9 +6500,15 @@ exec_worker_query(const char *query_string,
 		/*
 		 * Now we can create the destination receiver object.
 		 */
+		if (!root_work)
+			dest = DestNone;
+
 		receiver = CreateDestReceiver(dest);
 		if (dest == DestRemote)
+		{
 			SetRemoteDestReceiverParams(receiver, portal);
+			SetRemoteDestFileInfo(receiver, (char *)result_dir, (char *)result_file);
+		}
 
 		/*
 		 * Switch back to transaction context for execution.

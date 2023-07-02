@@ -82,9 +82,14 @@ void ExecuteTask::HandleQuery() {
 		LOG(ERROR) << "MPPEXEC: receive invalid params";
 
 	auto slice_table = BuildSliceTable();
+	std::string result_file = std::to_string(request_.task_identify().query_id()) + "_"
+								+ std::to_string(request_.uid()) + "_"
+								+ std::to_string(request_.dbid()) + ".queryres";
 
 	set_worker_param(request_.sessionid(), request_.worker_id());
-	exec_worker_query(request_.sql().data(), plan, params, slice_table, (void*)this);
+	exec_worker_query(request_.sql().data(), plan, params, slice_table,
+					  request_.result_dir().data(), result_file.data(),
+					  (void*)this);
 }
 
 SliceTable* ExecuteTask::BuildSliceTable() {
@@ -136,7 +141,7 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 		exec_slice->rootIndex = pb_exec_slice.root_index();
 		exec_slice->gangType = (GangType)pb_exec_slice.gang_type();
 
-		LOG(DEBUG) << "exec_slice:" << exec_slice->sliceIndex << " parentIndex:" << exec_slice->parentIndex
+		LOG(INFO) << "exec_slice:" << exec_slice->sliceIndex << " parentIndex:" << exec_slice->parentIndex
 			<< " rootIndex:" << exec_slice->rootIndex << " leg:"<< list_length(exec_slice->segments);
 	}
 	return table;

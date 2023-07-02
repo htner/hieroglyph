@@ -24,8 +24,8 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&options.listenAddress, "listen", "127.0.0.1:65432", "Proxy listen address")
-	flag.StringVar(&options.remoteAddress, "remote", "127.0.0.1:15432", "Remote schedule server address")
+	flag.StringVar(&options.listenAddress, "listen", "127.0.0.1:5432", "Proxy listen address")
+	flag.StringVar(&options.remoteAddress, "remote", "127.0.0.1:10002", "Remote schedule server address")
 	flag.Parse()
 
 	ln, err := net.Listen("tcp", options.listenAddress)
@@ -33,19 +33,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go func() {
-		for {
-			clientConn, err := ln.Accept()
-			if err != nil {
-				log.Fatal(err)
-			}
-
+	for {
+		clientConn, err := ln.Accept()
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() {
 			proxy := NewProxy(clientConn)
 			err = proxy.Run()
 			if err != nil {
 				log.Fatal(err)
 			}
-		}
-	}()
+		}()
+	}
 	<-c
 }
