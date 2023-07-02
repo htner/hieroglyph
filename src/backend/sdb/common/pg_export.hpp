@@ -67,6 +67,8 @@ void exec_worker_query(const char *query_string,
                        PlannedStmt	   *plan,
                        SerializedParams *paramInfo,
                        SliceTable *sliceTable,
+					   const char *result_dir,
+					   const char *result_file,
                        void* task);
 
 extern int PostPortNumber;
