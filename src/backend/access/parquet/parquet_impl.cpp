@@ -29,6 +29,7 @@ extern "C" {
 #include "catalog/pg_collation.h"
 #include "catalog/pg_foreign_table.h"
 #include "catalog/pg_type.h"
+#include "catalog/index.h"
 #include "commands/defrem.h"
 #include "commands/explain.h"
 #include "executor/spi.h"
@@ -874,7 +875,7 @@ static bool GetUsedColumns(Node *node, AttrNumber nattrs,
 static ParquetScanDesc ParquetBeginRangeScanInternal(
     Relation relation, Snapshot snapshot,
     // Snapshot appendOnlyMetaDataSnapshot,
-    std::list<std::string> filenames, int nkeys, ScanKey key,
+    std::vector<sdb::LakeFile> lake_files, int nkeys, ScanKey key,
     ParallelTableScanDesc parallel_scan, List *targetlist, List *qual,
     List *bitmapqualorig, uint32 flags, struct DynamicBitmapContext *bmCxt) {
 	ParquetS3ReaderState *state = NULL;
@@ -924,8 +925,8 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 			reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc,
 			use_threads, use_mmap, max_open_files);
 
-		for (auto it = filenames.begin(); it != filenames.end(); ++it) {
-			state->add_file(it->data(), NULL);
+		for (size_t i = 0; i < lake_files.size(); ++i) {
+			state->add_file(lake_files[i].fileid(), lake_files[i].file_name().c_str(), NULL);
 		}
 	} catch (std::exception &e) {
 		error = e.what();
@@ -960,14 +961,13 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                           snapshot,
   &segfile_count, NULL);
                                                           */
-  std::list<std::string> filenames;
   auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(ERROR) << lake_files[i].file_name();
-		filenames.push_back(lake_files[i].file_name());
+		LOG(ERROR) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
+		//filenames.push_back(lake_files[i].file_name());
   }
 
-  parquet_desc = ParquetBeginRangeScanInternal(relation, snapshot, filenames,
+  parquet_desc = ParquetBeginRangeScanInternal(relation, snapshot, lake_files,
                                                // appendOnlyMetaDataSnapshot,
                                                // seginfo,
                                                // segfile_count,
@@ -1035,7 +1035,7 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 							break; 
 						} 
 
-						LOG(ERROR) << "attr:" << DatumGetUInt32(__atp);
+						//LOG(ERROR) << "attr:" << DatumGetUInt32(__atp);
 	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
 								 __cur_keys->sk_collation, 
 								 __atp, __cur_keys->sk_argument); 
@@ -1083,7 +1083,9 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	ExecClearTuple(slot);
 	try {
 		while(true) {
+		//LOG(ERROR) << "parquet get next slot 1: " << error.c_str();
 			bool ret = festate->next(slot);
+		//LOG(ERROR) << "parquet get next slot: 2" << error.c_str();
 			if (!ret) {
 				LOG(ERROR) << "parquet get next slot return false";
 				return false;
@@ -1144,11 +1146,15 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 						} 
 					} 
 				} while (0);
-				//LOG(ERROR) << "heap key test result" << valid;
+				 //LOG(ERROR) << "heap key test result" << result;
 			}
 			valid = result;
 
 			if (valid) {
+				LOG(WARNING) << "get next tuple, fileid "
+					<< ItemPointerGetBlockNumber(&(slot->tts_tid))
+					<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
+					<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
 					return slot;
 			}
 		}
@@ -1157,8 +1163,15 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	}
 	if (!error.empty()) {
 		LOG(ERROR) << "parquet get next slot: " << error.c_str();
+		std::string* e = nullptr;
+		*e = error;
 		return false;
 	}
+	LOG(WARNING) << "fetch next tuple, fileid "
+	<< ItemPointerGetBlockNumber(&(slot->tts_tid))
+	<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
+	<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
+    
 
 	return true;
 }
@@ -1230,7 +1243,8 @@ extern "C" void ParquetDmlInit(Relation rel) {
     LOG(WARNING)  << "set rel: " <<  RelationGetRelationName(rel) << " " <<  RelationGetRelid(rel);
 	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
 	for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(INFO) << lake_files[i].file_name();
+		//LOG(INFO) << lake_files[i].file_name();
+		LOG(ERROR) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
        //fmstate->add_file(i, filenames[i].data());
     }
 
@@ -1500,14 +1514,10 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 			reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc,
 			use_threads, use_mmap, max_open_files);
 
-		std::list<std::string> filenames;
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
-		for (size_t i = 0; i < lake_files.size(); ++i) {
-			LOG(ERROR) << lake_files[i].file_name();
-			filenames.push_back(lake_files[i].file_name());
-		}
-		for (auto it = filenames.begin(); it != filenames.end(); ++it) {
-			state->add_file(it->data(), NULL);
+
+		for (size_t i = 0; i < lake_files.size(); i++) {
+			state->add_file(lake_files[i].fileid(), lake_files[i].file_name().data(), NULL);
 		}
 	} catch (std::exception &e) {
 		error = e.what();
@@ -1541,14 +1551,16 @@ bool ParquetIndexFetchTuple(struct IndexFetchTableData *scan,
 	ParquetS3ReaderState *festate = pscan->state;
 	// TupleTableSlot             *slot = pscan->ss_ScanTupleSlot;
 	std::string error;
-	ExecClearTuple(slot);
+	//std::string *e = nullptr;
+	//error = *e;
+
+
+	LOG(ERROR) << "parquet index fetch tuple: " << ItemPointerToString(tid);
 	try {
-		while(true) {
-			bool ret = festate->next(slot);
-			if (!ret) {
-				LOG(ERROR) << "parquet get next slot return false";
-				return false;
-			}
+		bool ret = festate->fetch(tid, slot, true);
+		if (!ret) {
+			LOG(ERROR) << "parquet index fetch slot return false";
+			return false;
 		}
 	} catch (std::exception &e) {
 		error = e.what();
@@ -1583,4 +1595,162 @@ bool ParquetIndexUniqueCheck(Relation rel, ItemPointer tid,
                                     Snapshot snapshot, bool *all_dead) {
   LOG(ERROR) << "parallel SeqScan not implemented for Parquet tables";
   return true;
+}
+
+extern "C"
+double ParquetIndexBuildRangeScan(
+    Relation heapRelation, Relation indexRelation, IndexInfo *indexInfo,
+    bool allow_sync, bool anyvisible, bool progress, BlockNumber start_blockno,
+    BlockNumber numblocks, IndexBuildCallback callback, void *callback_state,
+    TableScanDesc scan) {
+	ParquetScanDesc parquet_scan;
+	bool		checking_uniqueness;
+	Datum		values[INDEX_MAX_KEYS];
+	bool		isnull[INDEX_MAX_KEYS];
+	double		reltuples;
+	ExprState  *predicate;
+	TupleTableSlot *slot;
+	EState	   *estate;
+	ExprContext *econtext;
+	Snapshot	snapshot;
+	int64 previous_blkno = -1;
+
+	/*
+	 * sanity checks
+	 */
+	Assert(OidIsValid(indexRelation->rd_rel->relam));
+
+	/* Appendoptimized catalog tables are not supported. */
+	/* Appendoptimized tables have no data on coordinator. */
+	if (IS_QUERY_DISPATCHER())
+		return 0;
+
+	/* See whether we're verifying uniqueness/exclusion properties */
+	checking_uniqueness = (indexInfo->ii_Unique ||
+						   indexInfo->ii_ExclusionOps != NULL);
+
+	/*
+	 * "Any visible" mode is not compatible with uniqueness checks; make sure
+	 * only one of those is requested.
+	 */
+	Assert(!(anyvisible && checking_uniqueness));
+
+	/*
+	 * Need an EState for evaluation of index expressions and partial-index
+	 * predicates.  Also a slot to hold the current tuple.
+	 */
+	estate = CreateExecutorState();
+	econtext = GetPerTupleExprContext(estate);
+	slot = table_slot_create(heapRelation, NULL);
+
+	/* Arrange for econtext's scan tuple to be the tuple under test */
+	econtext->ecxt_scantuple = slot;
+
+	/* Set up execution state for predicate, if any. */
+	predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
+
+	if (!scan)
+	{
+		/*
+		 * Serial index build.
+		 *
+		 * XXX: We always use SnapshotAny here. An MVCC snapshot and oldest xmin
+		 * calculation is necessary to support indexes built CONCURRENTLY.
+		 */
+		snapshot = SnapshotAny;
+		scan = table_beginscan_strat(heapRelation,	/* relation */
+									 snapshot,	/* snapshot */
+									 0, /* number of keys */
+									 NULL,	/* scan key */
+									 true,	/* buffer access strategy OK */
+									 allow_sync);	/* syncscan OK? */
+	}
+	else
+	{
+		/*
+		 * Parallel index build.
+		 *
+		 * Parallel case never registers/unregisters own snapshot.  Snapshot
+		 * is taken from parallel heap scan, and is SnapshotAny or an MVCC
+		 * snapshot, based on same criteria as serial case.
+		 */
+		Assert(!IsBootstrapProcessingMode());
+		Assert(allow_sync);
+		snapshot = scan->rs_snapshot;
+	}
+
+	parquet_scan = (ParquetScanDesc) scan;
+
+
+	/*
+	 * Scan all tuples in the base relation.
+	 */
+	while (ParquetGetNextSlot(&parquet_scan->rs_base, ForwardScanDirection, slot)) {
+		bool		tupleIsAlive;
+		//AOTupleId 	*aoTupleId;
+
+		CHECK_FOR_INTERRUPTS();
+
+		/*
+		 * GPDB_12_MERGE_FIXME: How to properly do a partial scan? Currently,
+		 * we scan the whole table, and throw away tuples that are not in the
+		 * range. That's clearly very inefficient.
+		 */
+		if (ItemPointerGetBlockNumber(&slot->tts_tid) < start_blockno ||
+			(numblocks != InvalidBlockNumber && ItemPointerGetBlockNumber(&slot->tts_tid) >= numblocks))
+			continue;
+
+		tupleIsAlive = true;
+		reltuples += 1;
+		MemoryContextReset(econtext->ecxt_per_tuple_memory);
+
+		/*
+		 * In a partial index, discard tuples that don't satisfy the
+		 * predicate.
+		 */
+		if (predicate != NULL)
+		{
+			if (!ExecQual(predicate, econtext))
+				continue;
+		}
+
+		/*
+		 * For the current heap tuple, extract all the attributes we use in
+		 * this index, and note which are null.  This also performs evaluation
+		 * of any expressions needed.
+		 */
+		FormIndexDatum(indexInfo,
+					   slot,
+					   estate,
+					   values,
+					   isnull);
+
+		/*
+		 * You'd think we should go ahead and build the index tuple here, but
+		 * some index AMs want to do further processing on the data first.  So
+		 * pass the values[] and isnull[] arrays, instead.
+		 */
+
+		/* Call the AM's callback routine to process the tuple */
+		/*
+		 * GPDB: the callback is modified to accept ItemPointer as argument
+		 * instead of HeapTuple.  That allows the callback to be reused for
+		 * appendoptimized tables.
+		 */
+		callback(indexRelation, &slot->tts_tid, values, isnull, tupleIsAlive,
+				 callback_state);
+
+	}
+
+	table_endscan(scan);
+
+	ExecDropSingleTupleTableSlot(slot);
+
+	FreeExecutorState(estate);
+
+	/* These may have been pointing to the now-gone estate */
+	indexInfo->ii_ExpressionsState = NULL;
+	indexInfo->ii_PredicateState = NULL;
+
+	return reltuples;
 }

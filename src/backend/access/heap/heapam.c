@@ -3229,7 +3229,7 @@ l2:
 	if (result == TM_Invisible)
 	{
 		UnlockReleaseBuffer(buffer);
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("attempted to update invisible tuple")));
 	}

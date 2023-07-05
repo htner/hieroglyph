@@ -24,6 +24,7 @@ public:
   void SetRecordBatch(std::shared_ptr<arrow::RecordBatch> batch);
 
   arrow::Result<TupleTableSlot*> FetchNextTuple();
+  arrow::Result<TupleTableSlot*> FetchTuple(uint32_t);
 
 private:
   Oid rel_;

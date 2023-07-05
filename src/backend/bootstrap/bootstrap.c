@@ -520,7 +520,7 @@ extern void upload_all() {
 }
 
 static void CopyPGClassTableToParquet() {
-	Oid relid = 1259; // pg_class
+	Oid relid = RelationRelationId; // pg_class
 	Relation rel;	
 
 	int			chnattrs = 1;	/* # of above */
@@ -551,7 +551,7 @@ static void CopyPGClassTableToParquet() {
 		datum_tid = heap_getattr(tuple, 1,
 					   RelationGetDescr(rel), &isnull);
 		if (DatumGetObjectId(datum) == 2) {
-			heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
+			tuple = heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
 			elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
 		} else if (DatumGetObjectId(datum) == 403) {
 			elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
@@ -590,15 +590,19 @@ extern uint64_t slice_seg_index;
 
 extern void copy_to_parquet(char* table) {
 	int tableid = strtoul(table, NULL, 0);
-	if (tableid == 1247) {
+	/*
+	if (tableid == ProcRelationId) {
 		elog(WARNING, "copy pg_proc to parquet");
+		CopyTableToParquet(1247);
 	} else if (tableid == 1255) {
 		elog(WARNING, "copy pg_type to parquet");
 		CopyTableToParquet(1255);
 	} else if (tableid == 1249) {
 		elog(WARNING, "copy pg_attribute to parquet");
 		CopyTableToParquet(1249);
-	} else if (tableid == 1259) {
+	} else 
+	*/
+	if (tableid == RelationRelationId) {
 		elog(WARNING, "copy pg_class to parquet");
 		// need change am 
 		CopyPGClassTableToParquet();

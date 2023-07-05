@@ -546,7 +546,7 @@ mdopen(SMgrRelation reln, ForkNumber forknum, int behavior)
 			pfree(path);
 			return NULL;
 		}
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode_for_file_access(),
 				 errmsg("could not open file \"%s\": %m", path)));
 	}

@@ -336,7 +336,7 @@ btbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	 * not the case, big trouble's what we have.
 	 */
 	if (RelationGetNumberOfBlocks(index) != 0)
-		elog(ERROR, "index \"%s\" already contains data",
+		elog(PANIC, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
 	reltuples = _bt_spools_heapscan(heap, index, &buildstate, indexInfo);

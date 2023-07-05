@@ -39,16 +39,16 @@ DECLARE_bool(gzip);
 
 extern Oid MyDatabaseId;
 extern Oid MyDatabaseTableSpace;
-//extern bool kInitSyscacheFinish;
+extern bool not_initdb;
 
 int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
+	not_initdb = true;
 	MyDatabaseId = 1;
 	MyDatabaseTableSpace = 1;
+	Gp_role = GP_ROLE_DISPATCH;
     InitMinimizePostgresEnv(argc, argv, "template1", "template1");
-
-//	kInitSyscacheFinish = true;
 
 	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);

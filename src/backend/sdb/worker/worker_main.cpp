@@ -35,9 +35,19 @@ DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
 
+
+extern Oid MyDatabaseId;
+extern Oid MyDatabaseTableSpace;
+extern bool not_initdb;
+
 int WorkerServerRun(int argc, char** argv);
 
 int WorkerServiceMain(int argc, char* argv[]) {
+
+	not_initdb = true;
+	MyDatabaseId = 1;
+	MyDatabaseTableSpace = 1;
+
 	InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
 	Gp_role = GP_ROLE_EXECUTE;
 	std::thread worker_thread(WorkerServerRun, argc, argv);

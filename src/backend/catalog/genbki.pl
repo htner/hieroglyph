@@ -674,6 +674,7 @@ print $bki "COPYTOPARQUET 1247\n";  # pg_type",
 print $bki "COPYTOPARQUET 1255\n";  # pg_proc",
 print $bki "COPYTOPARQUET 1249\n";  # pg_attribute",
 print $bki "COPYTOPARQUET 1259\n";  # pg_class",
+print $bki "COPYTOPARQUET 2610\n";  # pg_index",
 
 print $bki "UPLOADALL\n";
 

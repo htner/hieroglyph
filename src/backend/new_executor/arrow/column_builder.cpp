@@ -222,11 +222,16 @@ arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type, int sublen,
   auto status = builder->Append();
   if (!status.ok()) {
 		return status;
-	}
+  }
   arrow::ArrayBuilder* value_builder = builder->value_builder();
 
   for (int i = 0; i < count; ++i) {
-    sub_func(value_builder, datums[i], nulls[i]);
+    auto ret = sub_func(value_builder, datums[i], nulls[i]);
+	assert(ret.ok());
+	if (!ret.ok()) {
+	  LOG(ERROR) << "put array function sub func error";
+	  return ret;
+	}
   }
   return arrow::Status::OK();
 }
@@ -242,7 +247,7 @@ arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs,
   char* vl_ptr = VARDATA_ANY(d);
   std::string str(vl_ptr, vl_len);
 
-  auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
+  //auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
   // return builder->Append(str);
   return arrow::Status::OK();
 }
@@ -324,8 +329,8 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
   Form_pg_type elem_type;
 
   char typtype = 'b';
-  auto attbyval = attr->attbyval;
-  auto attalign = attr->attalign;
+  //auto attbyval = attr->attbyval;
+  //auto attalign = attr->attalign;
   Oid attelem = 0;
   Oid  attrelid = 0;
 
@@ -348,8 +353,8 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
 	if (typtype != TYPTYPE_DOMAIN) {
       atttypmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
-	  attbyval = elem_type->typbyval;
-	  attalign = elem_type->typalign;
+	  //attbyval = elem_type->typbyval;
+	  //attalign = elem_type->typalign;
 	  attelem = elem_type->typelem;
 	  attrelid = elem_type->typrelid;
       break;
@@ -410,14 +415,14 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
   char typtype;
   int typlen;  
 
-  bool attbyval;
-  char attalign;
+  //bool attbyval;
+  //char attalign;
   Oid attelem;
   Oid  attrelid;
 
   if (!NeedForwardLookupFromPgType(rel_)) {
 	  bool ret = GetBootTypeInfo(typid, &typmod, &typtype, &typlen, 
-							  &attbyval, &attalign, &attelem, &attrelid);	
+							  nullptr, nullptr, &attelem, &attrelid);	
 	  assert(ret);
   }
   /* walk down to the base type */
@@ -438,8 +443,8 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
 	if (typtype != TYPTYPE_DOMAIN) {
 	  typmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
-	  attbyval = elem_type->typbyval;
-	  attalign = elem_type->typalign;
+	  //attbyval = elem_type->typbyval;
+	  //attalign = elem_type->typalign;
 	  attelem = elem_type->typelem;
 	  attrelid = elem_type->typrelid;
       break;
@@ -494,11 +499,11 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
   /* composite type */
   if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
     Relation relation;
-    TupleDesc tupdesc;
     std::vector<PutDatumFunc> sub_funcs;
     std::vector<Oid> sub_types;
 
     relation = relation_open(typrelid, AccessShareLock);
+    TupleDesc tupdesc = RelationGetDescr(relation);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
       auto sub_typeid = attr->atttypid;

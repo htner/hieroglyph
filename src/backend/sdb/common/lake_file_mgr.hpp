@@ -39,7 +39,7 @@ public:
     channel = std::make_unique<brpc::Channel>();
 
     std::vector<sdb::LakeFile> files;
-    LOG(ERROR) << "prepare upload";
+    //LOG(ERROR) << "prepare upload";
     // Initialize the channel, NULL means using default options. 
     brpc::ChannelOptions options;
     options.protocol = "h2:grpc";

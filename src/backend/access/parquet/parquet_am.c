@@ -242,13 +242,11 @@ static bool ParquetScanAnalyzeNextTuple(TableScanDesc scan,
   return false;
 }
 
-static double ParquetIndexBuildRangeScan(
+extern double ParquetIndexBuildRangeScan(
     Relation heapRelation, Relation indexRelation, IndexInfo *indexInfo,
     bool allow_sync, bool anyvisible, bool progress, BlockNumber start_blockno,
     BlockNumber numblocks, IndexBuildCallback callback, void *callback_state,
-    TableScanDesc scan) {
-  return 0.0;
-}
+    TableScanDesc scan);
 
 static void ParquetIndexValidateScan(Relation heapRelation,
                                      Relation indexRelation,

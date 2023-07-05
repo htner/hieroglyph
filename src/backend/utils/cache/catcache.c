@@ -1150,7 +1150,7 @@ CrossCheckTuple(int cacheId,
 			rd_rel = (Form_pg_class) GETSTRUCT(tuple);
 			if (rd_rel->oid != DatumGetObjectId(key1))
 			{
-				elog(ERROR, "pg_class_oid_index is broken, oid=%d is pointing to tuple with oid=%d (xmin:%u xmax:%u)",
+				elog(PANIC, "pg_class_oid_index is broken, oid=%d is pointing to tuple with oid=%d (xmin:%u xmax:%u)",
 					 DatumGetObjectId(key1), rd_rel->oid,
 					 HeapTupleHeaderGetXmin((tuple)->t_data),
 					 HeapTupleHeaderGetRawXmax((tuple)->t_data));
@@ -1359,6 +1359,7 @@ SearchCatCacheInternal(CatCache *cache,
  * as small as possible.  To avoid that effort being undone by a helpful
  * compiler, try to explicitly forbid inlining.
  */
+
 static pg_noinline HeapTuple
 SearchCatCacheMiss(CatCache *cache,
 				   int nkeys,
@@ -1410,7 +1411,7 @@ SearchCatCacheMiss(CatCache *cache,
 	relation = table_open(cache->cc_reloid, AccessShareLock);
 
 	scandesc = systable_beginscan(relation,
-								  cache->cc_indexoid,
+	  						      cache->cc_indexoid,
 								  IndexScanOK(cache, cur_skey),
 								  NULL,
 								  nkeys,

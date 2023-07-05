@@ -1,6 +1,9 @@
 #include "include/utils/fmgroids.h"
 #include "include/catalog/pg_collation_d.h"
 #include "backend/new_executor/arrow/boot.hpp"
+#include "backend/sdb/common/pg_export.hpp"
+
+#include <butil/logging.h>
 
 struct BootTypInfo {
 	char		name[NAMEDATALEN];
@@ -80,6 +83,7 @@ bool GetBootTypeInfo(Oid typid, int32_t* typmod,
 						 char* typtype, int* typlen,
 						 bool* byval, char* align,
 						 Oid* elem, Oid* typrelid) {
+	// LOG(ERROR) << "kTypes " << kTypes; 
 	for (int i = 0; i < kTypes; ++i) {
 		auto type = baseTypInfo[i];	
 		if (type.oid == typid) {
@@ -104,6 +108,8 @@ bool GetBootTypeInfo(Oid typid, int32_t* typmod,
 			if (elem) {
 				*elem = type.elem;
 			}
+			return true;
 		}
 	}
+	return false;
 }

@@ -142,6 +142,8 @@ extern Oid	IndexGetRelation(Oid indexId, bool missing_ok);
 
 extern void reindex_index(Oid indexId, bool skip_constraint_checks,
 						  char relpersistence, int options);
+extern void force_reindex_index(Oid indexId, Oid heapId, bool skip_constraint_checks,
+						  char relpersistence, int options);
 
 /* Flag bits for reindex_relation(): */
 #define REINDEX_REL_PROCESS_TOAST			0x01
@@ -205,5 +207,14 @@ itemptr_decode(ItemPointer itemptr, int64 encoded)
 
 	ItemPointerSet(itemptr, block, offset);
 }
+
+enum InitIndexStates {
+	IIState_NULL,	
+	IIState_PG_TYPE,	
+	IIState_PG_CLASS,	
+	IIState_PG_ATTR,	
+	IIState_FINISH,
+};
+extern int kInitIndex;
 
 #endif							/* INDEX_H */

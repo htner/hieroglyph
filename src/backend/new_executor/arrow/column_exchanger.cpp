@@ -13,9 +13,8 @@ extern "C" {
 #include "backend/new_executor/arrow/boot.hpp"
 
 bool NeedForwardLookupFromPgType(Oid id) {
-	if (id == TypeRelationId || id == AttributeRelationId || 
-		id == ProcedureRelationId || id == DatabaseRelationId ||
-		id == RelationRelationId )
+	if (id == TypeRelationId || id == ProcedureRelationId ||
+	 id == DatabaseRelationId || id == RelationRelationId )
 		return false;
 	return true;
 }
@@ -51,12 +50,13 @@ Datum GetStringToDatum(arrow::Array* a, int64_t i) {
 
 template <class TYPE_CLASS>
 arrow::Status GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i, Datum* datum) {
+  //LOG(ERROR) << "1 get name data  ";
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
   auto array = reinterpret_cast<ArrayType*>(a);
   auto view = array->GetView(i);
  
   char* resultptr = (char*)palloc(len);
-  //LOG(ERROR) << "get name data  " << view;
+  //LOG(ERROR) << "2 get name data  " << view;
   memcpy(resultptr, view.data(), view.size());
   *datum = PointerGetDatum(resultptr);
   return arrow::Status::OK();
@@ -92,16 +92,14 @@ arrow::Status GetDatum<INT4OID>(arrow::Array* array, int64_t i, Datum* datum) {
   return arrow::Status::OK();
 }
 
-extern int kRow__;
-
 template <>
 arrow::Status GetDatum<OIDOID>(arrow::Array* array, int64_t i, Datum* datum) {
   //LOG(ERROR) << " get datum oidoid 1";
   auto value = GetValue<arrow::UInt32Type>(array, i);
   //LOG(ERROR) << " get datum oidoid 2";
   *datum = UInt32GetDatum(value);
-  if (value == 2662)
-	LOG(ERROR) << " get datum ["<< kRow__ << "]["<< i << "] value:" << value;
+  //if (value == 2662)
+  //	LOG(ERROR) << " get datum ["<< kRow__ << "]["<< i << "] value:" << value;
   return arrow::Status::OK();
 }
 
@@ -217,15 +215,26 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
   Datum* datums;
   bool* nulls;
 
+  //LOG(ERROR) << "get array";
   arrow::ListArray* list_array = reinterpret_cast<arrow::ListArray*>(a);
   std::shared_ptr<arrow::Array> array = list_array->value_slice(i);
 
   auto size = array->length();
-  datums = (Datum*)palloc(size * sizeof(Datum));
-  nulls = (bool*)palloc(size * sizeof(bool));
-  for (int i = 0; i < size; ++size) {
+ LOG(ERROR) << "size is " <<  size;
+  if (size == 0) {
+	//LOG(ERROR) << "size is 0";
+	//*datum = PointerGetDatum(NULL);
+	//return arrow::Status::OK();
+	datums = NULL;
+	 nulls = NULL;
+  } else {
+	datums = (Datum*)palloc(size * sizeof(Datum));
+	nulls = (bool*)palloc(size * sizeof(bool));
+  }
+  for (int i = 0; i < size; ++i) {
     if (array->IsNull(i)) {
       nulls[i] = true;
+      datums[i] = PointerGetDatum(NULL);
       continue;
     }
     nulls[i] = false;
@@ -238,9 +247,11 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
   ArrayType* t =
       construct_array(datums, size, sub_type, elmlen, elmbyval, elmalign);
 
-  *datum = (Datum)t;
-  pfree(datums);
-  pfree(nulls);
+  *datum = PointerGetDatum(t);
+  if (datums) {
+    pfree(datums);
+    pfree(nulls);
+  }
   return arrow::Status::OK();
 }
 
@@ -251,7 +262,13 @@ arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs,
 }
 
 ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
+	//LOG(ERROR) << "get boot type " << rel << " " << attr->atttypid;
   func_ = GetFunction(rel, attr);
+  if (func_ == nullptr) {
+		LOG(ERROR) << "get boot type eror " << rel << " " << attr->atttypid;
+	} else {
+	//LOG(ERROR) << "get boot type finish" << rel << " " << attr->atttypid;
+	}
 }
 
 ColumnExchanger::ColumnExchanger(int16_t typid) { func_ = GetFunction(typid); }
@@ -288,7 +305,9 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
     tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
     // elog(ERROR, "cache lookup failed for type: %u", atttypid);
     if (!HeapTupleIsValid(tup)) {
-	  LOG(ERROR) << "return null, need crash "; \
+	  LOG(ERROR) << "return null, need crash " << atttypid; 
+	  std::string* core = nullptr;
+	  *core = "0";
       return nullptr;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
@@ -317,7 +336,6 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
 
-  int32_t typmod;
   char typtype;
   bool first = true;
   int typlen;  
@@ -328,11 +346,13 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   Oid  attrelid = 0;
 
   if (!NeedForwardLookupFromPgType(rel_)) {
+//	LOG(ERROR) << " 1 get boot type error" << rel_ << " " << typid; 
 	bool ret = GetBootTypeInfo(typid, &atttypmod, &typtype, &typlen, 
 							&attbyval, &attalign, &attelem, &attrelid);
 
+	//LOG(ERROR) << " 2 get boot type error" << rel_ << " " << typid << " " << ret; 
 	if (ret == false) {
-		LOG(ERROR) << "get boot type error" << rel_ << " " << typid; 
+		LOG(ERROR) << "3 get boot type error" << rel_ << " " << typid; 
 	}
 	assert(ret);
   }
@@ -352,7 +372,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
 
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
-      typmod = elem_type->typtypmod;
+      atttypmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
 	  attbyval = elem_type->typbyval;
 	  attalign = elem_type->typalign;
@@ -375,15 +395,21 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
                      attelem, attrelid);
 }
 
+extern void GetElmInfo(Oid rel, Oid typid, int32_t* typmod, 
+						 char* typtype, int* typlen,
+						 bool* elmbyval, char* elmalign);
+
 GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
                                           char typalign, char typtype,
                                           int32_t typemod, Oid typelem,
                                           Oid typrelid) {
   /* array type */
   if (typelem != 0 && typlen == -1) {
-	//LOG(ERROR) << "get array function";
+//	LOG(ERROR) << "get array function";
     auto sub_func = GetFunction(typelem);
     if (sub_func == nullptr) {
+	
+	  LOG(ERROR) << "get array function sub func error";
       return nullptr;
     }
     /*
@@ -391,7 +417,16 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     bool elmbyval,
     char elmalign,
     */
-    return std::bind(GetArray, sub_func, typelem, typlen, typbyval, typalign,
+	int32_t typemod; 
+	char typtype;
+	int attlen;
+	bool elmbyval; 
+	char elmalign;
+	GetElmInfo(rel_, typelem, &typemod, 
+						 &typtype, &attlen,
+						 &elmbyval, &elmalign);
+    
+    return std::bind(GetArray, sub_func, typelem, attlen, elmbyval, elmalign,
                      std::placeholders::_1, std::placeholders::_2,
                      std::placeholders::_3);
   }
@@ -441,13 +476,12 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     CASE_RETURN_PUSH_VALUE_FUNC(TIMETZOID);
     CASE_RETURN_PUSH_VALUE_FUNC(NUMERICOID);
     case NAMEOID:
-	 LOG(ERROR) << "get name function";
+	// LOG(ERROR) << "get name function";
       assert(typlen == NAMEDATALEN);
       // fallthrougth
     //case CHAROID: 
 			return GetGetFixStringToDatumFunc(typlen); 
 	default: {
-	  //LOG(ERROR) << "try to get default function";
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
         if (typlen == 1) {
@@ -460,6 +494,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
         } else if (typlen == 8) {
           return GetDatum<INT8OID>;
         } else {
+	//	LOG(ERROR) << "try to get default function" << typlen;
           return GetGetFixStringToDatumFunc(typlen);
         }
         /*

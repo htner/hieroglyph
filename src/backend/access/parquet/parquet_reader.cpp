@@ -55,101 +55,12 @@ extern "C" {
 
 bool parquet_fdw_use_threads = true;
 
-class FastAllocatorS3 {
- private:
-  /*
-   * Special memory segment to speed up bytea/Text allocations.
-   */
-  MemoryContext segments_cxt;
-  char *segment_start_ptr;
-  char *segment_cur_ptr;
-  char *segment_last_ptr;
-  std::list<char *> garbage_segments;
+ParquetReader::ParquetReader() {
+}
 
- public:
-  FastAllocatorS3(MemoryContext cxt)
-      : segments_cxt(cxt),
-        segment_start_ptr(nullptr),
-        segment_cur_ptr(nullptr),
-        segment_last_ptr(nullptr),
-        garbage_segments() {}
+ParquetReader::~ParquetReader() {} 
 
-  ~FastAllocatorS3() { recycle(); }
-
-  /*
-   * fast_alloc
-   *      Preallocate a big memory segment and distribute blocks from it. When
-   *      segment is exhausted it is added to garbage_segments list and freed
-   *      on the next executor's iteration. If requested size is bigger that
-   *      SEGMENT_SIZE then just palloc is used.
-   */
-  inline void *fast_alloc(long size) {
-    void *ret;
-
-    Assert(size >= 0);
-
-    /* If allocation is bigger than segment then just palloc */
-    if (size > SEGMENT_SIZE) {
-      MemoryContext oldcxt = MemoryContextSwitchTo(this->segments_cxt);
-      void *block = exc_palloc(size);
-      this->garbage_segments.push_back((char *)block);
-      MemoryContextSwitchTo(oldcxt);
-
-      return block;
-    }
-
-    size = MAXALIGN(size);
-
-    /* If there is not enough space in current segment create a new one */
-    if (this->segment_last_ptr - this->segment_cur_ptr < size) {
-      MemoryContext oldcxt;
-
-      /*
-       * Recycle the last segment at the next iteration (if there
-       * was one)
-       */
-      if (this->segment_start_ptr)
-        this->garbage_segments.push_back(this->segment_start_ptr);
-
-      oldcxt = MemoryContextSwitchTo(this->segments_cxt);
-      this->segment_start_ptr = (char *)exc_palloc(SEGMENT_SIZE);
-      this->segment_cur_ptr = this->segment_start_ptr;
-      this->segment_last_ptr = this->segment_start_ptr + SEGMENT_SIZE - 1;
-      MemoryContextSwitchTo(oldcxt);
-    }
-
-    ret = (void *)this->segment_cur_ptr;
-    this->segment_cur_ptr += size;
-
-    return ret;
-  }
-
-  void recycle(void) {
-    /* recycle old segments if any */
-    if (!this->garbage_segments.empty()) {
-      bool error = false;
-
-      PG_TRY();
-      {
-        for (auto it : this->garbage_segments) pfree(it);
-      }
-      PG_CATCH();
-      { error = true; }
-      PG_END_TRY();
-      if (error) throw std::runtime_error("garbage segments recycle failed");
-
-      this->garbage_segments.clear();
-      //elog(DEBUG1, "parquet reader: garbage segments recycled");
-    }
-  }
-
-  MemoryContext context() { return segments_cxt; }
-};
-
-ParquetReader::ParquetReader(MemoryContext cxt)
-    : allocator_(new FastAllocatorS3(cxt)) {}
-
-int32_t ParquetReader::id() { return reader_id_; }
+int32_t ParquetReader::id() { return fileid_; }
 
 void ParquetReader::SetRowgroupsList(const std::vector<int> &rowgroups) {
   rowgroups_ = rowgroups;
@@ -158,10 +69,6 @@ void ParquetReader::SetRowgroupsList(const std::vector<int> &rowgroups) {
 void ParquetReader::SetOptions(bool use_threads, bool use_mmap) {
   use_threads_ = use_threads;
   use_mmap_ = use_mmap;
-}
-
-void ParquetReader::SetCoordinator(ParallelCoordinator *coord) {
-  coordinator_ = coord;
 }
 
 class DefaultParquetReader : public ParquetReader {
@@ -177,21 +84,21 @@ class DefaultParquetReader : public ParquetReader {
 
   int row_group_;     /* current row group index */
   uint32_t num_rows_; /* total rows in row group */
+  MemoryContext cxt_;
 
  public:
   /*
    * Constructor.
-   * The reader_id parameter is only used for parallel execution of
+   * The fileid parameter is only used for parallel execution of
    * MultifileExecutionState.
    */
-  DefaultParquetReader(Oid rel, const char *filename, MemoryContext cxt,
-                       TupleDesc tuple_desc, int reader_id = -1)
-      : ParquetReader(cxt), row_group_(-1), num_rows_(0) {
+  DefaultParquetReader(Oid rel, uint64_t fileid, const char *filename,
+                       TupleDesc tuple_desc)
+      : ParquetReader(), row_group_(-1), num_rows_(0) {
     exchanger_ = std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc);
     reader_entry_ = NULL;
     filename_ = filename;
-    reader_id_ = reader_id;
-    coordinator_ = NULL;
+    fileid_ = fileid;
     initialized_ = false;
   }
 
@@ -235,23 +142,7 @@ class DefaultParquetReader : public ParquetReader {
 
   bool ReadNextRowgroup() {
     arrow::Status status;
-
-    /*
-     * In case of parallel query get the row group index from the
-     * coordinator. Otherwise just increment it.
-     */
-	//	LOG(ERROR) << "ReadNextRowgroup 1";
-    if (coordinator_) {
-      coordinator_->lock();
-      if ((row_group_ = coordinator_->next_rowgroup(reader_id_)) == -1) {
-        coordinator_->unlock();
-//		LOG(ERROR) << "ReadNextRowgroup 2";
-        return false;
-      }
-      coordinator_->unlock();
-    } else {
-      row_group_++;
-    }
+    row_group_++;
 
     /*
      * row_group cannot be less than zero at this point so it is safe to cast
@@ -294,10 +185,9 @@ class DefaultParquetReader : public ParquetReader {
   }
 
   ReadStatus Next(TupleTableSlot *slot, bool fake = false) {
-    allocator_->recycle();
-    // LOG(ERROR) << " before fetch next tuple";
+    //LOG(ERROR) << " before fetch next tuple";
     auto result = exchanger_->FetchNextTuple();
-    // LOG(ERROR) << " after fetch next tuple";
+    //LOG(ERROR) << " after fetch next tuple";
     while (!result.status().ok()) {
       /*
        * Read next row group. We do it in a loop to skip possibly empty
@@ -318,11 +208,59 @@ class DefaultParquetReader : public ParquetReader {
     }
 	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
 	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
+	ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint32_t)fileid_);
 	ExecCopySlot(slot, *result);
+	ItemPointerCopy(&((*result)->tts_tid), &(slot->tts_tid));
+
+//	LOG(WARNING) << "fetch next tuple, "
+//	<< " tostring: " << ItemPointerToString(&(slot->tts_tid))
+//	<< " tostring: " << ItemPointerToString(&((*result)->tts_tid))
+//	<< " " << fileid_;
+	//LOG(ERROR) << "parquet reader next " << fileid_ << ", ";
+	//slot->
 	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
 	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
     return RS_SUCCESS;
   }
+
+  bool Fetch(uint32_t index, TupleTableSlot *slot) {
+		// FIXME supoprt mutil row group
+		arrow::Status status;
+		int rowgroup = 0;
+		auto rowgroup_meta =
+			reader_->parquet_reader()->metadata()->RowGroup(rowgroup);
+
+		status = reader_->RowGroup(rowgroup)->ReadTable(&table_);
+
+		if (!status.ok()) {
+			throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
+			   status.message().c_str());
+		}
+
+		if (!table_) {
+			throw std::runtime_error("parquet reader: got empty table");
+		}
+
+		auto recordbatch = table_->CombineChunksToBatch();
+
+		if (!recordbatch.status().ok()) {
+			throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
+			   status.message().c_str());
+		}
+		LOG(ERROR) << "parquet reader fetch, size" << table_->num_rows() << ", "  << (*recordbatch)->num_rows();
+		LOG(ERROR) << "parquet reader fetch, fileid " << fileid_ << ", "  << index;
+		exchanger_->SetRecordBatch(*recordbatch);
+		num_rows_ = table_->num_rows();
+        auto result = exchanger_->FetchTuple(index);
+		if (!result.status().ok()) {
+			return false;
+		}
+		ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint32_t)fileid_);
+		ExecCopySlot(slot, *result);
+		ItemPointerCopy(&(slot->tts_tid), &((*result)->tts_tid));
+	//	ItemPointerSetBlockNumber(&(slot->tts_tid), (uint32_t)fileid_);
+		return true;
+   }
 
   void Rescan(void) {
     row_group_ = -1;
@@ -330,10 +268,7 @@ class DefaultParquetReader : public ParquetReader {
   }
 };
 
-ParquetReader *CreateParquetReader(Oid rel, const char *filename, MemoryContext cxt,
-                                   TupleDesc tuple_desc, int reader_id) {
-  return new DefaultParquetReader(rel, filename, cxt, tuple_desc, reader_id);
+ParquetReader *CreateParquetReader(Oid rel, uint64_t fileid, const char *filename,
+                                   TupleDesc tuple_desc) {
+  return new DefaultParquetReader(rel, fileid, filename, tuple_desc);
 }
-
-/* Default destructor is required */
-ParquetReader::~ParquetReader() {}

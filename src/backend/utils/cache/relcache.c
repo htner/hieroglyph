@@ -1137,6 +1137,7 @@ retry:
 		MemoryContextSwitchTo(oldcxt);
 		MemoryContextDelete(tmpcxt);
 #endif
+		elog(WARNING, "%s target table not found", targetRelId);
 		Assert(in_progress_offset + 1 == in_progress_list_len);
 		in_progress_list_len--;
 		return NULL;
@@ -1860,6 +1861,7 @@ InitTableAmRoutine(Relation relation)
 /*
  * Initialize table access method support for a table like relation
  */
+bool not_initdb = false;
 void
 RelationInitTableAccessMethod(Relation relation)
 {
@@ -1874,22 +1876,27 @@ RelationInitTableAccessMethod(Relation relation)
 		 * here.
 		 */
 		relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+		elog(WARNING, "relation init table access");
 	}
 	else if (IsCatalogRelation(relation))
 	{
 		/*
 		 * Avoid doing a syscache lookup for catalog tables.
 		 */
-		if (Gp_role == GP_ROLE_EXECUTE) {
-			Assert(relation->rd_rel->relam == PARQUET_TABLE_AM_OID);
+		if (Gp_role == GP_ROLE_EXECUTE || Gp_role == GP_ROLE_DISPATCH || not_initdb) {
+			//elog(WARNING, "relation init table access 1");
+			Assert(relation->rd_rel->relam == PARQUET_TABLE_AM_OID); 
 			relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
 		} else {
+			//elog(PANIC, "relation init table access 2");
 			Assert(relation->rd_rel->relam == HEAP_TABLE_AM_OID);
 			relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+			//relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
 		}
 	}
 	else
 	{
+		elog(WARNING, "relation init table access 3");
 		/*
 		 * Look up the table access method, save the OID of its handler
 		 * function.
@@ -4204,6 +4211,8 @@ RelationCacheInitializePhase2(void)
  *		open any system catalog or use any catcache.  The last step is to
  *		rewrite the cache files if needed.
  */
+int kInitIndex;
+
 void
 RelationCacheInitializePhase3(void)
 {
@@ -4220,10 +4229,12 @@ RelationCacheInitializePhase3(void)
 	if (!EnableHotStandby && !IsBootstrapProcessingMode() && RecoveryInProgress())
 		elog(ERROR, "relation cache initialization during recovery or non-bootstrap processes.");
 
+#ifdef SDB_NO_USE
 	/*
 	 * relation mapper needs initialized too
 	 */
-	RelationMapInitializePhase3();
+ 	RelationMapInitializePhase3();
+#endif
 
 	/*
 	 * switch to cache memory context
@@ -4288,31 +4299,117 @@ RelationCacheInitializePhase3(void)
 	 */
 	if (true || Gp_role == GP_ROLE_EXECUTE) {
 			elog(WARNING, "try to reindex ---------------------------------");
-			Oid relid = 1259; // pg_class
+			//Oid relid = 1259; // pg_class
+			//Oid indexid = 2610; // pg_index
 			Relation rel;	
+			Relation rel_index;	
 			SysScanDesc scan;
 			HeapTuple tuple;
 
-			rel = relation_open(relid, AccessShareLock);		
+			Oid* index_to_rels = palloc0(10000*sizeof(Oid));
+			Oid* catalog_index = palloc0(1000*sizeof(Oid));
+			size_t curr_index_size = 0;
+
+			Oid* pg_type_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_type_index_size = 0;
+
+			Oid* pg_class_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_class_index_size = 0;
+
+			Oid* pg_attribute_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_attribute_index_size = 0;
+			
+
+			rel = relation_open(RelationRelationId, AccessShareLock);		
 			scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 			while((tuple = systable_getnext(scan)) != NULL) {
-				Datum		datum;
+				Datum		datum_am;
 				Datum		datum_oid;
 				bool		isnull;
-				datum = heap_getattr(tuple, 7,
+				datum_am = heap_getattr(tuple, Anum_pg_class_relam,//7,
 						 RelationGetDescr(rel), &isnull);
-				datum_oid = heap_getattr(tuple, 1,
+				datum_oid = heap_getattr(tuple, Anum_pg_class_oid,
 						 RelationGetDescr(rel), &isnull);
-				elog(WARNING, "reindex %d %d----------------------------------", DatumGetObjectId(datum_oid), DatumGetObjectId(datum));
-				if (DatumGetObjectId(datum) == 403) {
-					datum = heap_getattr(tuple, 1,
-						 RelationGetDescr(rel), &isnull);
-					reindex_index(DatumGetObjectId(datum), true, RELPERSISTENCE_PERMANENT, 0);
-					elog(WARNING, "reindex %d ----------------------------------", DatumGetObjectId(datum));
+				elog(WARNING, "reindex index %d -> am %d----------------------------------", DatumGetObjectId(datum_oid), DatumGetObjectId(datum_am));
+				if (DatumGetObjectId(datum_am) == 403) {
+					catalog_index[curr_index_size] = DatumGetObjectId(datum_oid);
+					++curr_index_size;
+
+			/*
+					ScanKeyData skey;
+					ScanKeyInit(&skey,
+				 Anum_pg_index_indexrelid,
+				 BTEqualStrategyNumber, F_OIDEQ,
+					datum_oid);
+
+				SysScanDesc sscan = systable_beginscan(rel_index, InvalidOid, false,
+							   NULL, 1, &skey);
+						HeapTuple index_tuple = systable_getnext(sscan);
+					if (!HeapTupleIsValid(index_tuple))
+						elog(ERROR, "could not find tuple for index %u", DatumGetObjectId(datum_oid));
+
+					Datum datum_relid = heap_getattr(index_tuple, 2,
+						 RelationGetDescr(rel_index), &isnull);
+					//relation_close(rel_index, AccessShareLock);
+
+					//force_reindex_index(DatumGetObjectId(datum_oid), DatumGetObjectId(datum_relid), true, RELPERSISTENCE_PERMANENT, 0);
+				//
+						 */
 				}
 				//simple_parquet_insert(rel, tuple);
 			}
 			relation_close(rel, AccessShareLock);
+
+			rel_index = relation_open(IndexRelationId, AccessShareLock);		
+			SysScanDesc iscan = systable_beginscan(rel_index, InvalidOid, false, NULL, 0, NULL);
+			HeapTuple index_tuple;
+			bool isnull;
+			while((index_tuple = systable_getnext(iscan)) != NULL) {
+				Datum datum_indexrelid = heap_getattr(index_tuple, Anum_pg_index_indexrelid,//1,
+									 RelationGetDescr(rel_index), &isnull);
+				Datum datum_relid = heap_getattr(index_tuple, Anum_pg_index_indrelid, //2,
+									 RelationGetDescr(rel_index), &isnull);
+
+				elog(WARNING, "index %d -> rel %d----------------------------------", DatumGetObjectId(datum_indexrelid), DatumGetObjectId(datum_relid));
+				if (DatumGetObjectId(datum_relid) == RelationRelationId) {
+					pg_class_index[curr_pg_class_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_class_index_size;
+				} else if (DatumGetObjectId(datum_relid) == TypeRelationId) {
+					pg_type_index[curr_pg_type_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_type_index_size;
+
+				} else if (DatumGetObjectId(datum_relid) == AttributeRelationId) {
+					pg_attribute_index[curr_pg_attribute_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_attribute_index_size;
+				} else {
+					index_to_rels[DatumGetObjectId(datum_indexrelid)] = DatumGetObjectId(datum_relid);
+				}
+			}
+			relation_close(rel_index, AccessShareLock);
+
+			for (size_t i = 0; i < curr_pg_type_index_size; ++i) {
+				force_reindex_index(pg_type_index[i], TypeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_TYPE;
+
+			for (size_t i = 0; i < curr_pg_class_index_size; ++i) {
+				force_reindex_index(pg_class_index[i], RelationRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_CLASS;
+
+			for (size_t i = 0; i < curr_pg_attribute_index_size; ++i) {
+				force_reindex_index(pg_attribute_index[i], AttributeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_ATTR;
+
+			for (size_t i = 0; i < curr_index_size; ++i) {
+				Oid indexid = catalog_index[i];
+				Oid relid = index_to_rels[indexid];
+				if (relid != InvalidOid) {
+					force_reindex_index(indexid, relid, true, RELPERSISTENCE_PERMANENT, 0);
+				}
+			}
+			kInitIndex = IIState_FINISH;
 			//CurrentResourceOwner = ResourceOwnerCreate(NULL, "reindex test");
 			/*
 			reindex_index(2651, true, true, 0);
@@ -4327,8 +4424,16 @@ RelationCacheInitializePhase3(void)
 			reindex_index(2704, true, true, 0);
 			*/
 
+			pfree(index_to_rels);
+			pfree(catalog_index);
+
+			pfree(pg_type_index);
+			pfree(pg_class_index);
+
+			pfree(pg_attribute_index);
 		
 	}
+
 	if (!criticalRelcachesBuilt)
 	{
 		load_critical_index(ClassOidIndexId,
