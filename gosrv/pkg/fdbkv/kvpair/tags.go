@@ -19,8 +19,15 @@ const (
   QueryWorkerRequestTag uint16 = 33
   QueryWorkerDetailTag uint16 = 34
   QueryResultTag uint16 = 35
+  WorkerResultTag uint16 = 36
 
 	MAXTIDTag          uint16 = 40
 	MAXFILEIDTag          uint16 = 41
 	MaxDeleteVersionTag uint16 = 42
+
+  SdbAccountKeyTag uint16 = 45
+  AccountLoginNameKeyTag uint16 = 46
+  OrganizationKeyTag uint16 = 47
+  UserKeyTag uint16 = 48
+  LoginNameKeyTag uint16 = 49
 )

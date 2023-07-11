@@ -1,0 +1,27 @@
+syntax = "proto3";
+package sdb;
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./sdb";
+
+service Account {
+    rpc Login(LoginRequest) returns (LoginResponse) {}
+}
+
+message LoginRequest {
+  string account = 1;
+  string organization = 2;
+  string database = 3;
+
+  string passwd = 4;
+}
+
+message LoginResponse {
+  uint64 rescode = 1;
+  string msg = 2;
+  uint64 dbid = 3;
+  uint64 organization_id = 4;
+  uint64 user_id = 5;
+}

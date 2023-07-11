@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = false;
+option go_package="./sdb";
+
+import  "optimizer_service.proto";
+import  "worker_service.proto";
+import  "schedule_service.proto";
+//import  "lake_service.proto";
+
+enum QueryStates {
+  QueryNull = 0;
+  QueryInit = 1;
+  QueryOptimizer = 2;
+  QueryExecStart = 3;
+  QueryCancel = 4;
+  QuerySuccess = 5;
+  QueryError = 6;
+}
+
+message QueryRequestInfo {
+  ExecQueryRequest query_request = 1;
+  int64 create_timestamp = 2;
+}
+
+message QueryOptimizerResult {
+  OptimizeReply optimizer_result = 1;
+}
+
+message QueryWorkerInfo {
+  PrepareTaskRequest prepare_task_info = 1;
+}
+
+message SliceTask {
+  TaskIdentify task_identify = 1;
+  int64 start_timestamp = 2;
+  string worker = 3;
+  uint64 worker_id = 4;
+}
+
+message TaskResult {
+  TaskIdentify task_identify = 1;
+  int64 finish_timestamp = 2;
+  uint64 sessionid = 4;
+  uint64 uid = 5;
+  uint64 dbid = 6;
+  uint64 worker_id = 7;
+  //PushWorkerResultData result = 8;
+}
+
+message QueryResult {
+  uint32 state = 1;
+  string message = 2;
+  string detail = 3;
+  //PushWorkerResultData result = 4;
+  int64 finish_timestamp = 5;
+}
+
