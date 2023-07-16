@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"time"
 	"bytes"
 	"encoding/binary"
 
@@ -20,12 +21,14 @@ func NewQueryMgr(dbid types.DatabaseId) *QueryMgr {
 }
 
 type QueryKey struct {
+	dbid uint64
 	commandid uint64
 	tag       uint16
 }
 
-func NewQueryKey(cid uint64, tag uint16) *QueryKey {
+func (mgr *QueryMgr) NewQueryKey(cid uint64, tag uint16) *QueryKey {
 	var key QueryKey
+  key.dbid = uint64(mgr.Database)
 	key.commandid = cid
 	key.tag = tag
 	return &key
@@ -52,48 +55,18 @@ func (mgr *QueryMgr) WriterQueryDetail(req *sdb.ExecQueryRequest) error {
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := NewQueryKey(req.Commandid, kvpair.QueryRequestTag)
-		value := new(sdb.CommandDetails)
-		value.Request = req
+		key := mgr.NewQueryKey(req.Commandid, kvpair.QueryRequestTag)
+		value := new(sdb.QueryRequestInfo)
+		value.QueryRequest = req
+    value.CreateTimestamp = time.Now().UnixMicro()
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
 		}
 
-		err = mgr.UpdateQueryStatusInTran(tr, req.Commandid, sdb.CommandStatus_CS_INIT)
-		if err != nil {
-			return nil, err
-		}
-		//tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
-		//return nil, kvOp.Write(tick, tick)
 		return nil, nil
 	})
 	return e
-}
-
-func (mgr *QueryMgr) UpdateQueryStatus(commandid uint64, status sdb.CommandStatus) error {
-	db, err := fdb.OpenDefault()
-	if err != nil {
-		return err
-	}
-	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		err = mgr.UpdateQueryStatusInTran(tr, commandid, sdb.CommandStatus_CS_INIT)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	return e
-}
-
-func (mgr *QueryMgr) UpdateQueryStatusInTran(tr fdb.Transaction, commandid uint64, status sdb.CommandStatus) error {
-
-	kvOp := fdbkv.NewKvOperator(tr)
-
-	keyStatus := NewQueryKey(commandid, kvpair.QueryStatusTag)
-	valueStatus := new(sdb.CommandStatusDetail)
-	valueStatus.Status = status
-	return kvOp.WritePB(keyStatus, valueStatus)
 }
 
 func (mgr *QueryMgr) WriterOptimizerResult(commandid uint64, req *sdb.OptimizeReply) error {
@@ -105,26 +78,20 @@ func (mgr *QueryMgr) WriterOptimizerResult(commandid uint64, req *sdb.OptimizeRe
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := NewQueryKey(commandid, kvpair.QueryOptimizerResultTag)
-		value := new(sdb.CommandOptimizerResult)
+		key := mgr.NewQueryKey(commandid, kvpair.QueryOptimizerResultTag)
+		value := new(sdb.QueryOptimizerResult)
 		value.OptimizerResult = req
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
 		}
 
-		err = mgr.UpdateQueryStatusInTran(tr, commandid, sdb.CommandStatus_CS_OP)
-		if err != nil {
-			return nil, err
-		}
-		//tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
-		//return nil, kvOp.Write(tick, tick)
 		return nil, nil
 	})
 	return e
 }
 
-func (mgr *QueryMgr) WriterExecDetail(req *sdb.PrepareTaskRequest) error {
+func (mgr *QueryMgr) WriterWorkerInfo(req *sdb.PrepareTaskRequest) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -133,26 +100,19 @@ func (mgr *QueryMgr) WriterExecDetail(req *sdb.PrepareTaskRequest) error {
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := NewQueryKey(req.TaskIdentify.QueryId, kvpair.QueryOptimizerResultTag)
-		value := new(sdb.CommandExecDetail)
+		key := mgr.NewQueryKey(req.TaskIdentify.QueryId, kvpair.QueryWorkerRequestTag)
+		value := new(sdb.QueryWorkerInfo)
 		value.PrepareTaskInfo = req
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
 		}
-
-		err = mgr.UpdateQueryStatusInTran(tr, req.TaskIdentify.QueryId, sdb.CommandStatus_CS_WAIT_EXEC)
-		if err != nil {
-			return nil, err
-		}
-		//tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
-		//return nil, kvOp.Write(tick, tick)
 		return nil, nil
 	})
 	return e
 }
 
-func (mgr *QueryMgr) WriterExecResult(req *sdb.WorkerResultReportRequest) error {
+func (mgr *QueryMgr) WriterWorkerResult(req *sdb.PushWorkerResultRequest) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -161,20 +121,37 @@ func (mgr *QueryMgr) WriterExecResult(req *sdb.WorkerResultReportRequest) error 
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := NewQueryKey(req.TaskId.QueryId, kvpair.QueryOptimizerResultTag)
-		value := new(sdb.CommandResult)
-		value.Result = req
+		key := mgr.NewQueryKey(req.TaskId.QueryId, kvpair.QueryWorkerDetailTag)
+		value := new(sdb.TaskResult)
+		value.TaskIdentify = req.TaskId
+		value.Result = req.Result
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
 		}
 
-		err = mgr.UpdateQueryStatusInTran(tr, req.TaskId.QueryId, sdb.CommandStatus_CS_DONE)
+		return nil, nil
+	})
+	return e
+}
+
+func (mgr *QueryMgr) WriterQueryResult(queryId uint64, state uint32, msg, detail string, result *sdb.WorkerResultData) error {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+
+		kvOp := fdbkv.NewKvOperator(tr)
+
+		key := mgr.NewQueryKey(queryId, kvpair.QueryResultTag)
+		value := new(sdb.QueryResult)
+		value.Result = result
+		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
 		}
-		//tick := &kv.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
-		//return nil, kvOp.Write(tick, tick)
+
 		return nil, nil
 	})
 	return e

@@ -63,7 +63,7 @@ func main() {
   port := 10001
 	done := make(chan bool, 1)
 	go rungRPC(done, port)
-	registerService("127.0.0.1:8600", service.LakeName(), port)
+	registerService("127.0.0.1:8600", service.AccountName(), port)
 	<-c
 }
 

@@ -122,8 +122,10 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
     elem_type = (Form_pg_type)GETSTRUCT(tup);
 
     typtype = elem_type->typtype;
-    if (typtype != TYPTYPE_DOMAIN) {
+	if (typmod == -1) {
       typmod = elem_type->typtypmod;
+	}
+    if (typtype != TYPTYPE_DOMAIN) {
       break;
     }
     atttypid = elem_type->typbasetype;
@@ -137,7 +139,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
 std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
-  int32_t typmod;
+  int32_t typmod = -1;
   char typtype;
   bool first = true;
   int typlen;  
@@ -155,9 +157,11 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
 	}
 	first = false;
 
+	if (typmod == -1) {
+      typmod = elem_type->typtypmod;
+	}
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
-	  typmod = elem_type->typtypmod;
       break;
     }
 
@@ -194,7 +198,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
     tupdesc = RelationGetDescr(relation);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
-      auto sub_data_type = GetDataType(attr->atttypid);
+      auto sub_data_type = GetDataType(attr);
       if (sub_data_type == nullptr) {
         return nullptr;
       }

@@ -78,6 +78,7 @@ func (key *UserKey) DecFdbKey(reader *bytes.Reader) error {
 
 // AccountLoginName
 type UserLoginNameKey struct {
+  OrganizationId uint64;
   LoginName string;
 }
 
@@ -86,11 +87,19 @@ func (key *UserLoginNameKey) Tag() uint16 {
 }
 
 func (key *UserLoginNameKey) EncFdbKey(buf *bytes.Buffer) error {
-  _, err := buf.WriteString(key.LoginName)
+  err := binary.Write(buf, binary.BigEndian, key.OrganizationId)
+  if err != nil {
+    return err;
+  }
+  _, err = buf.WriteString(key.LoginName)
   return err
 }
 
 func (key *UserLoginNameKey) DecFdbKey(reader *bytes.Reader) error {
+  err := binary.Read(reader, binary.BigEndian, &key.OrganizationId)
+  if err != nil {
+    return err;
+  }
   buf := new(bytes.Buffer)
   buf.ReadFrom(reader)
   key.LoginName = buf.String()
@@ -100,6 +109,10 @@ func (key *UserLoginNameKey) DecFdbKey(reader *bytes.Reader) error {
 // OrganizationNameKey
 type OrganizationNameKey struct {
   Name string;
+}
+
+func (key *OrganizationNameKey) Tag() uint16 {
+	return OrganizationNameKeyTag 
 }
 
 func (key *OrganizationNameKey) EncFdbKey(buf *bytes.Buffer) error {
@@ -113,3 +126,4 @@ func (key *OrganizationNameKey) DecFdbKey(reader *bytes.Reader) error {
   key.Name = buf.String()
   return nil
 }
+

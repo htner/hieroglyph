@@ -292,10 +292,12 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
       return;
     }
     elem_type = (Form_pg_type)GETSTRUCT(tup);
+	if (typmod == -1) {
+      typmod = elem_type->typtypmod;
+	}
 
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
-      typmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
 	  attelem = elem_type->typelem;
 	  attrelid = elem_type->typrelid;
@@ -350,8 +352,11 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
 
     typtype = elem_type->typtype;
 
-	if (typtype != TYPTYPE_DOMAIN) {
+	if (atttypmod == -1) {
       atttypmod = elem_type->typtypmod;
+	}
+
+	if (typtype != TYPTYPE_DOMAIN) {
 	  typtype = elem_type->typtype;
 	  //attbyval = elem_type->typbyval;
 	  //attalign = elem_type->typalign;
@@ -394,9 +399,12 @@ void GetElmInfo(Oid rel, Oid typid, int32_t* typmod,
 	}
 	first = false;
 
+	if (*typmod == -1) {
+      *typmod = elem_type->typtypmod;
+	}
+
     *typtype = elem_type->typtype;
 	if (*typtype != TYPTYPE_DOMAIN) {
-      *typmod = elem_type->typtypmod;
       *elmbyval = elem_type->typbyval;
       *elmalign = elem_type->typalign;
       break;
@@ -411,7 +419,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
   Form_pg_type elem_type;
   bool first = true;
 
-  int32_t typmod;
+  int32_t typmod = -1;
   char typtype;
   int typlen;  
 
@@ -440,8 +448,11 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
 	first = false;
 
     typtype = elem_type->typtype;
+
+	if (typmod == -1) {
+      typmod = elem_type->typtypmod;
+	}
 	if (typtype != TYPTYPE_DOMAIN) {
-	  typmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
 	  //attbyval = elem_type->typbyval;
 	  //attalign = elem_type->typalign;
@@ -484,7 +495,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
       return nullptr;
     }
 	//assert(NeedForwardLookupFromPgType(rel_));
-	int32_t typemod; 
+	int32_t typemod = -1; 
 	char typtype;
 	int attlen;
 	bool elmbyval; 
@@ -507,7 +518,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
       auto sub_typeid = attr->atttypid;
-      auto sub_func = GetPutValueFunction(sub_typeid);
+      auto sub_func = GetPutValueFunction(attr);
       sub_funcs.push_back(sub_func);
       sub_types.push_back(sub_typeid);
     }

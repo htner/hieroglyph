@@ -26,7 +26,7 @@ func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
 	}
 	fKey := fdb.Key(sKey)
 	sValue, err := kv.MarshalValue(value)
-	// log.Println(sKey, len(sKey), sValue, len(sValue))
+  log.Println("kv write:", sKey, len(sKey), sValue, len(sValue))
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	future := t.t.Get(fKey)
 
 	v, e := future.Get()
-  //log.Println("key, value, error:", key, len(key), len(v), v, e)
+  log.Println("kvoprator read, key, value, error:", key, len(sKey), len(v), v, e)
 	if e != nil {
     log.Printf("kv not found")
 		return errors.New("kv not found")
@@ -92,9 +92,12 @@ func (t *KvOperator) ReadPB(key kv.FdbKey, msg proto.Message) error {
 
 	v, e := future.Get()
 	//log.Println("v e", key, v, e)
-  log.Println("key, value, error:", key, v, e)
+  log.Println("read pb key, value, error:", key, len(sKey), v, len(v), e)
 	if e != nil {
 		return errors.New("kv not found")
 	}
+  if len(v) == 0 {
+    return EmptyDataErr 
+  }
 	return proto.Unmarshal(v, msg)
 }

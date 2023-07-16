@@ -1,6 +1,7 @@
 package kvpair
 
 const (
+
 	SessionTag         uint16 = 10
 	TranscationTag     uint16 = 11
 	SessionTickTag     uint16 = 16
@@ -28,6 +29,17 @@ const (
   SdbAccountKeyTag uint16 = 45
   AccountLoginNameKeyTag uint16 = 46
   OrganizationKeyTag uint16 = 47
-  UserKeyTag uint16 = 48
-  LoginNameKeyTag uint16 = 49
+  OrganizationNameKeyTag uint16 = 48
+  UserKeyTag uint16 = 49
+  LoginNameKeyTag uint16 = 50
+
+  DatabaseKeyTag uint16 = 51
+  DatabaseNameKeyTag uint16 = 51
+
+  // first class object id gen
+  FCAccountMaxIDTag uint16 = 100
+  FCOrganizatoinMaxIDTag uint16 = 101
+  FCUserMaxIDTag uint16 = 102
+  FCDatabaseMaxIDTag uint16 = 102
+
 )

@@ -314,8 +314,11 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
 
     typtype = elem_type->typtype;
 
-	if (typtype != TYPTYPE_DOMAIN) {
+	if (atttypmod == -1) {
       atttypmod = elem_type->typtypmod;
+	}
+
+	if (typtype != TYPTYPE_DOMAIN) {
 	  typtype = elem_type->typtype;
 	  attbyval = elem_type->typbyval;
 	  attalign = elem_type->typalign;
@@ -339,7 +342,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
   char typtype;
   bool first = true;
   int typlen;  
-  int32_t atttypmod;
+  int32_t atttypmod = -1;
   bool attbyval = false;
   char attalign;
   Oid attelem = 0;
@@ -369,10 +372,12 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
 		typlen = elem_type->typlen;
 	}
 	first = false;
+	if (atttypmod == -1) {
+      atttypmod = elem_type->typtypmod;
+	}
 
     typtype = elem_type->typtype;
     if (typtype != TYPTYPE_DOMAIN) {
-      atttypmod = elem_type->typtypmod;
 	  typtype = elem_type->typtype;
 	  attbyval = elem_type->typbyval;
 	  attalign = elem_type->typalign;
@@ -449,7 +454,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
       }
 	  */
       auto sub_typeid = attr->atttypid;
-      auto sub_func = GetFunction(sub_typeid);
+      auto sub_func = GetFunction(attr);
       sub_funcs.push_back(sub_func);
       sub_types.push_back(sub_typeid);
     }

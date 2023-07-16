@@ -19,3 +19,7 @@ nohup ./lake > log/lake.log 2>&1 &
 netstat -lnpt |  grep proxy
 netstat -lnpt |  grep schedule 
 netstat -lnpt |  grep lake 
+
+./stool createaccount -a test -p testpwd -o test
+./stool createuser -o test -u user -p testpwd
+./stool createdb -o test -d test

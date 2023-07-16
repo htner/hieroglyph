@@ -11,7 +11,7 @@ import  "worker_service.proto";
 // Sends a greeting
 service Schedule {
   rpc Depart(ExecQueryRequest) returns (ExecQueryReply) {}
-  rpc WorkerReportResult(WorkerResultReportRequest) returns (WorkerResultReportReply) {}
+  rpc PushWorkerResult(PushWorkerResultRequest) returns (PushWorkerResultReply) {}
 }
 
 // The request message containing the user's name.
@@ -34,15 +34,20 @@ message ExecQueryReply {
   string result_dir = 5;
 }
 
-message WorkerResultReportRequest {
-  TaskIdentify task_id  = 1;
-  uint64 dbid = 2;
+message WorkerResultData {
+  uint64 dbid = 1;
+  uint64 query_id = 2;
   int32 rescode = 3;
   string message = 4;
   string meta_file = 5;
   repeated string data_files = 6;
 }
 
-message WorkerResultReportReply {
+message PushWorkerResultRequest {
+  TaskIdentify task_id  = 1;
+  WorkerResultData result = 2;
+}
+
+message PushWorkerResultReply {
   int32 rescode = 1;
 }

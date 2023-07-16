@@ -2,12 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair" 
   "github.com/htner/sdb/gosrv/pkg/account"
-	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
@@ -17,22 +13,28 @@ type AccountServer struct {
 	port int
 }
 
-func (s *AccountServer) Login(cxt context.Context, req *LoginRequest) (resp *LoginResponse, err error) {
-  user_id, rescode, err := account.GetAccount(req.Organization, req.Account, req.Passwd) 
-  if (err != null || rescode != 0) {
-    return err;
+func (s *AccountServer) Login(cxt context.Context, req *sdb.LoginRequest) (resp *sdb.LoginResponse, err error) {
+  acc, err := account.GetSdbAccount(req.Account, req.Passwd) 
+  if (err != nil) {
+    return nil, err;
   }
-  tr.Start(true)
+  resp = new(sdb.LoginResponse)
+  resp.AccountId = acc.Id
+  resp.Rescode = 0
 
-  var session kvpair.Session
-  session.Uid = 1
-  session.Id = types.SessionId(req.Sessionid)
-  session.DbId = types.DatabaseId(req.Dbid)
-  session.State = kvpair.SessionTransactionIdle
-  session.ReadTranscationId = lakehouse.InvaildTranscaton
-  session.WriteTranscationId = lakehouse.InvaildTranscaton
-  lakehouse.WriteSession(&session)
-
-  return new(sdb.StartTransactionResponse), nil
+  return resp, err 
 }
 
+func (s *AccountServer) UserLogin(ctx context.Context, req *sdb.UserLoginRequest) (resp *sdb.UserLoginResponse, err error) {
+  resp = new(sdb.UserLoginResponse)
+  user, err := account.GetUser(req.Organization, req.Name, req.Passwd) 
+  if (err != nil) {
+    return nil, err;
+  }
+  resp = new(sdb.UserLoginResponse)
+  resp.UserId = user.Id
+  resp.OrganizationId = user.OrganizationId
+  resp.Rescode = "00000"
+
+  return resp, err 
+}

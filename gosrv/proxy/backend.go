@@ -6,12 +6,14 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
@@ -32,9 +34,12 @@ type Proxy struct {
 	frontendConn    net.Conn
 	frontendTLSConn *tls.Conn
 
+  organization  string
 	username      string
 	database      string
+
 	uid           uint64
+  organizationId uint64
 	dbid          uint64
 	sessionid     uint64
 	transcationid uint64
@@ -174,10 +179,10 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 	if relStartupRequest == nil {
 		return
 	}
-	p.username = relStartupRequest.Parameters["user"]
-
-	ok := new(pgproto3.AuthenticationOk)
-	p.backend.Send(ok)
+	//p.username = relStartupRequest.Parameters["user"]
+  if p.checkUser(relStartupRequest) != nil {
+    return
+  }
 
 	ready := new(pgproto3.ReadyForQuery)
 	ready.TxStatus = 'I'
@@ -202,6 +207,7 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 
 		switch msg := baseMsg.(type) {
 		case *pgproto3.Query:
+      /*
 			fmt.Println("Query", msg)
 			scheduleServerName := service.ScheduleName()
 			consul := "consul://127.0.0.1:8500/" + scheduleServerName + "?wait=14s&tag=public"
@@ -245,7 +251,12 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 				p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
 				return
 			}
+      */
 			//port, err := strconv.Atoi(resp.Message)
+//=======
+	//port, err := strconv.Atoi(resp.Message)
+      p.sendQueryToSchedule(msg)
+//>>>>>>> tmp task manager
 		case *pgproto3.CancelRequest:
 			p.frontendConn.Close()
 			p.frontendTLSConn.Close()
@@ -312,4 +323,105 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.ExecQueryReply) error {
 		return err
 	}
 	return nil
+}
+
+func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
+  fmt.Println("Query", msg)
+  scheduleServerName := service.ScheduleName()
+  consul := "consul://127.0.0.1:8500/" + scheduleServerName + "?wait=14s&tag=public"
+  conn, err := grpc.Dial(
+    consul,
+    grpc.WithInsecure(),
+    grpc.WithBlock(),
+    grpc.WithDefaultServiceConfig(grpcServiceConfig),
+    grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(128e+6)),
+  )
+  if err != nil {
+    p.SendError("58000")
+    return err
+  }
+  defer conn.Close()
+  // create a client and call the server
+  client := sdb.NewScheduleClient(conn)
+  ctx, cancel := context.WithCancel(context.Background())
+  defer cancel()
+  resp, err := client.Depart(ctx, &sdb.ExecQueryRequest{Sql: msg.String})
+  log.Println("get resp:", resp, err)
+  if err != nil {
+    p.SendError("58030")
+    return err
+  }
+
+  time.Sleep(10 * time.Second)
+  err = p.sendQueryResultToFronted(resp)
+  if err != nil {
+    log.Println("send query result to fronted err ", err)
+    p.SendError("58040")
+    return
+  }
+  return nil
+}
+
+func (p *Proxy) SendError(code string) {
+  buf := (&pgproto3.ErrorResponse{Code: "58030"}).Encode(nil)
+  _, err := p.frontendConn.Write(buf)
+  if err != nil {
+    return // fmt.Errorf("error writing query response: %w", err)
+  }
+}
+
+func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
+  fullUsername := msg.Parameters["user"]
+  names := strings.Split(fullUsername, ".")
+  if len(names) != 2 {
+    return errors.New("must has organization and username") 
+  }
+  p.organization = names[0]
+  p.username = names[1]
+  passwd := ""
+  
+  accountServerName := service.AccountName()
+  consul := "consul://127.0.0.1:8500/" + accountServerName + "?wait=14s&tag=public"
+  conn, err := grpc.Dial(
+    consul,
+    grpc.WithInsecure(),
+    grpc.WithBlock(),
+    grpc.WithDefaultServiceConfig(grpcServiceConfig),
+    grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(128e+6)),
+  )
+  if err != nil {
+      return err
+  }
+  defer conn.Close()
+  // create a client and call the server
+  client := sdb.NewAccountClient(conn)
+  ctx, cancel := context.WithCancel(context.Background())
+  defer cancel()
+
+  count := 0
+
+  for count < 2 {
+    resp, err := client.UserLogin(ctx, &sdb.UserLoginRequest{Organization: p.organization, Name:p.username, Passwd: passwd})
+    log.Println("get resp:", resp, err)
+    if err != nil {
+      return err
+    }
+    if resp.Rescode == "28P01" {
+      password := new(pgproto3.AuthenticationCleartextPassword)
+      p.backend.Send(password)
+    }
+
+    passwdMsg, err := p.backend.Receive()
+    switch msg := passwdMsg.(type) {
+    case *pgproto3.PasswordMessage:
+      passwd = msg.Password
+    default:
+      return errors.New("unkonw message")
+    }
+  }
+
+  ok := new(pgproto3.AuthenticationOk)
+  p.backend.Send(ok)
+
+  return nil
 }

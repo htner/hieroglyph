@@ -20,3 +20,7 @@ func LakeName() string {
 func ProxyName() string {
   return "sdb_proxy"
 }
+
+func AccountName() string {
+  return ServiceName(sdb.Account_ServiceDesc.ServiceName)
+}

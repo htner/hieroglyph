@@ -27,6 +27,8 @@ message QueryRequestInfo {
 
 message QueryOptimizerResult {
   OptimizeReply optimizer_result = 1;
+  int64 start_timestamp = 2;
+  int64 finish_timestamp = 3;
 }
 
 message QueryWorkerInfo {
@@ -47,14 +49,14 @@ message TaskResult {
   uint64 uid = 5;
   uint64 dbid = 6;
   uint64 worker_id = 7;
-  //PushWorkerResultData result = 8;
+  WorkerResultData result = 8;
 }
 
 message QueryResult {
   uint32 state = 1;
   string message = 2;
   string detail = 3;
-  //PushWorkerResultData result = 4;
+  WorkerResultData result = 4;
   int64 finish_timestamp = 5;
 }
 

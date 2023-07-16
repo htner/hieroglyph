@@ -22,12 +22,12 @@ package sdb;
 option cc_generic_services = false;
 option go_package="./sdb";
 
-import  "optimizer_service.proto";
-import  "worker_service.proto";
-import  "schedule_service.proto";
+//import  "optimizer_service.proto";
+//import  "worker_service.proto";
+//import  "schedule_service.proto";
 import  "lake_service.proto";
 
-
+/*
 enum CommandStatus {
   CS_NULL = 0;
   CS_INIT = 1;
@@ -57,8 +57,7 @@ message CommandExecDetail {
 message CommandResult {
   WorkerResultReportRequest result = 1;
 }
-
-
+*/
 
 message DeleteLakeFiles {
   repeated LakeFileHandle files = 1;
@@ -86,4 +85,9 @@ message LakeFileDetail {
 	uint32 xmin_state = 6; 
 	uint32 xmax_state = 7; 
 } 
+
+message Database {
+  uint64 dbid = 1;
+  string dbname = 2;
+}
 

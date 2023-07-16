@@ -127,10 +127,10 @@ func registerService(caddr, name string, port int) error {
 
 }
 
-func (c *ScheduleServer) WorkerReportResult(ctx context.Context, in *sdb.WorkerResultReportRequest) (*sdb.WorkerResultReportReply, error) {
-	out := new(sdb.WorkerResultReportReply)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
-	err := mgr.WriterExecResult(in)
+func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorkerResultRequest) (*sdb.PushWorkerResultReply, error) {
+  out := new(sdb.PushWorkerResultReply)
+	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Result.Dbid))
+	err := mgr.WriterWorkerResult(in)
 	return out, err
 }
 
@@ -313,7 +313,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		ResultDir: "/home/gpadmin/code/pg/scloud/gpAux/gpdemo/datadirs/",
 	}
 
-	err = mgr.WriterExecDetail(&query)
+	err = mgr.WriterWorkerInfo(&query)
 	if err != nil {
 		return nil, err
 	}
