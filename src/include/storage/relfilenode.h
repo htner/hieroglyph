@@ -14,6 +14,7 @@
 #ifndef RELFILENODE_H
 #define RELFILENODE_H
 
+#include "c.h"
 #include "common/relpath.h"
 #include "storage/backendid.h"
 

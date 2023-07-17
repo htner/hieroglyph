@@ -143,12 +143,15 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
   tr := lakehouse.NewTranscation(1, 1) 
   tr.Start(true)
 
-  var catalogFiles map[uint32][]*sdb.LakeFileDetail
+  catalogFiles := make(map[uint32][]*sdb.LakeFileDetail)
   lakeop := lakehouse.NewLakeRelOperator(1, 1, tr.Xid)
   for oid, _:= range postgres.CatalogNames {
     files,  err := lakeop.GetAllFileForRead(types.RelId(oid), 1, 1)
     if err != nil {
+		log.Printf("GetAllFileForRead failed %v", err)
+		continue
     }
+	log.Printf("dddtest oid = %d, files:%v", oid, files)
     catalogFiles[oid] = files
   }
 
@@ -157,22 +160,38 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	if err != nil {
 		return nil, err
 	}
+	
+	var conn *grpc.ClientConn
+    var optimizerResult *sdb.OptimizeReply
+	for port := 40000; port > 39980; port-- {
+		log.Printf("pick port %d to connect optimizer", port)
+		conn, err = grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatalf("did not connect: %v", err)
+			time.Sleep(1)
+			continue
+		}
 
-	conn, err := grpc.Dial(*optimizerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	c := sdb.NewOptimizerClient(conn)
+		defer conn.Close()
+		c := sdb.NewOptimizerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-	defer cancel()
-	optimizerResult, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: in.Sql})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+		defer cancel()
+		optimizerResult, err = c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: in.Sql})
+		if err != nil {
+			log.Printf("could not optimize: %v", err)
+			time.Sleep(1)
+			continue
+		}
+		break;
+	}
+
 	if err != nil {
-		log.Printf("could not optimize: %v", err)
+		log.Printf("finalize could not optimize: %v", err)
 		return nil, fmt.Errorf("optimizer error")
 	}
+
 	err = mgr.WriterOptimizerResult(0, optimizerResult)
 	if err != nil {
 		log.Printf("write optimize result error: %v", err)
@@ -268,7 +287,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 	}
 	log.Println(sliceTable.String())
 
-	log.Printf("------------------------------------")
+	log.Println("------------------------------------")
 
 	workinfos := make(map[int32]*sdb.WorkerInfo, 0)
 	//workerList
@@ -291,7 +310,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (
 		GucVersion: 1,
 		Workers:    workinfos,
 		SliceTable: &sliceTable,
-		ResultDir: "/home/gpadmin/code/pg/scloud/gpAux/gpdemo/datadirs/qddir",
+		ResultDir: "/home/gpadmin/code/pg/scloud/gpAux/gpdemo/datadirs/",
 	}
 
 	err = mgr.WriterExecDetail(&query)

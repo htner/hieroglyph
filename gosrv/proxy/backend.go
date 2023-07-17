@@ -239,6 +239,10 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 			err = p.sendQueryResultToFronted(resp)
 			if err != nil {
 				log.Println("send query result to fronted err ", err)
+				p.backend.Send(&pgproto3.ErrorResponse{Severity: "ERROR",
+								Code : "-1",
+								Message: err.Error()})
+				p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
 				return
 			}
 			//port, err := strconv.Atoi(resp.Message)

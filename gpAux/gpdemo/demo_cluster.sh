@@ -424,17 +424,17 @@ echo ""
 
 
 RETURN=$?
-
+CURRENT_DIR=$(cd `dirname $0`; pwd)
 echo "=========================================================================================="
 echo "executing:"
 
-echo "$GPHOME/bin/initdb -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0"
+echo "$GPHOME/bin/initdb -D ${CURRENT_DIR}/datadirs/initdb0"
 # echo "  $GPPATH/gpinitsystem -a -c $CLUSTER_CONFIG -l $DATADIRS/gpAdminLogs -p ${CLUSTER_CONFIG_POSTGRES_ADDONS} ${STANDBY_INIT_OPTS} gpfdists
 echo "=========================================================================================="
 echo ""
 #
 
-$GPHOME/bin/initdb -D /home/gpadmin/sdb/gpAux/gpdemo/datadirs/initdb0
+$GPHOME/bin/initdb -D ${CURRENT_DIR}/datadirs/initdb0
 
 echo "========================================"
 echo "initdb returned: ${RETURN}"

@@ -101,6 +101,7 @@
 #include "cdb/cdbtm.h"
 #include "cdb/cdbvars.h"        /* Gp_role */
 #include "cdb/cdbsreh.h"
+#include "storage/md.h"
 
 
 #define RELCACHE_INIT_FILEMAGIC		0x773266	/* version ID value */
@@ -4197,6 +4198,36 @@ RelationCacheInitializePhase2(void)
 	MemoryContextSwitchTo(oldcxt);
 }
 
+void
+unlink_oid(Oid rel_id, bool global)
+{
+	RelFileNodeBackend rnode;
+	char	   *path;
+	int			ret;
+	
+	rnode.backend = InvalidBackendId;
+	if (global)
+	{
+		rnode.node.spcNode = GLOBALTABLESPACE_OID;
+		rnode.node.dbNode = 0;
+	}
+	else
+	{
+		rnode.node.spcNode = DEFAULTTABLESPACE_OID;
+		rnode.node.dbNode = MyDatabaseId;
+	}
+
+	rnode.node.relNode = rel_id;
+
+	path = relpath(rnode, MAIN_FORKNUM);
+	elog(LOG, "dddtest remove tableoid = %ld, path:%s", rel_id, path);
+	ret = unlink(path);
+	if (ret < 0 && errno != ENOENT)
+		ereport(WARNING,
+				(errcode_for_file_access(),
+					errmsg("could not remove file \"%s\": %m", path)));	
+}
+
 /*
  *		RelationCacheInitializePhase3
  *
@@ -4388,16 +4419,22 @@ RelationCacheInitializePhase3(void)
 			relation_close(rel_index, AccessShareLock);
 
 			for (size_t i = 0; i < curr_pg_type_index_size; ++i) {
+				elog(WARNING, "reindex pg_type %d -> rel %d", pg_type_index[i], TypeRelationId);
+				unlink_oid(pg_type_index[i], false);
 				force_reindex_index(pg_type_index[i], TypeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
 			kInitIndex = IIState_PG_TYPE;
 
 			for (size_t i = 0; i < curr_pg_class_index_size; ++i) {
+				elog(WARNING, "reindex pg_class %d -> rel %d", pg_class_index[i], RelationRelationId);
+				unlink_oid(pg_class_index[i], false);
 				force_reindex_index(pg_class_index[i], RelationRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
 			kInitIndex = IIState_PG_CLASS;
 
 			for (size_t i = 0; i < curr_pg_attribute_index_size; ++i) {
+				elog(WARNING, "reindex pg_attribute %d -> rel %d", pg_attribute_index[i], AttributeRelationId);
+				unlink_oid(pg_attribute_index[i], false);
 				force_reindex_index(pg_attribute_index[i], AttributeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
 			kInitIndex = IIState_PG_ATTR;
@@ -4406,6 +4443,8 @@ RelationCacheInitializePhase3(void)
 				Oid indexid = catalog_index[i];
 				Oid relid = index_to_rels[indexid];
 				if (relid != InvalidOid) {
+					unlink_oid(indexid, true);
+					unlink_oid(indexid, false);
 					force_reindex_index(indexid, relid, true, RELPERSISTENCE_PERMANENT, 0);
 				}
 			}

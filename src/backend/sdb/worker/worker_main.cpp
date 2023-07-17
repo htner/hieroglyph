@@ -48,7 +48,7 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	MyDatabaseId = 1;
 	MyDatabaseTableSpace = 1;
 
-	InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+	InitMinimizePostgresEnv(argc, argv, "template1", "template1");
 	Gp_role = GP_ROLE_EXECUTE;
 	std::thread worker_thread(WorkerServerRun, argc, argv);
 

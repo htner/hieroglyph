@@ -87,7 +87,7 @@ bool ObjectStream::Upload() {
   std::shared_ptr<Aws::IOStream> input_data;
   Aws::S3::Model::PutObjectOutcome outcome;
 
-  bucket = "s3://" + dirname_;
+  bucket = "sdb" + std::to_string(MyDatabaseId);
   filepath = local_file_.data();
   request.SetBucket(bucket);
 

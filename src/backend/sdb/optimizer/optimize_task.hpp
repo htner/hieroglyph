@@ -7,6 +7,7 @@
 
 #include "optimizer_service.pb.h"
 #include "backend/sdb/optimizer/parser.hpp"
+#include <butil/logging.h>
 
 namespace sdb {
 
@@ -56,22 +57,31 @@ public:
   }
 
   void PlanQuery(Query* query) {
-    if (query->commandType == CMD_UTILITY) {
-      return;     
-    }
+	PlannedStmt *plan = NULL;
     char* plan_str = NULL;
-    PlannedStmt* plan = optimize_query(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
-    std::string plan_str_copy(plan_str);
-    auto params_str = PrepareParams(plan);
+
+    if (query->commandType == CMD_UTILITY) {
+	  	plan = utility_optimizer(query);
+    } else {
+    	plan = optimize_query(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
+	}
+
+	if (plan_str) {
+    	std::string plan_str_copy(plan_str);
+    	auto params_str = PrepareParams(plan);
+
+    	reply_->set_plan_dxl_str(plan_str_copy);
+    	reply_->set_plan_params_str(params_str);
+    	SetSlices(plan);
+	}
 
     int planstmt_len;
     int planstmt_len_uncompressed;
     char* planstmt_cstr = serializeNode((Node*)plan, &planstmt_len, &planstmt_len_uncompressed);
     std::string planstmt_str(planstmt_cstr, planstmt_len);
+
     reply_->set_planstmt_str(planstmt_str);
-    reply_->set_plan_dxl_str(plan_str_copy);
-    reply_->set_plan_params_str(params_str);
-    SetSlices(plan);
+
     elog_node_display(PG_LOG, "parse results:", plan, true);
     // COptTasks::Optimize(query);
   } 

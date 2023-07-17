@@ -741,6 +741,34 @@ CatalogCacheFlushCatalog(Oid catId)
 	CACHE_elog(DEBUG2, "end of CatalogCacheFlushCatalog call");
 }
 
+void
+CatalogCacheFlushCatalogAndIndex(Oid catId)
+{
+	slist_iter	iter;
+
+	CACHE_elog(DEBUG2, "CatalogCacheFlushCatalog called for %u", catId);
+
+	slist_foreach(iter, &CacheHdr->ch_caches)
+	{
+		CatCache   *cache = slist_container(CatCache, cc_next, iter.cur);
+
+		/* Does this cache store tuples of the target catalog? */
+		if (cache->cc_reloid == catId)
+		{
+			/* we need remove index*/
+			unlink_oid(cache->cc_indexoid, false);
+
+			/* Yes, so flush all its contents */
+			ResetCatalogCache(cache);
+
+			/* Tell inval.c to call syscache callbacks for this cache */
+			CallSyscacheCallbacks(cache->id, 0);
+		}
+	}
+
+	CACHE_elog(DEBUG2, "end of CatalogCacheFlushCatalog call");
+}
+
 /*
  *		InitCatCache
  *

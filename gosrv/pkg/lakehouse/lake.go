@@ -25,6 +25,7 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, files []string) error {
 	// 上锁
 	db, err := fdb.OpenDefault()
 	if err != nil {
+		log.Println("PrepareFiles open err: ", err)
 		return err
 	}
 	var mgr LockMgr
@@ -47,6 +48,9 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, files []string) error {
       key := kvpair.NewLakeLogItemKey(L.T.Database, rel, L.T.Xid, kvpair.PreInsertMark)
       return nil, kvOp.WritePB(key, &prepareFiles)
 		}, 3)
+	if e != nil {
+		log.Println("PrepareFiles lock err: ", e)
+	}
 	return e
 }
 

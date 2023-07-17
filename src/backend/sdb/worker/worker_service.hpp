@@ -33,6 +33,7 @@ public:
     }
 
     std::shared_ptr<ExecuteTask> task = std::make_shared<ExecuteTask>(req, this);
+	task->PrepareCatalog();
     tasks_[task->GetKey()] = task;
     //done_guard.release();
   }

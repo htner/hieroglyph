@@ -4,8 +4,8 @@ pkill -9 schedule
 pkill -9 lake 
 pkill -9 consul
 
-cmd="configure tenant_mode=disabled; writemode on; begin; clearrange \"\" \\xFF;  commit;"
-fdbcli --exec "$cmd" || true
+# cmd="configure tenant_mode=disabled; writemode on; begin; clearrange \"\" \\xFF;  commit;"
+# fdbcli --exec "$cmd" || true
 
 consul agent -dev > log/consul.log 2>&1 &
 sleep 1

@@ -19,6 +19,7 @@
 
 #include "backend/sdb/common/pg_export.hpp"
 
+#include <chrono>
 #include <gflags/gflags.h>
 #include <brpc/server.h>
 #include <brpc/restful.h>
@@ -32,10 +33,12 @@
 #include "backend/sdb/optimizer/optimizer_service.hpp"
 
 #include <butil/logging.h> // LOG Last
+#include <thread>
 
 DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
+DECLARE_int32(try_num);
 
 extern Oid MyDatabaseId;
 extern Oid MyDatabaseTableSpace;
@@ -55,7 +58,6 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 
 	while (true) {
 		auto task = sdb::TaskQueueSingleton::GetInstance()->pop_front(); 
-		LOG(ERROR) << "get one optimizer task";
 		task->Run();
 	}
 
@@ -73,10 +75,15 @@ int OptimizerServerRun(int argc, char** argv) {
 	// Add services into server. Notice the second parameter, because the
 	// service is put on stack, we don't want server to delete it, otherwise
 	// use brpc::SERVER_OWNS_SERVICE.
-	if (server.AddService(&http_svc,
-					   brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-		LOG(ERROR) << "Fail to add http_svc";
-		return -1;
+	for (int i = 0; i < FLAGS_try_num; ++i) {
+		if (server.AddService(&http_svc,
+						   brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+			LOG(ERROR) << "Fail to add http_svc";
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+			continue;
+		} else {
+			break;
+		}
 	}
 
 	FLAGS_port = PostPortNumber;
@@ -84,9 +91,15 @@ int OptimizerServerRun(int argc, char** argv) {
 	// Start the server.
 	brpc::ServerOptions options;
 	options.idle_timeout_sec = FLAGS_idle_timeout_s;
-	if (server.Start(FLAGS_port, &options) != 0) {
-		LOG(ERROR) << "Fail to start HttpServer";
-		return -1;
+	for (int i = 0; i < FLAGS_try_num; ++i) {
+		int32 port = --FLAGS_port;
+		if (server.Start(port, &options) != 0) {
+			LOG(ERROR) << "Fail to start HttpServer, port" << port;
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+			continue;
+		} else {
+			break;
+		}
 	}
 
 	// Wait until Ctrl-C is pressed, then Stop() and Join() the server.

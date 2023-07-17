@@ -1969,6 +1969,12 @@ void
 heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 			int options, BulkInsertState bistate, TransactionId xid)
 {
+	if (!IsBootstrapProcessingMode())
+	{
+		simple_parquet_insert_cache(relation, tup);
+		return;
+	}
+
 	HeapTuple	heaptup;
 	Buffer		buffer;
 	Buffer		vmbuffer = InvalidBuffer;
@@ -2582,6 +2588,8 @@ heap_delete(Relation relation, ItemPointer tid,
 			CommandId cid, Snapshot crosscheck, bool wait,
 			TM_FailureData *tmfd, bool changingPart)
 {
+	return ParquetDelete(relation, tid, cid, crosscheck, wait,tmfd, changingPart);
+
 	TM_Result	result;
 	TransactionId xid = GetCurrentTransactionId();
 	ItemId		lp;

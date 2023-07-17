@@ -435,7 +435,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
              */
             if ((match = parquet_s3_column_is_existed(manifest, pg_colname)) ==
                 false) {
-              LOG(DEBUG) << "parquet_s3_fdw: skip file " << filename;
+              LOG(INFO) << "parquet_s3_fdw: skip file " << filename;
               return NULL;
             }
             continue;
@@ -509,7 +509,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
             if (stats && !row_group_matches_filter(
                              stats.get(), field->type().get(), &filter)) {
               match = false;
-              LOG(DEBUG) << "parquet_s3_fdw: skip rowgroup " <<  r + 1;
+              LOG(INFO) << "parquet_s3_fdw: skip rowgroup " <<  r + 1;
             }
           }
           PG_CATCH();
@@ -1067,6 +1067,9 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
   return nullptr;
 }
 
+/*
+ * sdb: it is uesd by heap_delete function
+ */
 extern "C" TM_Result ParquetDelete(Relation relation, ItemPointer tid,
 							CommandId cid, Snapshot crosscheck, bool wait,
 							TM_FailureData *tmfd, bool changingPart) {
@@ -1280,7 +1283,9 @@ extern "C" void ParquetDmlFinish(Relation rel) {
 }
 
 
-
+/*
+ * sdb: it is uesd by heap_insert function
+ */
 extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
                               int options, struct BulkInsertStateData *bistate,
                               TransactionId xid) {
