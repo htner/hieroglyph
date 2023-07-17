@@ -106,6 +106,7 @@
 
 #include "utils/session_state.h"
 #include "utils/vmem_tracker.h"
+#include "catalog/pg_proc.h"
 
 /* ----------------
  *		global variables
@@ -6302,7 +6303,10 @@ exec_worker_query(const char *query_string,
 	bool root_work = false;
 	FrontendProtocol = PG_PROTOCOL_LATEST;
 
-	Assert(Gp_role == GP_ROLE_EXECUTE);
+	if (plan->commandType == CMD_UTILITY)
+		Gp_role = GP_ROLE_DISPATCH;
+	else
+		Assert(Gp_role == GP_ROLE_EXECUTE);
 	/*
 	 * Report query to various monitoring facilities.
 	 */
@@ -6570,6 +6574,7 @@ exec_worker_query(const char *query_string,
 	// finish_xact_command();
 
 	debug_query_string = NULL;
+	Gp_role = GP_ROLE_EXECUTE;
 }
 
 void 
@@ -6578,4 +6583,68 @@ set_worker_param(int64_t sessionid,
 {
 	// SetConfigOption("gp_session_id", sessionid, PGC_POSTMASTER, PGC_S_OVERRIDE);
 	qe_identifier = identifier;
+}
+
+PlannedStmt *
+utility_optimizer(Query *query)
+{
+	PlannedStmt *stmt;
+	Assert(query->commandType == CMD_UTILITY);
+
+	/* Utility commands require no planning. */
+	stmt = makeNode(PlannedStmt);
+	stmt->commandType = CMD_UTILITY;
+	stmt->canSetTag = query->canSetTag;
+	stmt->utilityStmt = query->utilityStmt;
+	stmt->stmt_location = query->stmt_location;
+	stmt->stmt_len = query->stmt_len;
+	stmt->numSlices = 0;
+
+	return stmt;
+}
+
+void prepare_catalog(List *prepare_catlog_list)
+{
+	ListCell	*iter;
+	// bool   have_pg_class = false;
+	// bool   have_pg_attr = false;
+	// bool   have_pg_proc = false;
+	// bool   have_pg_type = false;
+
+	// 1. invalid all catalog
+	RelationCacheInvalidate(false);
+
+	// 2. remove pg_internal.init which content is invalid
+	RelationCacheInitFilePreInvalidate();
+
+	// 3. reset all catalog cache and its index
+	// foreach(iter, prepare_catlog_list)
+	// {
+	// 	Oid pre_cat_oid = lfirst_oid(iter);
+	// 	switch(pre_cat_oid) {
+	// 		case RelationRelationId :
+	// 			have_pg_class = true;
+	// 			break;
+	// 		case AttributeRelationId:
+	// 			have_pg_attr = true;
+	// 			break;
+	// 		case TypeRelationId:
+	// 			have_pg_type = true;
+	// 			break;
+	// 		case ProcedureRelationId:
+	// 			have_pg_proc = true;
+	// 			break;
+	// 		default:
+	// 			break;
+	// 	}
+
+	// 	InvalidateCatalogSnapshot();
+	// CatalogCacheFlushCatalogAndIndex(pre_cat_oid);
+	// }
+
+	InvalidateCatalogSnapshot();
+	ResetCatalogCaches();
+	// 4. recreate all catalog cache, fix it in future
+	kInitIndex = IIState_NULL;
+	RelationCacheInitializePhase3();
 }

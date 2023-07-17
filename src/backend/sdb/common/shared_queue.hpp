@@ -28,7 +28,7 @@ template <typename T>
 T SharedQueue<T>::pop_front() {
   std::unique_lock<std::mutex> mlock(mutex_);
   while (queue_.empty()) {
-    cond_.wait(mlock);
+    cond_.wait(mlock, [&]{return !queue_.empty();});
   }
   auto t = queue_.front();
   queue_.pop_front();

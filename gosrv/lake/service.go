@@ -73,7 +73,8 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.Prepar
 		types.TransactionId(request.CommitXid))
 	err := lakeop.PrepareFiles(types.RelId(request.Rel), request.AddFiles)
 	if err != nil {
-		return nil, fmt.Errorf("mark files error")
+		log.Println("PrepareFiles error: ", err)
+		return nil, fmt.Errorf("mark files error %v", err)
 	}
 	return &sdb.PrepareInsertFilesResponse{}, nil
 }

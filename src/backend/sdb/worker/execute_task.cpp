@@ -29,7 +29,6 @@ void ExecuteTask::Run() {
 	StartTransactionCommand();
 	Prepare();
 	PrepareGuc();
-	PrepareCatalog();
 	HandleQuery();
 	CommitTransactionCommand();
 
@@ -64,6 +63,9 @@ void ExecuteTask::PrepareGuc() {
 }
 
 void ExecuteTask::PrepareCatalog() {
+	StartTransactionCommand();
+	prepare_catalog(NULL);
+	CommitTransactionCommand();
 	// jump now
 }
 
@@ -75,13 +77,21 @@ void ExecuteTask::HandleQuery() {
 	PlannedStmt* plan = (PlannedStmt *) deserializeNode(plan_info.data(), plan_info.size());
 	if (!plan || !IsA(plan, PlannedStmt))
 		LOG(ERROR) << "MPPEXEC: receive invalid planned statement";
+	
+	SerializedParams *params = NULL;
+	if (!request_.plan_params().empty()) {
+		const std::string& plan_params = request_.plan_params();
+		params = (SerializedParams*) deserializeNode(plan_params.data(), plan_params.size());
+		if (!params || !IsA(params, SerializedParams))
+			LOG(ERROR) << "MPPEXEC: receive invalid params";
+	}
 
-	const std::string& plan_params = request_.plan_params();
-	SerializedParams* params = (SerializedParams*) deserializeNode(plan_params.data(), plan_params.size());
-	if (!params || !IsA(params, SerializedParams))
-		LOG(ERROR) << "MPPEXEC: receive invalid params";
+	SliceTable *slice_table = nullptr;
 
-	auto slice_table = BuildSliceTable();
+	if (plan->commandType != CMD_UTILITY) {
+		slice_table = BuildSliceTable();
+	}
+
 	std::string result_file = std::to_string(request_.task_identify().query_id()) + "_"
 								+ std::to_string(request_.uid()) + "_"
 								+ std::to_string(request_.dbid()) + ".queryres";
@@ -93,6 +103,11 @@ void ExecuteTask::HandleQuery() {
 }
 
 SliceTable* ExecuteTask::BuildSliceTable() {
+	if (!request_.has_slice_table()) {	
+		LOG(INFO) << "not have slice table";
+		return nullptr;
+	}
+	LOG(INFO) << "have slice table";
 	auto pb_table = request_.slice_table();
 
 	auto table = makeNode(SliceTable);

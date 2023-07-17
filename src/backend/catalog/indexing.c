@@ -240,6 +240,12 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 
 	simple_heap_insert(heapRel, tup);
 
+	return;
+
+	/*
+	 * sdb: we not use local index, so we should get catalog and reindex it when exec
+	 * another query
+	 */
 	CatalogIndexInsert(indstate, tup);
 	CatalogCloseIndexes(indstate);
 }
