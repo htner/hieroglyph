@@ -33,12 +33,7 @@ type QueryHandler struct {
   newQueryId uint64
 }
 
-
-<<<<<<< HEAD:gosrv/schedule/query_scheduler.go
-func (Q *QueryScheduler) run(req *sdb.ExecQueryRequest) {
-=======
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
->>>>>>> task mgr ok:gosrv/schedule/query_handler.go
 	Q.request = req
 	log.Printf("get request %s", req.Sql)
 	// Set up a connection to the server.
@@ -77,103 +72,15 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 		return 0, err
 	}
 
-<<<<<<< HEAD:gosrv/schedule/query_scheduler.go
-//<<<<<<< HEAD:gosrv/schedule/server.go
-	return nil
-}
-
-func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorkerResultRequest) (*sdb.PushWorkerResultReply, error) {
-  out := new(sdb.PushWorkerResultReply)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Result.Dbid))
-	err := mgr.WriterWorkerResult(in)
-	return out, err
-}
-
-
-func (s *ScheduleServer) Depart(ctx context.Context, in *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {
-	log.Printf("get request %s", in.Sql)
-	// Set up a connection to the server.
-
-  // start transtion
-  tr := lakehouse.NewTranscation(1, 1) 
-  tr.Start(true)
-
-  catalogFiles := make(map[uint32][]*sdb.LakeFileDetail)
-  lakeop := lakehouse.NewLakeRelOperator(1, 1, tr.Xid)
-  for oid, _:= range postgres.CatalogNames {
-    files,  err := lakeop.GetAllFileForRead(types.RelId(oid), 1, 1)
-    if err != nil {
-		log.Printf("GetAllFileForRead failed %v", err)
-		continue
-    }
-	log.Printf("dddtest oid = %d, files:%v", oid, files)
-    catalogFiles[oid] = files
-  }
-
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
-	err := mgr.WriterQueryDetail(in)
-=======
-	sliceTable, err := s.prepareSliceTable(optimizerResult)
->>>>>>> task ok:gosrv/schedule/query_scheduler.go
-=======
-	err = Q.prepareSliceTable()
->>>>>>> task mgr ok:gosrv/schedule/query_handler.go
+  err = Q.prepareSliceTable()
 	if err != nil {
 		log.Printf("prepareSliceTable error: %v", err)
-		return 0, err
-	}
-	
-	var conn *grpc.ClientConn
-    var optimizerResult *sdb.OptimizeReply
-	for port := 40000; port > 39980; port-- {
-		log.Printf("pick port %d to connect optimizer", port)
-		conn, err = grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Fatalf("did not connect: %v", err)
-			time.Sleep(1)
-			continue
-		}
-
-<<<<<<< HEAD:gosrv/schedule/server.go
-		defer conn.Close()
-		c := sdb.NewOptimizerClient(conn)
-
-	// Contact the server and print out its response.
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-		defer cancel()
-		optimizerResult, err = c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: in.Sql})
-		if err != nil {
-			log.Printf("could not optimize: %v", err)
-			time.Sleep(1)
-			continue
-		}
-		break;
-	}
-
-	if err != nil {
-		log.Printf("finalize could not optimize: %v", err)
-		return nil, fmt.Errorf("optimizer error")
-	}
-
-	err = mgr.WriterOptimizerResult(0, optimizerResult)
-=======
-	var workerMgr schedule.WorkerMgr
-	log.Printf("slices: %v", Q.optimizerResult.Slices)
-	Q.workers, Q.workerSlices, err = workerMgr.GetServerSliceList(Q.optimizerResult.Slices)
-	if err != nil {
-		log.Printf("get server list error: %v", err)
 		return 0, err
 	}
 
   Q.buildPrepareTaskRequest()
 
-
-<<<<<<< HEAD:gosrv/schedule/query_scheduler.go
-	err = mgr.WriterWorkerInfo(&query)
->>>>>>> task ok:gosrv/schedule/query_scheduler.go
-=======
 	err = mgr.WriterWorkerInfo(Q.baseWorkerQuery)
->>>>>>> task mgr ok:gosrv/schedule/query_handler.go
 	if err != nil {
 		return 0, err
 	}
@@ -307,46 +214,10 @@ func (Q *QueryHandler) prepareSliceTable() error {
 			log.Printf("init segs %d(%d) %d/%d->%d", execSlice.SliceIndex, planSlice.GangType, k, execSlice.PlanNumSegments, segindex)
 			segindex++
 		}
-<<<<<<< HEAD:gosrv/schedule/server.go
-		sliceTable.Slices[i] = execSlice
-	}
-	log.Println(sliceTable.String())
-
-	log.Println("------------------------------------")
-
-	workinfos := make(map[int32]*sdb.WorkerInfo, 0)
-	//workerList
-	for _, worker := range workerList {
-		workinfos[worker.Segid] = worker
-	}
-
-	query := sdb.PrepareTaskRequest{
-		TaskIdentify: &sdb.TaskIdentify{QueryId: 1, SliceId: 0, SegId: 0},
-		Sessionid:    1,
-		Uid:          1,
-		Dbid:         1,
-		ReadXid:       1,
-		CommitXid:       1,
-		Sql:          in.Sql,
-		QueryInfo:    nil,
-		PlanInfo:     optimizerResult.PlanstmtStr,
-		//PlanInfoDxl: r.PlanDxlStr,
-		PlanParams: optimizerResult.PlanParamsStr,
-		GucVersion: 1,
-		Workers:    workinfos,
-		SliceTable: &sliceTable,
-		ResultDir: "/home/gpadmin/code/pg/scloud/gpAux/gpdemo/datadirs/",
-	}
-
-	err = mgr.WriterWorkerInfo(&query)
-	if err != nil {
-		return nil, err
-=======
 		Q.sliceTable.Slices[i] = execSlice
->>>>>>> task ok:gosrv/schedule/query_scheduler.go
 	}
 	log.Println(Q.sliceTable.String())
-	return nil
+  return nil
 }
 
 func (Q *QueryHandler) prepare() bool {
