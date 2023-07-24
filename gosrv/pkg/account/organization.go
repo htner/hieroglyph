@@ -2,6 +2,7 @@ package account
 
 import (
 	"errors"
+	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
@@ -9,6 +10,7 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
+
 
 type OrganizationMgr struct {
 }
@@ -53,10 +55,10 @@ func GetDatabase(organization, database string) (*sdb.Database, error) {
 }
 
 func CreateDatabase(organization, dbname string) error {
-  if (organization == "") {
+  if organization == "" {
     return errors.New("organization must be set")
   }
-  if (dbname == "") {
+  if dbname == "" {
     return errors.New("database must be set")
   }
   db, err := fdb.OpenDefault()
@@ -75,9 +77,11 @@ func CreateDatabase(organization, dbname string) error {
     }
     return idPointer.Id, nil
   })
+
   if e != nil {
     return e
   }
+  log.Printf("get organizationId : %d", organizationId.(uint64))
 
   _, e = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := fdbkv.NewKvOperator(tr)
@@ -112,17 +116,17 @@ func CreateDatabase(organization, dbname string) error {
 }
 
 func GetUser(organization, user, passwd string) (*sdb.User, error) {
-  if (organization == "") {
+  if organization == "" {
     return nil, errors.New("organization must be set")
   }
-  if (user == "") {
+  if user == "" {
     return nil, errors.New("username must be set")
   }
   db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
 	}
- sdbUser, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+  sdbUser, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
     kvReader := fdbkv.NewKvReader(rtr)
 
     key := &kvpair.OrganizationNameKey{Name: organization}
@@ -131,19 +135,25 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
     if err != nil {
       return nil, err
     }
+    log.Printf("get organizationId : %d", idPointer.Id)
 
+    /*
     keyOrga:= &kvpair.OrganizationKey{Id:idPointer.Id}
     organization := new(sdb.Organization)
     err = kvReader.ReadPB(keyOrga, organization)
     if err != nil {
       return nil, err
     }
+    */
 
-    keyUserName := &kvpair.UserLoginNameKey{LoginName: user}
+    log.Printf("get user %s in organizationId : %d", user, idPointer.Id)
+    keyUserName := &kvpair.UserLoginNameKey{OrganizationId:idPointer.Id, LoginName: user}
     err = kvReader.ReadPB(keyUserName, idPointer)
     if err != nil {
       return nil, err
     }
+
+    log.Printf("get user id: %d", idPointer.Id)
 
     keyUser:= &kvpair.UserKey{Id:idPointer.Id}
     sdbUser:= new(sdb.User)
@@ -152,10 +162,18 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
       return nil, err
     }
 
+    log.Println("get user ", sdbUser)
+
     err = CheckPasswd(idPointer.Id, passwd, sdbUser.Passwd)
+    if err != nil {
+      return nil, err 
+    }
     return sdbUser, err
   })
-  return sdbUser.(*sdb.User), e 
+  if sdbUser != nil {
+    return sdbUser.(*sdb.User), e 
+  }
+  return nil, e
 }
 
 func CreateUser(organization, account, passwd string) error {
@@ -191,7 +209,7 @@ func CreateUser(organization, account, passwd string) error {
     err = kvOp.ReadPB(key, idPointer)
     if err == nil {
       return nil, errors.New("use exist") 
-    } else if (err != fdbkv.EmptyDataErr) {
+    } else if err != fdbkv.EmptyDataErr {
       return nil, err
     }
 
@@ -201,6 +219,12 @@ func CreateUser(organization, account, passwd string) error {
     user.Name = account
     user.Passwd = GetEnPasswd(id, passwd)
     err = kvOp.WritePB(keyUser, user)
+    if err != nil {
+      return nil, err
+    }
+
+    idPointer.Id = id
+    err = kvOp.WritePB(key, idPointer)
     if err != nil {
       return nil, err
     }

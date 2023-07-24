@@ -82,7 +82,6 @@ func init() {
 
 	CreateDatabaseCmd.Flags().StringVarP(&organization, "organization", "o", "", "organizatio")
 	CreateDatabaseCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
-
 }
 
 

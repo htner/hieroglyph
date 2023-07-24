@@ -22,7 +22,8 @@ import (
 func rungRPC(done chan bool, port int) error {
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil { return fmt.Errorf("failed to listen: %w", err)
+	if err != nil { 
+    return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	s := grpc.NewServer()
@@ -60,10 +61,10 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 
-  port := 10001
+  port := 10005
 	done := make(chan bool, 1)
 	go rungRPC(done, port)
-	registerService("127.0.0.1:8600", service.AccountName(), port)
+	registerService("127.0.0.1:8500", service.AccountName(), port)
 	<-c
 }
 

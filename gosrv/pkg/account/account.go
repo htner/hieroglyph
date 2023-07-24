@@ -14,11 +14,13 @@ import (
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
+var ErrorPasswdMismatch error = errors.New("passwd mismatch")
+
 type AccountMgr struct {
 }
 
 func getOne(rt fdb.ReadTransactor, key fdb.Key) ([]byte, error) {
-		fmt.Printf("getOne called with: %T\n", rt)
+		log.Printf("getOne called with: %T\n", rt)
 		ret, e := rt.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 			return rtr.Get(key).MustGet(), nil
 		})
@@ -34,23 +36,27 @@ func SHA1(s string) string {
 	return hex.EncodeToString(o.Sum(nil))
 }
 
-func CheckPasswd(id uint64, enPasswd, passwd string) error {
+func CheckPasswd(id uint64, passwd, enPasswd string) error {
   checkEnPasswd := fmt.Sprintf("%d-%s", id, passwd)
-  checkEnPasswd = SHA1(checkEnPasswd)
-  if (checkEnPasswd == enPasswd) {
+  sha1pwd := SHA1(checkEnPasswd)
+	log.Printf("check passwd: %d %s %s %s %s", id, passwd, checkEnPasswd, sha1pwd, enPasswd)
+  if sha1pwd == enPasswd {
     return nil
   }
-  return errors.New("password mismatch")
+  //return errors.New("password mismatch")
+  return ErrorPasswdMismatch
 }
 
 func GetEnPasswd(id uint64, passwd string) string {
   checkEnPasswd := fmt.Sprintf("%d-%s", id, passwd)
-  return SHA1(checkEnPasswd)
+  pwd := SHA1(checkEnPasswd)
+	log.Printf("get passwd: %d %s %s %s", id, passwd, checkEnPasswd, pwd)
+  return pwd
 }
 
 
 func GetSdbAccount(account, passwd string) (*sdb.SdbAccount, error) {
-  if (account == "") {
+  if account == "" {
     return nil, errors.New("account must be set")
   }
 	db, err := fdb.OpenDefault()
@@ -75,19 +81,25 @@ func GetSdbAccount(account, passwd string) (*sdb.SdbAccount, error) {
     }
 
     err = CheckPasswd(idPointer.Id, passwd, sdbAccount.Passwd)
-    return sdbAccount, err
+    if err == nil {
+      return sdbAccount, err
+    }
+    return nil, err
   })
-  return sdbAccount.(*sdb.SdbAccount), e 
+  if sdbAccount != nil {
+    return sdbAccount.(*sdb.SdbAccount), e 
+  }
+  return nil, err
 }
 
 func CreateSdbAccount(account, passwd, organizationName string) error {
-  if (organizationName == "") {
+  if organizationName == "" {
     organizationName = account
   }
-  if (organizationName == "") {
+  if organizationName == "" {
     return errors.New("organization must be set")
   }
-  if (account == "") {
+  if account == "" {
     return errors.New("account must be set")
   }
 
@@ -112,7 +124,7 @@ func CreateSdbAccount(account, passwd, organizationName string) error {
     if err == nil {
       log.Println("get account:", key, idPointer)
       return nil, errors.New("sdb account exist") 
-    } else if (err != fdbkv.EmptyDataErr) {
+    } else if err != fdbkv.EmptyDataErr {
       return nil, err
     }
 
@@ -145,10 +157,9 @@ func CreateSdbAccount(account, passwd, organizationName string) error {
     err = kvOp.ReadPB(keyOrganName, idPointerOrgan)
     if err == nil {
       return nil, errors.New("organization name exist") 
-    } else if (err != fdbkv.EmptyDataErr) {
+    } else if err != fdbkv.EmptyDataErr {
       return nil, err
     }
-
 
     err = kvOp.WritePB(keyOrganName, idPointerOrgan)
     if err != nil {

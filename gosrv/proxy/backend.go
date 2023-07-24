@@ -63,11 +63,10 @@ func NewProxy(frontendConn net.Conn) *Proxy {
 func (p *Proxy) Run() error {
 	defer p.Close()
 
-	frontendErrChan := make(chan error, 1)
-	frontendMsgChan := make(chan pgproto3.FrontendMessage)
-	frontendNextChan := make(chan struct{})
-	go p.readClientConn(frontendMsgChan, frontendNextChan, frontendErrChan)
+  err := p.readClientConn()
+	log.Printf("read client conn %s", err.Error())
 
+  /*
 	for {
 		select {
 		case msg := <-frontendMsgChan:
@@ -75,7 +74,6 @@ func (p *Proxy) Run() error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("F", string(buf))
 
 			//err = p.frontend.Send(msg)
 			//if err != nil {
@@ -86,6 +84,8 @@ func (p *Proxy) Run() error {
 			return err
 		}
 	}
+  */
+  return nil
 }
 
 func (p *Proxy) Close() error {
@@ -97,15 +97,14 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
-func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan chan struct{}, errChan chan error) {
+func (p *Proxy) readClientConn() error{
 	startupMessage, err := p.backend.ReceiveStartupMessage()
 	if err != nil {
-		errChan <- err
-		return
+		return err
 	}
 	buf, err := json.Marshal(startupMessage)
 	if err != nil {
-		return
+		return err
 	}
 	fmt.Println("F", string(buf))
 
@@ -113,7 +112,7 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 	fmt.Println(sslRequest)
 	buf, err = json.Marshal(sslRequest)
 	if err != nil {
-		return
+		return err
 	}
 	fmt.Println("F", string(buf))
 
@@ -125,7 +124,7 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 		cer, err := tls.LoadX509KeyPair("./server.crt", "./server.key")
 		if err != nil {
 			log.Println(err)
-			return
+			return err
 		}
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
@@ -134,7 +133,7 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 		p.frontendTLSConn = tls.Server(p.frontendConn, config)
 		err = p.frontendTLSConn.Handshake()
 		if err != nil {
-			return
+			return err
 		}
 		fmt.Println("Handshake", err)
 		//p.frontendConn.
@@ -153,12 +152,11 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 
 		startupMessage, err = p.backend.ReceiveStartupMessage()
 		if err != nil {
-			errChan <- err
-			return
+			return err
 		}
 		buf, err := json.Marshal(startupMessage)
 		if err != nil {
-			return
+			return err
 		}
 		fmt.Println("F", string(buf))
 
@@ -176,11 +174,13 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 	//p.backend.Send(password)
 	relStartupRequest := startupMessage.(*pgproto3.StartupMessage)
 	if relStartupRequest == nil {
-		return
+		fmt.Println("not a startupMessage")
+		return err
 	}
 	//p.username = relStartupRequest.Parameters["user"]
-	if p.checkUser(relStartupRequest) != nil {
-		return
+	err = p.checkUser(relStartupRequest)
+  if err != nil {
+		return err
 	}
 
 	ready := new(pgproto3.ReadyForQuery)
@@ -193,11 +193,11 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 		fmt.Println(baseMsg, err)
 		fmt.Println("type", reflect.TypeOf(baseMsg))
 		if err != nil {
-			return
+			return err
 		}
 		buf, err := json.Marshal(baseMsg)
 		if err != nil {
-			return
+			return err
 		}
 		fmt.Println("K", string(buf))
 
@@ -259,16 +259,20 @@ func (p *Proxy) readClientConn(msgChan chan pgproto3.FrontendMessage, nextChan c
 //>>>>>>> tmp task manager
 //=======
 			//port, err := strconv.Atoi(resp.Message)
-			p.sendQueryToSchedule(msg)
+			err = p.sendQueryToSchedule(msg)
+      if err != nil {
+        return err
+      }
 //>>>>>>> task ok
 		case *pgproto3.CancelRequest:
 			p.frontendConn.Close()
 			p.frontendTLSConn.Close()
 			stop = true
-			return
+			return nil
 		}
 
 	}
+  return nil
 }
 
 func (p *Proxy) sendQueryResultToFronted(resp *sdb.ExecQueryReply) error {
@@ -394,6 +398,8 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 	p.username = names[1]
 	passwd := ""
 
+  log.Println("checkuser ", p.organization, p.username)
+
 	accountServerName := service.AccountName()
 	consul := "consul://127.0.0.1:8500/" + accountServerName + "?wait=14s&tag=public"
 	conn, err := grpc.Dial(
@@ -415,15 +421,23 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 	count := 0
 
 	for count < 2 {
+    log.Println("account server user login ", p.organization, p.username, passwd)
 		resp, err := client.UserLogin(ctx, &sdb.UserLoginRequest{Organization: p.organization, Name: p.username, Passwd: passwd})
 		log.Println("get resp:", resp, err)
 		if err != nil {
 			return err
 		}
-		if resp.Rescode == "28P01" {
+		if count == 0 && resp.Rescode == "28P01" {
 			password := new(pgproto3.AuthenticationCleartextPassword)
 			p.backend.Send(password)
-		}
+		} else if resp.Rescode == "00000" {
+      ok := new(pgproto3.AuthenticationOk)
+      p.backend.Send(ok)
+      return nil
+    } else {
+      p.SendError(resp.Rescode)
+      return errors.New("error")
+    }
 
 		passwdMsg, err := p.backend.Receive()
 		switch msg := passwdMsg.(type) {
@@ -432,10 +446,8 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 		default:
 			return errors.New("unkonw message")
 		}
+    count++
 	}
-
-	ok := new(pgproto3.AuthenticationOk)
-	p.backend.Send(ok)
-
-	return nil
+	p.SendError("58030")
+	return errors.New("unkonw message")
 }
