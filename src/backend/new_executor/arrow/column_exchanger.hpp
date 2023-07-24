@@ -17,13 +17,14 @@ using GetDatumFunc = std::function<arrow::Status(arrow::Array*, int64_t, Datum*)
 class ColumnExchanger {
 public:
   ColumnExchanger(Oid rel, Form_pg_attribute attr);
-  ColumnExchanger(int16_t typid);
+  ColumnExchanger(Oid rel, int16_t typid);
 
   GetDatumFunc GetFunction(Oid rel, Form_pg_attribute attr);
 
-  GetDatumFunc GetFunction(Oid typid);
+  GetDatumFunc GetFunction(Oid rel, Oid typid);
 
-  GetDatumFunc GetFunction(Oid typid,
+  GetDatumFunc GetFunction(Oid rel,
+                           Oid typid,
                            int typlen,
                            bool typbyval,
                            char typalign,

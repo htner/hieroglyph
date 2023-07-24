@@ -15,8 +15,6 @@
 
 #include "backend/new_executor/arrow/boot.hpp"
 
-
-
 extern bool NeedForwardLookupFromPgType(Oid id);
 
 extern bool NeedForwardLookupFromPgType(Oid id);

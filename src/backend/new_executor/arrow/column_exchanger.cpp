@@ -271,7 +271,7 @@ ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
 	}
 }
 
-ColumnExchanger::ColumnExchanger(int16_t typid) { func_ = GetFunction(typid); }
+ColumnExchanger::ColumnExchanger(Oid rel, int16_t typid) { func_ = GetFunction(rel, typid); }
 
 #define CASE_RETURN_PUSH_VALUE_FUNC(oid) \
   case oid: {                              \
@@ -330,12 +330,12 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
 	ReleaseSysCache(tup);
   }
 
-  return GetFunction(atttypid, typlen, attbyval,
+  return GetFunction(rel, atttypid, typlen, attbyval,
                      attalign, typtype, atttypmod,
                      attelem, attrelid);
 }
 
-GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
+GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
 
@@ -395,7 +395,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid) {
                      elem_type->typtypmod, elem_type->typelem,
                      elem_type->typrelid);
 					 */
-  return GetFunction(typid, typlen, attbyval,
+  return GetFunction(rel, typid, typlen, attbyval,
                      attalign, typtype, atttypmod,
                      attelem, attrelid);
 }
@@ -404,14 +404,14 @@ extern void GetElmInfo(Oid rel, Oid typid, int32_t* typmod,
 						 char* typtype, int* typlen,
 						 bool* elmbyval, char* elmalign);
 
-GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
+GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool typbyval,
                                           char typalign, char typtype,
                                           int32_t typemod, Oid typelem,
                                           Oid typrelid) {
   /* array type */
   if (typelem != 0 && typlen == -1) {
 //	LOG(ERROR) << "get array function";
-    auto sub_func = GetFunction(typelem);
+    auto sub_func = GetFunction(rel, typelem);
     if (sub_func == nullptr) {
 	
 	  LOG(ERROR) << "get array function sub func error";
@@ -444,7 +444,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
     std::vector<GetDatumFunc> sub_funcs;
     std::vector<Oid> sub_types;
 
-    // relation = relation_open(typrelid, AccessShareLock);
+    auto relation = relation_open(typrelid, AccessShareLock);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
 			/*
@@ -454,7 +454,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid typid, int typlen, bool typbyval,
       }
 	  */
       auto sub_typeid = attr->atttypid;
-      auto sub_func = GetFunction(attr);
+      auto sub_func = GetFunction(typrelid, attr);
       sub_funcs.push_back(sub_func);
       sub_types.push_back(sub_typeid);
     }
