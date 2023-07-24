@@ -6,17 +6,17 @@ import (
 )
 
 type QueryKey struct {
-  tag uint16
-  Dbid uint64
-  Commandid uint64
+	QueryTag  uint16
+	Dbid      uint64
+	Commandid uint64
 }
 
 func NewQueryKey(dbid uint64, commandid uint64, tag uint16) *QueryKey {
-  return &QueryKey{tag:tag, Dbid:dbid, Commandid:commandid}
+	return &QueryKey{QueryTag: tag, Dbid: dbid, Commandid: commandid}
 }
 
 func (k *QueryKey) Tag() uint16 {
-	return k.tag 
+	return k.QueryTag
 }
 
 func (k *QueryKey) EncFdbKey(buf *bytes.Buffer) error {
@@ -36,10 +36,10 @@ func (k *QueryKey) DecFdbKey(buf *bytes.Reader) error {
 }
 
 type WorkerTaskKey struct {
-  Dbid uint64
-  QueryId uint64
-  SliceId int32
-  SegId int32
+	Dbid    uint64
+	QueryId uint64
+	SliceId int32
+	SegId   int32
 }
 
 func (k *WorkerTaskKey) Tag() uint16 {

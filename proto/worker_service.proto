@@ -51,8 +51,6 @@ message PBSliceTable {
   string sql = 7;
 }
 
-
-
 message TaskIdentify {
   uint64 query_id = 1;
   int32 slice_id = 2;

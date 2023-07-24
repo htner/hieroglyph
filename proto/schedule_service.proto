@@ -12,6 +12,7 @@ import  "worker_service.proto";
 service Schedule {
   rpc Depart(ExecQueryRequest) returns (ExecQueryReply) {}
   rpc PushWorkerResult(PushWorkerResultRequest) returns (PushWorkerResultReply) {}
+  rpc CheckQueryResult(CheckQueryResultRequest) returns (CheckQueryResultReply) {}
 }
 
 // The request message containing the user's name.
@@ -21,8 +22,7 @@ message ExecQueryRequest {
   uint64 sid = 3;
   uint64 uid = 4;
   uint64 dbid = 5;
-  uint64 xid = 6;
-  uint64 commandid = 7;
+  string uuid = 6; // if uuid is not empty, request will be exector exactly once
 }
 
 // The response message containing the greetings
@@ -31,7 +31,8 @@ message ExecQueryReply {
   uint64 sessionid = 2;
   uint64 uid = 3;
   uint64 dbid = 4;
-  string result_dir = 5;
+  uint64 query_id = 5;
+  string result_dir = 6;
 }
 
 message WorkerResultData {
@@ -51,3 +52,15 @@ message PushWorkerResultRequest {
 message PushWorkerResultReply {
   int32 rescode = 1;
 }
+
+message CheckQueryResultRequest {
+  uint64 query_id = 1;
+  uint64 sessionid = 2;
+  uint64 uid = 3;
+  uint64 dbid = 4;
+}
+
+message PushWorkerResultReply {
+  WorkerResultData result = 1;
+}
+

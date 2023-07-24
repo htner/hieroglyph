@@ -2,8 +2,6 @@ package schedule
 
 import (
 	"time"
-	"bytes"
-	"encoding/binary"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
@@ -19,32 +17,23 @@ type QueryMgr struct {
 func NewQueryMgr(dbid types.DatabaseId) *QueryMgr {
 	return &QueryMgr{Database: dbid}
 }
-
-type QueryKey struct {
-	dbid uint64
-	commandid uint64
-	tag       uint16
-}
-
-func (mgr *QueryMgr) NewQueryKey(cid uint64, tag uint16) *QueryKey {
-	var key QueryKey
-  key.dbid = uint64(mgr.Database)
-	key.commandid = cid
-	key.tag = tag
+func (mgr *QueryMgr) NewQuery() *kvpair.QueryKey {
+	var key kvpair.QueryKey
+	key.Dbid = uint64(mgr.Database)
+	//key.Commandid = cid
+	//key.QueryTag = tag
 	return &key
 }
 
-func (k *QueryKey) Tag() uint16 {
-	return k.tag
+/*
+func (mgr *QueryMgr) NewQueryKey(cid uint64, tag uint16) *QueryKey {
+	var key kvpair.QueryKey
+	key.Dbid = uint64(mgr.Database)
+	key.Commandid = cid
+	key.QueryTag = tag
+	return &key
 }
-
-func (k *QueryKey) EncFdbKey(buf *bytes.Buffer) error {
-	return binary.Write(buf, binary.LittleEndian, k.commandid)
-}
-
-func (k *QueryKey) DecFdbKey(buf *bytes.Reader) error {
-	return binary.Read(buf, binary.LittleEndian, &k.commandid)
-}
+*/
 
 func (mgr *QueryMgr) WriterQueryDetail(req *sdb.ExecQueryRequest) error {
 	db, err := fdb.OpenDefault()
@@ -58,7 +47,7 @@ func (mgr *QueryMgr) WriterQueryDetail(req *sdb.ExecQueryRequest) error {
 		key := mgr.NewQueryKey(req.Commandid, kvpair.QueryRequestTag)
 		value := new(sdb.QueryRequestInfo)
 		value.QueryRequest = req
-    value.CreateTimestamp = time.Now().UnixMicro()
+		value.CreateTimestamp = time.Now().UnixMicro()
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
@@ -135,7 +124,7 @@ func (mgr *QueryMgr) WriterWorkerResult(req *sdb.PushWorkerResultRequest) error 
 	return e
 }
 
-func (mgr *QueryMgr) WriterQueryResult(queryId uint64, state uint32, msg, detail string, result *sdb.WorkerResultData) error {
+func (mgr *QueryMgr) WriteQueryResult(queryId uint64, state uint32, msg, detail string, result *sdb.WorkerResultData) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -155,4 +144,28 @@ func (mgr *QueryMgr) WriterQueryResult(queryId uint64, state uint32, msg, detail
 		return nil, nil
 	})
 	return e
+}
+
+func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.WorkerResultData, error) {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return nil, err
+	}
+	value, e := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
+
+		kvOp := fdbkv.NewKvReader(tr)
+
+		key := mgr.NewQueryKey(queryId, kvpair.QueryResultTag)
+		value := new(sdb.QueryResult)
+		err = kvOp.ReadPB(key, value)
+		if err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	})
+	if e != nil {
+		return nil, e
+	}
+	return value.(*sdb.WorkerResultData), e
 }
