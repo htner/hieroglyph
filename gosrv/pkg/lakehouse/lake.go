@@ -303,7 +303,7 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*sdb.LakeFileDeta
 	return e
 }
 
-func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, readXid, writeXid types.TransactionId) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId) ([]*sdb.LakeFileDetail, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
@@ -388,7 +388,7 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId, readXid, writeXid t
 	return files, err
 }
 
-func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, readXid, writeXid types.TransactionId) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId) ([]*sdb.LakeFileDetail, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err

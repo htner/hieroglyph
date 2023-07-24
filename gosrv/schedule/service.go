@@ -28,28 +28,33 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 	out := new(sdb.PushWorkerResultReply)
 	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Result.Dbid))
 	err := mgr.WriterWorkerResult(in)
+
+  if in.TaskId.SliceId == 0 {
+    mgr.WriteQueryResult(in.TaskId.QueryId, uint32(in.Result.Rescode), in.Result.Message, "", in.Result)
+  }
 	return out, err
 }
 
 func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQueryResultRequest) (*sdb.CheckQueryResultReply, error) {
 	//out := new(sdb.QueryResultReply)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Result.Dbid))
+	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
 	result, err := mgr.ReadQueryResult(in.QueryId)
 	reply := new(sdb.CheckQueryResultReply)
+  reply.Result = result
 
 	return reply, err
 }
 
 func (s *ScheduleServer) Depart(ctx context.Context, query *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {
-	queryScheduler := &QueryScheduler{request: query}
-	queryScheduler.run()
+	queryScheduler := &QueryHandler{request: query}
+  queryId, err := queryScheduler.run(query)
 
 	resRepy := &sdb.ExecQueryReply{
-		QueryId:   query.TaskIdentify.QueryId,
-		Sessionid: query.Sessionid,
+		QueryId:   queryId,
+		Sessionid: query.Sid,
 		Uid:       query.Uid,
 		Dbid:      query.Dbid,
-		ResultDir: query.ResultDir,
+		//ResultDir: query.ResultDir,
 	}
-	return resRepy, nil
+	return resRepy, err 
 }

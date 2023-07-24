@@ -135,10 +135,10 @@ func (s *LakeServer) GetFileList(ctx context.Context, req *sdb.GetFilesRequest) 
   files := make([]*sdb.LakeFileDetail, 0)
   var err error
   if req.GetIsWrite() {
-    files, err = lakeop.GetAllFileForUpdate(types.RelId(req.Rel), types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid))
+    files, err = lakeop.GetAllFileForUpdate(types.RelId(req.Rel)/*, types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid)*/)
   } else {
     //files, err = lakeop.GetAllFileForRead(types.RelId(req.Rel), req.ReadXid, req.CommitXid)
-    files, err = lakeop.GetAllFileForRead(types.RelId(req.Rel), types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid))
+    files, err = lakeop.GetAllFileForRead(types.RelId(req.Rel)/*, types.TransactionId(req.ReadXid), types.TransactionId(req.CommitXid)*/)
   }
   if err != nil {
     return nil, err

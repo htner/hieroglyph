@@ -31,8 +31,7 @@ message ExecQueryReply {
   uint64 sessionid = 2;
   uint64 uid = 3;
   uint64 dbid = 4;
-  uint64 query_id = 5;
-  string result_dir = 6;
+  string result_dir = 5;
 }
 
 message WorkerResultData {
@@ -51,6 +50,7 @@ message PushWorkerResultRequest {
 
 message PushWorkerResultReply {
   int32 rescode = 1;
+  string resmsg = 2;
 }
 
 message CheckQueryResultRequest {
@@ -60,7 +60,9 @@ message CheckQueryResultRequest {
   uint64 dbid = 4;
 }
 
-message PushWorkerResultReply {
-  WorkerResultData result = 1;
+message CheckQueryResultReply {
+  int32 rescode = 1;
+  string resmsg = 2;
+  WorkerResultData result = 3;
 }
 
