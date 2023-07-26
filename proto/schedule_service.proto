@@ -39,8 +39,9 @@ message WorkerResultData {
   uint64 query_id = 2;
   int32 rescode = 3;
   string message = 4;
-  string meta_file = 5;
-  repeated string data_files = 6;
+  string result_dir = 5;
+  string meta_file = 6;
+  repeated string data_files = 7;
 }
 
 message PushWorkerResultRequest {

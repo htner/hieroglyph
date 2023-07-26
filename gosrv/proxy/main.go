@@ -39,6 +39,7 @@ func main() {
 			log.Fatal(err)
 		}
 		go func() {
+      log.Printf("new client conn")
 			proxy := NewProxy(clientConn)
 			err = proxy.Run()
 			if err != nil {

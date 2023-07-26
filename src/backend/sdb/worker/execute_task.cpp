@@ -3,6 +3,7 @@
 #include "backend/sdb/worker/execute_task.hpp"
 #include "backend/sdb/worker/motion_stream.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
+#include "schedule_service.pb.h"
 #include "sdb/execute.h"
 
 extern uint64_t read_xid;
@@ -51,11 +52,11 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 }
 
 void ExecuteTask::Prepare() {
-read_xid = request_.read_xid();
-commit_xid = request_.commit_xid();
-dbid = request_.dbid();
-sessionid = request_.sessionid();
-query_id = request_.task_identify().query_id();
+	read_xid = request_.read_xid();
+	commit_xid = request_.commit_xid();
+	dbid = request_.dbid();
+	sessionid = request_.sessionid();
+	query_id = request_.task_identify().query_id();
 }
 
 void ExecuteTask::PrepareGuc() {
@@ -100,6 +101,46 @@ void ExecuteTask::HandleQuery() {
 	exec_worker_query(request_.sql().data(), plan, params, slice_table,
 					  request_.result_dir().data(), result_file.data(),
 					  (void*)this);
+	ReportResult(request_.result_dir(), result_file);
+}
+
+void ExecuteTask::ReportResult(const std::string& result_dir, const std::string& result_file) {
+	std::unique_ptr<brpc::Channel> channel;
+	std::unique_ptr<sdb::Schedule_Stub> stub;//(&channel);
+	brpc::Controller cntl;
+	channel = std::make_unique<brpc::Channel>();
+
+	// Initialize the channel, NULL means using default options. 
+	brpc::ChannelOptions options;
+	options.protocol = "h2:grpc";
+	options.connection_type = "pooled";
+	options.timeout_ms = 10000/*milliseconds*/;
+	options.max_retry = 5;
+	if (channel->Init("127.0.0.1:10002", NULL) != 0) {
+		LOG(ERROR) << "Fail to initialize channel";
+		return;
+	}
+	stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
+
+	sdb::PushWorkerResultRequest request;
+	auto task_id = request.mutable_task_id();
+	*task_id = request_.task_identify();
+	auto result = request.mutable_result();
+	result->set_dbid(request_.dbid());
+	result->set_query_id(request_.task_identify().query_id());
+	result->set_rescode(0);
+	result->set_message("");
+	result->set_result_dir(result_dir);
+	result->set_meta_file("");
+	result->add_data_files(result_file);
+
+	sdb::PushWorkerResultReply response;
+
+	stub->PushWorkerResult(&cntl, &request, &response, NULL);
+	if (cntl.Failed()) {
+		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		return;
+	}
 }
 
 SliceTable* ExecuteTask::BuildSliceTable() {

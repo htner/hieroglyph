@@ -89,5 +89,6 @@ message LakeFileDetail {
 message Database {
   uint64 dbid = 1;
   string dbname = 2;
+  uint64 organization_id = 3;
 }
 

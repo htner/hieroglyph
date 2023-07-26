@@ -3,8 +3,9 @@ package lakehouse
 import (
 	"errors"
 	"fmt"
-	"log"
 
+	_ "github.com/htner/sdb/gosrv/pkg/utils/slog"
+  log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"

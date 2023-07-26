@@ -14,6 +14,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
 	"github.com/htner/sdb/gosrv/pkg/service"
@@ -89,6 +90,7 @@ func (p *Proxy) Run() error {
 }
 
 func (p *Proxy) Close() error {
+	log.Printf("close client conn")
 	frontendCloseErr := p.frontendConn.Close()
 
 	if frontendCloseErr != nil {
@@ -106,15 +108,15 @@ func (p *Proxy) readClientConn() error{
 	if err != nil {
 		return err
 	}
-	fmt.Println("F", string(buf))
+  fmt.Println("startup:", string(buf))
 
 	sslRequest := startupMessage.(*pgproto3.SSLRequest)
-	fmt.Println(sslRequest)
+	fmt.Println("sslrequest", sslRequest)
 	buf, err = json.Marshal(sslRequest)
 	if err != nil {
 		return err
 	}
-	fmt.Println("F", string(buf))
+  fmt.Println("sslrequest detail:", string(buf))
 
 	if sslRequest != nil {
 		s := []byte{'S'}
@@ -158,7 +160,7 @@ func (p *Proxy) readClientConn() error{
 		if err != nil {
 			return err
 		}
-		fmt.Println("F", string(buf))
+    fmt.Println("startup message in ssh:", string(buf))
 
 		//ready := new(pgproto3.AuthenticationOk)
 		//p.frontendTLSConn(ready)
@@ -199,7 +201,7 @@ func (p *Proxy) readClientConn() error{
 		if err != nil {
 			return err
 		}
-		fmt.Println("K", string(buf))
+    fmt.Println("basemsg:", string(buf))
 
 		// 自定义 LB，并使用刚才写的 Consul Resolver
 		//lbrr := grpc.RoundRobin(grpcresolver.ForConsul(registry))
@@ -353,7 +355,10 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
 	client := sdb.NewScheduleClient(conn)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	resp, err := client.Depart(ctx, &sdb.ExecQueryRequest{Sql: msg.String})
+
+  req := &sdb.ExecQueryRequest{Sql: msg.String, Sid:p.sessionid, Uid:p.uid, Dbid: p.dbid}
+  log.Println("get req:", req)
+  resp, err := client.Depart(ctx, req)
 	log.Println("get resp:", resp, err)
 	if err != nil {
 		p.SendError("58030")
@@ -369,6 +374,7 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
 			p.SendError("58030")
 			return err
 		}
+    time.Sleep(time.Second)
 	}
 
 	err = p.sendQueryResultToFronted(resp)
@@ -389,13 +395,14 @@ func (p *Proxy) SendError(code string) {
 }
 
 func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
-	fullUsername := msg.Parameters["user"]
-	names := strings.Split(fullUsername, ".")
+	fullDatabase := msg.Parameters["database"]
+	names := strings.Split(fullDatabase, ".")
 	if len(names) != 2 {
 		return errors.New("must has organization and username")
 	}
 	p.organization = names[0]
-	p.username = names[1]
+	p.database = names[1]
+	p.username = msg.Parameters["user"]
 	passwd := ""
 
   log.Println("checkuser ", p.organization, p.username)
@@ -422,8 +429,8 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 
 	for count < 2 {
     log.Println("account server user login ", p.organization, p.username, passwd)
-		resp, err := client.UserLogin(ctx, &sdb.UserLoginRequest{Organization: p.organization, Name: p.username, Passwd: passwd})
-		log.Println("get resp:", resp, err)
+		resp, err := client.UserLogin(ctx, &sdb.UserLoginRequest{Organization: p.organization, Name: p.username, Passwd: passwd, Database: p.database})
+		log.Println("get user login resp:", resp, err)
 		if err != nil {
 			return err
 		}
@@ -431,6 +438,11 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 			password := new(pgproto3.AuthenticationCleartextPassword)
 			p.backend.Send(password)
 		} else if resp.Rescode == "00000" {
+      p.dbid = resp.Dbid
+      p.uid = resp.UserId
+      p.organizationId = resp.OrganizationId
+      p.sessionid = resp.SessionId
+
       ok := new(pgproto3.AuthenticationOk)
       p.backend.Send(ok)
       return nil

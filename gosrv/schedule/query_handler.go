@@ -35,14 +35,15 @@ type QueryHandler struct {
 
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	Q.request = req
-	log.Printf("get request %s", req.Sql)
+  Q.sliceTable = new(sdb.PBSliceTable)
+	log.Println("get request ", req)
 	// Set up a connection to the server.
 
 	// start transtion
 	tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sid))
 	tr.Start(true)
 
-	var catalogFiles map[uint32][]*sdb.LakeFileDetail
+  catalogFiles := make(map[uint32][]*sdb.LakeFileDetail)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(req.Dbid), types.SessionId(req.Sid), lakehouse.InvaildTranscaton)
 	for oid, _ := range postgres.CatalogNames {
 		files, err := lakeop.GetAllFileForRead(types.RelId(oid))
@@ -311,7 +312,7 @@ func (Q *QueryHandler) startWorkers() bool {
       if reply != nil {
         log.Printf("start reply: %v", reply.String())
       }
-      }(taskid, workerSlice.WorkerInfo.Addr)
+    }(taskid, workerSlice.WorkerInfo.Addr)
   }
   wg.Wait()
   return allSuccess

@@ -17,7 +17,7 @@ type LakeServer struct {
 	port int
 }
 
-func (s *LakeServer) Start (ctx context.Context, req *sdb.StartTransactionRequest) (*sdb.StartTransactionResponse, error) {
+func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest) (*sdb.StartTransactionResponse, error) {
   tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sessionid)) 
   tr.Start(true)
 

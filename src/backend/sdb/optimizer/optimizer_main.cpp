@@ -92,7 +92,7 @@ int OptimizerServerRun(int argc, char** argv) {
 	brpc::ServerOptions options;
 	options.idle_timeout_sec = FLAGS_idle_timeout_s;
 	for (int i = 0; i < FLAGS_try_num; ++i) {
-		int32 port = --FLAGS_port;
+		int32 port = FLAGS_port;
 		if (server.Start(port, &options) != 0) {
 			LOG(ERROR) << "Fail to start HttpServer, port" << port;
 			std::this_thread::sleep_for(std::chrono::seconds(5));

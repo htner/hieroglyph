@@ -6,12 +6,38 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type SessionOperator struct {
-	Sid      types.SessionId
-  tr       fdb.Transaction
+	dbid types.DatabaseId
+  Sid types.SessionId
+  tr fdb.Transaction
+}
+
+func CreateSession(dbid types.DatabaseId, uid uint64) (*kv.Session, error) {
+  db, err := fdb.OpenDefault()
+	if err != nil {
+		return nil, err
+	}
+  sess, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+    idKey := kv.SecondClassObjectMaxKey{MaxTag:kv.SessionMaxIDTag, Dbid: dbid}
+    idOp := utils.NewMaxIdOperator(tr, &idKey)
+    id, err := idOp.GetNext()
+    if err != nil {
+      return nil, err
+    }
+
+    sess := kv.NewLocalSession(types.SessionId(id), uid, dbid, []byte(""))
+    sess.State = kv.SessionTransactionIdle
+    op := NewSessionOperator(tr, sess.Id)
+    return sess, op.Write(sess)
+  })
+  if e != nil {
+    return nil, e
+  }
+  return sess.(*kv.Session), e 
 }
 
 func NewSessionOperator(t fdb.Transaction, sid types.SessionId) *SessionOperator {
@@ -23,7 +49,7 @@ func (s *SessionOperator) CheckAndGet(state int8) (*kv.Session, error) {
   sess := kv.NewSession(s.Sid)
   err := kvOp.Read(sess, sess)
   if err != nil {
-    log.Println("not found session")
+    log.Println("not found session", s.Sid)
     return nil, err
   }
   if sess.State != state {

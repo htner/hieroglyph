@@ -1,10 +1,12 @@
 package main
 
 import (
-  "log"
 	"context"
+	"log"
 
-  "github.com/htner/sdb/gosrv/pkg/account"
+	"github.com/htner/sdb/gosrv/pkg/account"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse"
+	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
@@ -34,13 +36,35 @@ func (s *AccountServer) UserLogin(ctx context.Context, req *sdb.UserLoginRequest
     resp.Rescode = "28P01"
     resp.Msg = "invalid_password"
     log.Printf("passwd mismatch")
+    return resp, nil 
   } else if err != nil {
     return nil, err;
-  } else {
-    resp.UserId = user.Id
-    resp.OrganizationId = user.OrganizationId
-    resp.Rescode = "00000"
-    log.Printf("get user %d", user.Id)
   }
+
+  db, err := account.GetDatabase(req.Organization, req.Database)
+  log.Println("get databadse ", db, err, user) 
+  if err != nil {
+    resp.Rescode = "28000"
+    resp.Msg = "invalid_authorization_specification"
+    log.Printf("invalid database %s, %s", req.Organization, req.Database)
+    return resp, nil 
+  }
+
+  sess, err := lakehouse.CreateSession(types.DatabaseId(db.Dbid), user.Id)
+  if err != nil {
+    resp.Rescode = "28000"
+    resp.Msg = "invalid_authorization_specification"
+    log.Printf("invalid session %d %d", db.Dbid, user.Id)
+  }
+
+  resp.UserId = user.Id
+  resp.OrganizationId = user.OrganizationId
+  resp.SessionId = uint64(sess.Id)
+  // TODO
+  //resp.Dbid = db.Dbid
+  resp.Dbid = 1
+
+  resp.Rescode = "00000"
+  log.Printf("get user %d", user.Id)
   return resp, nil 
 }

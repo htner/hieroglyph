@@ -211,6 +211,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
     static uint32_t local_index = 0;
     uint64_t worker_uuid = 1;
     sprintf(uuid, "%s_%d_%lu_%u.parquet", rel_name, rel_id, worker_uuid, local_index++);
+//>>>>>>> fix boot pg_type problem
     inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {

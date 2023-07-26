@@ -101,6 +101,8 @@ public:
   void Lock(int32_t motion_id);
   void UnlockAndNotify(int32_t motion_id);
 
+  void ReportResult(const std::string& result_dir, const std::string& result_file);
+
 private:
   sdb::PrepareTaskRequest request_;
   std::vector<std::vector<std::shared_ptr<MotionStream>>> recv_streams_;

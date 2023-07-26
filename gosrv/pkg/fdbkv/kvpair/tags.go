@@ -41,5 +41,6 @@ const (
   FCOrganizatoinMaxIDTag uint16 = 101
   FCUserMaxIDTag uint16 = 102
   FCDatabaseMaxIDTag uint16 = 102
+	SessionMaxIDTag         uint16 = 103
 
 )

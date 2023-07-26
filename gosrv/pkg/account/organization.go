@@ -27,31 +27,37 @@ func GetDatabase(organization, database string) (*sdb.Database, error) {
 		return nil, err
 	}
 
-  sdbDB, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+  sdbDB:= new(sdb.Database)
+  _, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
     kvReader := fdbkv.NewKvReader(rtr)
 
     key := &kvpair.OrganizationNameKey{Name: organization}
     idPointer := new(sdb.IdPointer)
     err := kvReader.ReadPB(key, idPointer)
     if err != nil {
+      log.Printf("read organization error %s", err.Error())
       return nil, err
     }
 
     keyDatabaseName:= &kvpair.DatabaseNameKey{OrganizationId:idPointer.Id, DatabaseName: database}
     err = kvReader.ReadPB(keyDatabaseName, idPointer)
     if err != nil {
+      log.Printf("read database name error %s.%s->%s", organization, database, err.Error())
       return nil, err
     }
 
     keyDatabase := &kvpair.DatabaseKey{Id: idPointer.Id}
-    sdbDB:= new(sdb.Database)
     err = kvReader.ReadPB(keyDatabase, sdbDB)
     if err != nil {
+      log.Printf("read database error %s", err.Error())
       return nil, err
     }
     return sdbDB, err
   })
-  return sdbDB.(*sdb.Database), e 
+  if e != nil {
+    return nil, e 
+  }
+  return sdbDB, e 
 }
 
 func CreateDatabase(organization, dbname string) error {
@@ -106,7 +112,14 @@ func CreateDatabase(organization, dbname string) error {
     sdbDatabase := new(sdb.Database)
     sdbDatabase.Dbid = id
     sdbDatabase.Dbname = dbname 
+    sdbDatabase.OrganizationId = organizationId.(uint64)
     err = kvOp.WritePB(keyDatabase, sdbDatabase)
+    if err != nil {
+      return nil, err
+    }
+
+    idPointer.Id = id
+    err = kvOp.WritePB(key, idPointer)
     if err != nil {
       return nil, err
     }
@@ -216,6 +229,7 @@ func CreateUser(organization, account, passwd string) error {
     keyUser:= &kvpair.UserKey{Id:id}
     user := new(sdb.User)
     user.Id = id
+    user.OrganizationId = idPointerOrgan.Id
     user.Name = account
     user.Passwd = GetEnPasswd(id, passwd)
     err = kvOp.WritePB(keyUser, user)
