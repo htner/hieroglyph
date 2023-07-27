@@ -269,6 +269,7 @@ void ParquetWriter::PrepareUpload() {
 	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
 
+	LOG(INFO) << "prepare upload file " << request.DebugString();
 	sdb::PrepareInsertFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
@@ -309,6 +310,7 @@ void ParquetWriter::CommitUpload() {
 
 	sdb::UpdateFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
+	LOG(INFO) << "commit upload file " << request.DebugString();
 	stub->UpdateFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
 		LOG(ERROR) << "Fail to UpdateFiles, " << cntl.ErrorText();

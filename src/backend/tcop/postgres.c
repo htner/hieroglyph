@@ -6616,6 +6616,7 @@ void prepare_catalog(List *prepare_catlog_list)
 
 	// 2. remove pg_internal.init which content is invalid
 	RelationCacheInitFilePreInvalidate();
+	RelationCacheInitFilePostInvalidate();
 
 	// 3. reset all catalog cache and its index
 	// foreach(iter, prepare_catlog_list)
