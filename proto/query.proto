@@ -5,10 +5,11 @@ package sdb;
 option cc_generic_services = false;
 option go_package="./sdb";
 
-import  "optimizer_service.proto";
+import  "kvpair.proto";
+import  "task.proto";
 import  "worker_service.proto";
 import  "schedule_service.proto";
-//import  "lake_service.proto";
+import  "optimizer_service.proto";
 
 enum QueryStates {
   QueryNull = 0;

@@ -6,6 +6,8 @@ option cc_generic_services = true;
 
 option go_package="./sdb";
 
+import  "kvpair.proto";
+
 service Lake {
     rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {} rpc AllocateXid(AllocateXidRequest) returns (AllocateXidResponse) {}
     rpc Commit(CommitRequest) returns (CommitResponse) {}
@@ -16,17 +18,7 @@ service Lake {
     rpc GetFileList(GetFilesRequest) returns (GetFilesResponse) {}
 }
 
-message LakeFile {
-    uint64 fileid = 1;
-    string file_name = 2;
-    uint64 space = 3;
-    map<string, string> meta = 4;
-}
 
-message LakeFileHandle {
-  uint64 id  = 1;
-  string name = 2;
-}
 
 message StartTransactionRequest {
     uint64 dbid = 1;

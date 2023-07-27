@@ -25,39 +25,22 @@ option go_package="./sdb";
 //import  "optimizer_service.proto";
 //import  "worker_service.proto";
 //import  "schedule_service.proto";
-import  "lake_service.proto";
-
-/*
-enum CommandStatus {
-  CS_NULL = 0;
-  CS_INIT = 1;
-  CS_WAIT_OP = 2;
-  CS_OP = 3;
-  CS_WAIT_EXEC = 4;
-  CS_DONE = 5;
+//import  "lake_service.proto";
+message LakeFile {
+    uint64 fileid = 1;
+    string file_name = 2;
+    uint64 space = 3;
 }
 
-message CommandDetails {
-  ExecQueryRequest request = 1;
+// must be no side effects, for cache
+message LakeFileMeta {
+    map<string, string> meta = 1;
 }
 
-
-message CommandStatusDetail {
-  CommandStatus status = 1;
+message LakeFileHandle {
+  uint64 id  = 1;
+  string name = 2;
 }
-
-message CommandOptimizerResult {
-  OptimizeReply optimizer_result = 1;
-}
-
-message CommandExecDetail {
-  PrepareTaskRequest prepare_task_info = 1;
-}
-
-message CommandResult {
-  WorkerResultReportRequest result = 1;
-}
-*/
 
 message DeleteLakeFiles {
   repeated LakeFileHandle files = 1;
@@ -86,9 +69,32 @@ message LakeFileDetail {
 	uint32 xmax_state = 7; 
 } 
 
+message LakeFileShared {
+  uint64 rel = 1;
+}
+
+message LakeSpace {
+  string id = 1;
+  string password = 2;
+  bool is_use_minio = 3;
+  string endpoint = 4;
+  string region = 5;
+  string bucket = 6;
+}
+
 message Database {
   uint64 dbid = 1;
   string dbname = 2;
   uint64 organization_id = 3;
+  LakeSpace space = 4;
 }
 
+message WorkerResultData {
+  uint64 dbid = 1;
+  uint64 query_id = 2;
+  int32 rescode = 3;
+  string message = 4;
+  string result_dir = 5;
+  string meta_file = 6;
+  repeated string data_files = 7;
+}

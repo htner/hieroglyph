@@ -77,7 +77,7 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
 			}
 
 			kvOp := NewKvOperator(tr)
-      idKey := kvpair.ThirdClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag}
+      idKey := kvpair.SecondClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag, Dbid: L.T.Database}
       idOp := utils.NewMaxIdOperator(tr, &idKey)
       _, err = idOp.GetCurrent()
       if err != nil {
@@ -191,7 +191,7 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
 			}
 
 			kvOp := NewKvOperator(tr)
-      idKey := kvpair.ThirdClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag}
+      idKey := kvpair.SecondClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag, Dbid: L.T.Database}
       idOp := utils.NewMaxIdOperator(tr, &idKey)
       _, err = idOp.GetCurrent()
       if err != nil {

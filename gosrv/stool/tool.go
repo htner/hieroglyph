@@ -22,6 +22,9 @@ var database string
 var organization string 
 var password string 
 
+var destinationTable string 
+var sourceTable string 
+
 var SDBCmd = &cobra.Command{
 	Use:   "help",
 	Short: "CloudDB",
@@ -67,6 +70,20 @@ var CreateUserCmd = &cobra.Command{
 	},
 }
 
+var CopyTableCmd = &cobra.Command{
+	Use:   "copytable",
+	Short: "Copy CloudDB Table",
+	Long: `The utility is used to copy the SDB CloudDB table.`,
+	Run: func(cmd *cobra.Command, args []string) {
+    /*
+    err := tool.CopyTable(database, destinationTable, sourceTable)
+    if err != nil {
+      log.Printf("create user err: %s", err.Error())
+    }
+    */
+	},
+}
+
 func init() {
 
 	// Here we define your flags and configuration settings.
@@ -82,6 +99,10 @@ func init() {
 
 	CreateDatabaseCmd.Flags().StringVarP(&organization, "organization", "o", "", "organizatio")
 	CreateDatabaseCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
+
+	CopyTableCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
+	CopyTableCmd.Flags().StringVarP(&sourceTable, "source", "s", "", "source table name")
+	CopyTableCmd.Flags().StringVarP(&destinationTable, "destination", "t", "", "destination table name")
 }
 
 
@@ -95,6 +116,7 @@ func main() {
 	SDBCmd.AddCommand(CreateAccountCmd)
 	SDBCmd.AddCommand(CreateDatabaseCmd)
 	SDBCmd.AddCommand(CreateUserCmd)
+	SDBCmd.AddCommand(CopyTableCmd)
 	err := SDBCmd.Execute()
 	if err != nil {
 		os.Exit(1)
