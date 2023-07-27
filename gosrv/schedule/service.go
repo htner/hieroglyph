@@ -41,7 +41,6 @@ func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQuer
 	result, err := mgr.ReadQueryResult(in.QueryId)
 	reply := new(sdb.CheckQueryResultReply)
   reply.Result = result
-
 	return reply, err
 }
 

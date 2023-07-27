@@ -34,6 +34,8 @@
 DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
+DECLARE_bool(reuse_port);
+DECLARE_bool(reuse_addr);
 
 
 extern Oid MyDatabaseId;
@@ -63,6 +65,8 @@ int WorkerServiceMain(int argc, char* argv[]) {
 int WorkerServerRun(int argc, char** argv) {
     // Parse gflags. We recommend you to use gflags as well.
     // gflags::ParseCommandLineFlags(&argc, &argv, true);
+	FLAGS_reuse_addr = true;
+	FLAGS_reuse_port = true;
 
     // Generally you only need one Server.
     brpc::Server server;

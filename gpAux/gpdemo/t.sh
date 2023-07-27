@@ -1,4 +1,7 @@
 pkill -9 postgres
+#sudo bash -c 'echo 1 > /proc/sys/net/ipv4/ip_forward'
+sudo bash -c 'echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse'
+sleep 10
 rm -rf /tmp/output.log
 rm -rf /tmp/output1.log
 rm -rf /tmp/output2.log

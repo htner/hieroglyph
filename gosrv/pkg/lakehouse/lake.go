@@ -6,7 +6,7 @@ import (
 	"math"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv"
+	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
@@ -76,22 +76,21 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
 			}
 
 			kvOp := NewKvOperator(tr)
-      var max_id kvpair.MaxFileID
-      err = kvOp.Read(&max_id, &max_id)
-			if err != nil {
-        if err != fdbkv.EmptyDataErr {
-          log.Println("read maxfile id error:", err)
-          return nil, err
-        }
-			}
-
-      fileid := max_id.Max
+      idKey := kvpair.ThirdClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag}
+      idOp := utils.NewMaxIdOperator(tr, &idKey)
+      _, err = idOp.GetCurrent()
+      if err != nil {
+        return nil, err
+      }
 
       //var inserts []*LakeFileDetail 
       var log_details sdb.InsertLakeFiles
       log_details.Files = make([]*sdb.LakeFileDetail, 0)
 			for _, file := range insertFiles {
-        fileid += 1
+        fileid, err := idOp.GetLocalNext()
+        if err != nil {
+          return nil, err
+        }
 
         var key kvpair.FileKey
         key.Database = L.T.Database 
@@ -117,6 +116,11 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
       key := kvpair.NewLakeLogItemKey(L.T.Database, rel, L.T.Xid, kvpair.PreInsertMark)
 
       err = kvOp.WritePB(key, &log_details)
+      if err != nil {
+        return nil, err
+      }
+
+      err = idOp.Sync()
       if err != nil {
         return nil, err
       }
@@ -186,26 +190,26 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
 			}
 
 			kvOp := NewKvOperator(tr)
-      var max_id kvpair.MaxFileID
-      err = kvOp.Read(&max_id, &max_id)
-			if err != nil {
-        if err != fdbkv.EmptyDataErr {
-          log.Println("read maxfile id error:", err)
-          return nil, err
-        }
-			}
-
-      fileid := max_id.Max + 1
+      idKey := kvpair.ThirdClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag}
+      idOp := utils.NewMaxIdOperator(tr, &idKey)
+      _, err = idOp.GetCurrent()
+      if err != nil {
+        return nil, err
+      }
 
       //var inserts []*LakeFileDetail 
       var log_details sdb.InsertLakeFiles
       log_details.Files = make([]*sdb.LakeFileDetail, 0)
 			for _, file := range files {
+        fileid, err := idOp.GetLocalNext() 
+        if err != nil {
+          return nil, err
+        }
+
         var key kvpair.FileKey
         key.Database = L.T.Database 
         key.Relation = rel  
         key.Fileid = fileid 
-        fileid += 1
 
 				file.Dbid = uint64(L.T.Database)
 				file.Rel = uint64(rel)
@@ -220,6 +224,11 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
 				}
         log_details.Files = append(log_details.Files, file)
 			}
+
+      err = idOp.Sync()
+      if err != nil {
+        return nil, err
+      }
 
       key := kvpair.NewLakeLogItemKey(L.T.Database, rel, L.T.Xid, kvpair.PreInsertMark)
 
