@@ -12,7 +12,7 @@ import (
 type FileKey struct {
 	Database types.DatabaseId
 	Relation types.RelId
-  Fileid uint64 
+	Fileid   uint64
 }
 
 func (*FileKey) Tag() uint16 {
@@ -32,23 +32,23 @@ func (file *FileKey) EncFdbKey(buf *bytes.Buffer) error {
 }
 
 func (file *FileKey) DecFdbKey(reader *bytes.Reader) error {
-  log.Printf("reader %d", reader.Len())
+	log.Printf("reader %d", reader.Len())
 	err := binary.Read(reader, binary.LittleEndian, &file.Database)
 	if err != nil {
-    log.Println("reader database error")
+		log.Println("reader database error")
 		return err
 	}
 	err = binary.Read(reader, binary.LittleEndian, &file.Relation)
 	if err != nil {
-    log.Println("reader relation error")
+		log.Println("reader relation error")
 		return err
 	}
 	err = binary.Read(reader, binary.BigEndian, &file.Fileid)
 	if err != nil {
-    log.Println("reader fileid error")
+		log.Println("reader fileid error")
 		return err
 	}
-  return nil
+	return nil
 }
 
 func (file *FileKey) RangePerfix(buf *bytes.Buffer) error {
@@ -57,9 +57,12 @@ func (file *FileKey) RangePerfix(buf *bytes.Buffer) error {
 		return err
 	}
 	err = binary.Write(buf, binary.LittleEndian, file.Relation)
-  if file.Fileid == 0 {
-    return err
-  } else {
-	  return binary.Write(buf, binary.BigEndian, file.Relation)
-  }
+	if err != nil {
+		return err
+	}
+	if file.Fileid == 0 {
+		return nil
+	} else {
+		return binary.Write(buf, binary.BigEndian, file.Fileid)
+	}
 }
