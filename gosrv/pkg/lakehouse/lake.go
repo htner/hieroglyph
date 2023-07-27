@@ -8,6 +8,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	"google.golang.org/protobuf/proto"
@@ -392,9 +393,7 @@ func (L *LakeRelOperator) GetAllFileForRead(rel types.RelId) ([]*sdb.LakeFileDet
 
 	files := data.([]*sdb.LakeFileDetail)
 	// check session mvcc
-	files = L.SatisfiesMvcc(files, session.ReadTranscationId)
-
-	return files, err
+	return L.SatisfiesMvcc(files, session.WriteTranscationId)
 }
 
 func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId) ([]*sdb.LakeFileDetail, error) {
@@ -460,31 +459,71 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId) ([]*sdb.LakeFileD
 	}
 	files := data.([]*sdb.LakeFileDetail)
 	// check session mvcc
-	files = L.SatisfiesMvcc(files, session.ReadTranscationId)
-
-	return files, err
+	return L.SatisfiesMvcc(files, session.WriteTranscationId)
 }
 
-func (L *LakeRelOperator) SatisfiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) []*sdb.LakeFileDetail {
+func (L *LakeRelOperator) SatisfiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) ([]*sdb.LakeFileDetail, error){
 	satisfiesFiles := make([]*sdb.LakeFileDetail, 0)
-	for _, file := range files {
-    if uint64(currTid) == file.Xmax {
-      break;
-    }
-		if file.XminState == uint32(XS_COMMIT) && file.XmaxState == uint32(XS_NULL) {
-      satisfiesFiles = append(satisfiesFiles, file)
-		}
-    if uint64(currTid) == file.Xmin {
-      satisfiesFiles = append(satisfiesFiles, file)
-		}
+  db, err := fdb.OpenDefault()
+	if err != nil {
+		return nil, err
 	}
-	return satisfiesFiles
+  _, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+    for _, file := range files {
+      if uint64(currTid) == file.Xmax {
+        continue
+      }
+
+      xminState := file.XminState
+      xmaxState := file.XmaxState
+      kvReader := fdbkv.NewKvReader(rtr)
+      // TODO 性能优化
+      {
+        var minClog kvpair.TransactionCLog
+        minClog.Tid = types.TransactionId(file.Xmin)
+        minClog.DbId = L.T.Database 
+        err := kvReader.Read(&minClog, &minClog)
+        if err != nil {
+          return nil, errors.New("read error")
+        }
+        log.Println("file min ", minClog)
+        xminState = uint32(minClog.Status)
+      }
+
+      if file.Xmax != uint64(InvaildTranscaton) {
+        var maxClog kvpair.TransactionCLog
+        maxClog.Tid = types.TransactionId(file.Xmax)
+        maxClog.DbId = L.T.Database 
+        err := kvReader.Read(&maxClog, &maxClog)
+        if err != nil {
+          return nil, errors.New("read error")
+        }
+        log.Println("file min ", maxClog)
+        xmaxState = uint32(maxClog.Status)
+      }
+
+      if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {
+        satisfiesFiles = append(satisfiesFiles, file)
+        continue
+      }
+      if uint64(currTid) == file.Xmin {
+        satisfiesFiles = append(satisfiesFiles, file)
+        continue
+      }
+    }
+    return nil, nil
+  })
+  if e != nil {
+    log.Printf("error %s", e.Error())
+    return nil, e
+  }
+  return satisfiesFiles, nil
 }
 
 func (L *LakeRelOperator) FlushCommit() {
-	// TODO
+  // TODO
 }
 
 func (L *LakeRelOperator) Abrot() {
-	// TODO
+  // TODO
 }
