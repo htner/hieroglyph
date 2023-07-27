@@ -93,6 +93,7 @@
 #include "utils/vmem_tracker.h"
 #include "cdb/cdbdisp.h"
 #include "postmaster/autovacuum.h"
+#include "access/parquetam.h"
 
 /*
  *	User-tweakable parameters
@@ -3860,6 +3861,12 @@ RestoreTransactionCharacteristics(void)
 }
 
 
+void
+Upload()
+{
+	simple_parquet_uploadall();
+}
+
 /*
  *	CommitTransactionCommand
  */
@@ -3867,6 +3874,7 @@ void
 CommitTransactionCommand(void)
 {
 	TransactionState s = CurrentTransactionState;
+	// simple_parquet_uploadall();
 
 	if (Gp_role == GP_ROLE_EXECUTE && !Gp_is_writer)
 		elog(DEBUG1,"CommitTransactionCommand: called as segment Reader in state %s",

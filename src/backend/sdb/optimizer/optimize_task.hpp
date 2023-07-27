@@ -31,6 +31,7 @@ public:
   }
 
 	void PrepareCatalog() {
+	  prepare_catalog(nullptr);
     // skip now
   }
 

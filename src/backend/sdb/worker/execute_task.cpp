@@ -31,6 +31,7 @@ void ExecuteTask::Run() {
 	Prepare();
 	PrepareGuc();
 	HandleQuery();
+	Upload();
 	CommitTransactionCommand();
 
 	service_->FinishTask(GetKey());
@@ -65,7 +66,7 @@ void ExecuteTask::PrepareGuc() {
 
 void ExecuteTask::PrepareCatalog() {
 	StartTransactionCommand();
-	prepare_catalog(NULL);
+	prepare_catalog(nullptr);
 	CommitTransactionCommand();
 	// jump now
 }
