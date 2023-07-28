@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+  log "github.com/sirupsen/logrus"
 
 	"github.com/htner/sdb/gosrv/pkg/account"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"

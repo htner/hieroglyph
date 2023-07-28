@@ -116,7 +116,7 @@ func main() {
 	SDBCmd.AddCommand(CreateAccountCmd)
 	SDBCmd.AddCommand(CreateDatabaseCmd)
 	SDBCmd.AddCommand(CreateUserCmd)
-	SDBCmd.AddCommand(CopyTableCmd)
+	//SDBCmd.AddCommand(CopyTableCmd)
 	err := SDBCmd.Execute()
 	if err != nil {
 		os.Exit(1)

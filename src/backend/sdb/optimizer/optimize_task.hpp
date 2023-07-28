@@ -8,6 +8,7 @@
 #include "optimizer_service.pb.h"
 #include "backend/sdb/optimizer/parser.hpp"
 #include <butil/logging.h>
+#include "backend/sdb/common/common.hpp"
 
 namespace sdb {
 
@@ -22,6 +23,13 @@ public:
   }
 
 	void Run() {
+    kDBBucket = request_->db_space().base().bucket();
+    kDBS3User = request_->db_space().detail().user();
+    kDBS3Password = request_->db_space().detail().password();
+    kDBS3Region = request_->db_space().detail().region();
+    kDBS3Endpoint = request_->db_space().detail().endpoint();
+    kDBIsMinio = request_->db_space().detail().is_minio();
+
     StartTransactionCommand();
     PrepareCatalog();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();

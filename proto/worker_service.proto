@@ -60,8 +60,8 @@ message PrepareTaskRequest {
   map<int32, WorkerInfo> workers = 24;  // worker id -> info
   string result_dir = 25;
 
-  LakeSpace db_space = 26;
-  LakeSpace result_space = 27;
+  LakeSpaceDetail db_space = 26;
+  LakeSpaceDetail result_space = 27;
 }
 
 // The response message containing the greetings

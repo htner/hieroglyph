@@ -35,6 +35,10 @@
 #include <butil/logging.h> // LOG Last
 #include <thread>
 
+DECLARE_string(dir);
+DECLARE_string(database);
+
+DECLARE_uint64(dbid);
 DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);
@@ -50,10 +54,12 @@ int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
 	not_initdb = true;
-	MyDatabaseId = 1;
+	MyDatabaseId = FLAGS_dbid;
 	MyDatabaseTableSpace = 1;
 	Gp_role = GP_ROLE_DISPATCH;
-    InitMinimizePostgresEnv(argc, argv, "template1", "template1");
+
+    //InitMinimizePostgresEnv(argc, argv, "template1", "template1");
+	InitMinimizePostgresEnv("optimizer", FLAGS_dir.data(), FLAGS_database.data(), "root");
 
 	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);

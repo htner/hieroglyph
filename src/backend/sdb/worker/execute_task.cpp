@@ -3,16 +3,9 @@
 #include "backend/sdb/worker/execute_task.hpp"
 #include "backend/sdb/worker/motion_stream.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
+#include "backend/sdb/common/common.hpp"
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
-
-extern uint64_t read_xid;
-extern uint64_t commit_xid;
-extern uint64_t dbid;
-extern uint64_t sessionid;
-extern uint64_t query_id;
-extern uint64_t slice_count;
-extern uint64_t slice_seg_index;
 
 namespace sdb {
 
@@ -26,6 +19,7 @@ ExecuteTask::~ExecuteTask() {
 
 void ExecuteTask::Run() {
 	LOG(INFO) << "MPPEXEC: execute run";
+
 	//kGlobalTask = shared_from_this();
 	StartTransactionCommand();
 	Prepare();
@@ -58,6 +52,20 @@ void ExecuteTask::Prepare() {
 	dbid = request_.dbid();
 	sessionid = request_.sessionid();
 	query_id = request_.task_identify().query_id();
+
+	kDBBucket = request_.db_space().base().bucket();
+	kDBS3User = request_.db_space().detail().user();
+	kDBS3Password = request_.db_space().detail().password();
+	kDBS3Region = request_.db_space().detail().region();
+	kDBS3Endpoint = request_.db_space().detail().endpoint();
+	kDBIsMinio = request_.db_space().detail().is_minio();
+
+	kResultBucket = request_.result_space().base().bucket();
+	kResultS3User = request_.result_space().detail().user();
+	kResultS3Password = request_.result_space().detail().password();
+	kResultS3Region = request_.result_space().detail().region();
+	kResultS3Endpoint = request_.result_space().detail().endpoint();
+	kResultIsMinio = request_.result_space().detail().is_minio();
 }
 
 void ExecuteTask::PrepareGuc() {

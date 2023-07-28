@@ -25,6 +25,16 @@ netstat -lnpt |  grep account
 echo ""
 echo "create account"
 echo "-----------------------------"
+./stool createaccount -a sdb -p 123 -o sdb 
+
+echo ""
+echo "create db"
+echo "-----------------------------"
+./stool createdb -o sdb -d template1 
+
+echo ""
+echo "create account"
+echo "-----------------------------"
 ./stool createaccount -a test -p 123 -o test
 
 echo ""
@@ -35,4 +45,4 @@ echo "-----------------------------"
 echo ""
 echo "create db"
 echo "-----------------------------"
-./stool createdb -o test -d template1 
+./stool createdb -o test -d test 

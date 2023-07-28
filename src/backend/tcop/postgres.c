@@ -131,15 +131,6 @@ int			PostAuthDelay = 0;
 /* Time between checks that the client is still connected. */
 int         client_connection_check_interval = 0;
 
-uint64_t read_xid = 1;
-uint64_t commit_xid = 1;
-uint64_t dbid = 1;
-uint64_t sessionid = 1;
-uint64_t query_id = 1;
-uint64_t slice_count = 1;
-uint64_t slice_seg_index = 1;
-
-
 /*
  * Hook for extensions, to get notified when query cancel or DIE signal is
  * received. This allows the extension to stop whatever it's doing as
@@ -6106,14 +6097,14 @@ disable_statement_timeout(void)
 }
 
 void
-InitMinimizePostgresEnv(int argc, char *argv[],
+InitMinimizePostgresEnv(const char* proc, const char* dir,
 			 const char *dbname,
 			 const char *username) 
 {
 	main_tid = pthread_self();
 
 	/* Initialize startup process environment if necessary. */
-	InitStandaloneProcess(argv[0]);
+	InitStandaloneProcess(proc);
 
 	PostmasterPriority = getpriority(PRIO_PROCESS, 0);
 
@@ -6131,7 +6122,8 @@ InitMinimizePostgresEnv(int argc, char *argv[],
 	/*
 	 * Parse command-line options.
 	 */
-	process_postgres_switches(argc, argv, PGC_POSTMASTER, &dbname);
+	userDoption = strdup(dir);
+	//process_postgres_switches(argc, argv, PGC_POSTMASTER, &dbname);
 
 	/* Must have gotten a database name, or have a default (the username) */
 	if (dbname == NULL)

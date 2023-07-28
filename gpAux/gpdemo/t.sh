@@ -1,7 +1,7 @@
 pkill -9 postgres
 #sudo bash -c 'echo 1 > /proc/sys/net/ipv4/ip_forward'
 sudo bash -c 'echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse'
-sleep 10
+sleep 1
 rm -rf /tmp/output.log
 rm -rf /tmp/output1.log
 rm -rf /tmp/output2.log
@@ -55,9 +55,9 @@ ls | grep -E "^[0-9]{4,}" | xargs rm -r
 cd ../../..
 
 # postgres --optimizer=1 -D datadirs/optimizer0 --port=40000 
-nohup postgres --optimizer=1 -D datadirs/optimizer0 --port=39999 >  datadirs/optimizer0/optimizer0.log 2>&1 &
-nohup postgres --worker=1 -D datadirs/worker1/ --port=40001 > datadirs/worker1/worker1.log 2>&1 &
-nohup postgres --worker=1 -D datadirs/worker2/ --port=40002 > datadirs/worker2/worker2.log 2>&1 &
-nohup postgres --worker=1 -D datadirs/worker3/ --port=40003 > datadirs/worker3/worker3.log 2>&1 &
-nohup postgres --worker=1 -D datadirs/worker4/ --port=40004 > datadirs/worker4/worker4.log 2>&1 &
-nohup postgres --worker=1 -D datadirs/worker5/ --port=40005 > datadirs/worker5/worker5.log 2>&1 &
+nohup postgres --optimizer=1 -dir=datadirs/optimizer0 --port=39999 --database=test -dbid=2 >  datadirs/optimizer0/optimizer0.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker1/ --port=40001 --database=test -dbid=2 > datadirs/worker1/worker1.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker2/ --port=40002 --database=test -dbid=2 > datadirs/worker2/worker2.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker3/ --port=40003 --database=test -dbid=2 > datadirs/worker3/worker3.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker4/ --port=40004 --database=test -dbid=2 > datadirs/worker4/worker4.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker5/ --port=40005 --database=test -dbid=2 > datadirs/worker5/worker5.log 2>&1 &

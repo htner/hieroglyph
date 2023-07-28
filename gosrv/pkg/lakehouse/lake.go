@@ -479,27 +479,19 @@ func (L *LakeRelOperator) SatisfiesMvcc(files []*sdb.LakeFileDetail, currTid typ
       kvReader := fdbkv.NewKvReader(rtr)
       // TODO 性能优化
       {
-        var minClog kvpair.TransactionCLog
-        minClog.Tid = types.TransactionId(file.Xmin)
-        minClog.DbId = L.T.Database 
-        err := kvReader.Read(&minClog, &minClog)
+        state, err := L.T.State(kvReader, types.TransactionId(file.Xmin))
         if err != nil {
-          return nil, errors.New("read error")
+          return nil, err
         }
-        log.Println("file min ", minClog)
-        xminState = uint32(minClog.Status)
+        xminState = uint32(state)
       }
 
       if file.Xmax != uint64(InvaildTranscaton) {
-        var maxClog kvpair.TransactionCLog
-        maxClog.Tid = types.TransactionId(file.Xmax)
-        maxClog.DbId = L.T.Database 
-        err := kvReader.Read(&maxClog, &maxClog)
+        state, err := L.T.State(kvReader, types.TransactionId(file.Xmax))
         if err != nil {
           return nil, errors.New("read error")
         }
-        log.Println("file min ", maxClog)
-        xmaxState = uint32(maxClog.Status)
+        xmaxState = uint32(state)
       }
 
       if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {

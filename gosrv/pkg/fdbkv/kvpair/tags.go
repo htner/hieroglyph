@@ -34,13 +34,14 @@ const (
   LoginNameKeyTag uint16 = 50
 
   DatabaseKeyTag uint16 = 51
-  DatabaseNameKeyTag uint16 = 51
+  DatabaseNameKeyTag uint16 = 52
 
   // first class object id gen
   FCAccountMaxIDTag uint16 = 100
   FCOrganizatoinMaxIDTag uint16 = 101
   FCUserMaxIDTag uint16 = 102
-  FCDatabaseMaxIDTag uint16 = 102
-	SessionMaxIDTag         uint16 = 103
+  FCDatabaseMaxIDTag uint16 = 103
+	SessionMaxIDTag  uint16 = 104
+  DatabaseObjectIDTag uint16 = 105
 
 )

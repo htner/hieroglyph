@@ -244,3 +244,28 @@ func (t *Transaction) ReadAble() (*kv.Session, error) {
 		// go t.CommitKV(XS_COMMIT)
 	return sess.(*kv.Session), err
 }
+
+func (t *Transaction) State(kvReader *fdbkv.KvReader, xid types.TransactionId) (types.XState, error) {
+  if t.Xid == 1 {
+    return XS_COMMIT, nil
+  }
+  var minClog kv.TransactionCLog
+  minClog.Tid = types.TransactionId(xid)
+  minClog.DbId = t.Database 
+  err := kvReader.Read(&minClog, &minClog)
+  if err != nil {
+    return XS_NULL, err 
+  }
+  return minClog.Status, nil
+}
+
+func (t *Transaction) OpState(kvReader *fdbkv.KvOperator, xid types.TransactionId) (types.XState, error) {
+  var minClog kv.TransactionCLog
+  minClog.Tid = types.TransactionId(xid)
+  minClog.DbId = t.Database 
+  err := kvReader.Read(&minClog, &minClog)
+  if err != nil {
+    return XS_NULL, errors.New("read error")
+  }
+  return minClog.Status, nil
+}

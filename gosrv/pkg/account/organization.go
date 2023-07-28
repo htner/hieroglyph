@@ -2,11 +2,14 @@ package account
 
 import (
 	"errors"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse"
+	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
@@ -89,6 +92,7 @@ func CreateDatabase(organization, dbname string) error {
   }
   log.Printf("get organizationId : %d", organizationId.(uint64))
 
+  dbid := uint64(0)
   _, e = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := fdbkv.NewKvOperator(tr)
 
@@ -119,12 +123,17 @@ func CreateDatabase(organization, dbname string) error {
     }
 
     idPointer.Id = id
+    dbid = id
     err = kvOp.WritePB(key, idPointer)
     if err != nil {
       return nil, err
     }
     return nil, err
   })
+  if e == nil {
+    lakeop := new(lakehouse.LakeOperator)
+    lakeop.Copy(1, types.DatabaseId(dbid))
+  }
   return e 
 }
 

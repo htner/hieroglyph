@@ -25,7 +25,8 @@ option go_package="./sdb";
 //import  "optimizer_service.proto";
 //import  "worker_service.proto";
 //import  "schedule_service.proto";
-//import  "lake_service.proto";
+import  "config.proto";
+
 message LakeFile {
     uint64 fileid = 1;
     string file_name = 2;
@@ -67,26 +68,28 @@ message LakeFileDetail {
 	uint64 xmax = 5;
 	uint32 xmin_state = 6; 
 	uint32 xmax_state = 7; 
+  bool is_shared = 8;
 } 
 
 message LakeFileShared {
-  uint64 rel = 1;
+  map<uint64, uint64> shared_rels = 2;
 }
 
-message LakeSpace {
-  string id = 1;
-  string password = 2;
-  bool is_use_minio = 3;
-  string endpoint = 4;
-  string region = 5;
-  string bucket = 6;
+message LakeSpaceInfo {
+ uint32 zone_id = 1;
+ string bucket = 2;
+}
+
+message LakeSpaceDetail {
+ LakeSpaceInfo base = 1;
+ S3Endpoint detail = 2;
 }
 
 message Database {
   uint64 dbid = 1;
   string dbname = 2;
   uint64 organization_id = 3;
-  LakeSpace space = 4;
+  LakeSpaceInfo space = 4;
 }
 
 message WorkerResultData {

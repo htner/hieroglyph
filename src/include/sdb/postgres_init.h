@@ -1,6 +1,6 @@
 extern "C" {
 void
-InitMinimizePostgresEnv(int argc, char *argv[],
+InitMinimizePostgresEnv(const char* proc, const char* dir,
 			 const char *dbname,
 			 const char *username);
 }
