@@ -32,34 +32,25 @@
 #include "backend/sdb/optimizer/optimize_task.hpp"
 #include "backend/sdb/optimizer/optimizer_service.hpp"
 
+#include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/flags.hpp"
+
 #include <butil/logging.h> // LOG Last
 #include <thread>
-
-DECLARE_string(dir);
-DECLARE_string(database);
-
-DECLARE_uint64(dbid);
-DECLARE_int32(port);
-DECLARE_int32(idle_timeout_s);
-DECLARE_bool(gzip);
-DECLARE_int32(try_num);
-DECLARE_bool(reuse_port);
-DECLARE_bool(reuse_addr);
-
-extern Oid MyDatabaseId;
-extern Oid MyDatabaseTableSpace;
-extern bool not_initdb;
 
 int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
+	gflags::ParseCommandLineFlags(&argc, &argv, true);
+	//
 	not_initdb = true;
 	MyDatabaseId = FLAGS_dbid;
+	dbid = FLAGS_dbid;
 	MyDatabaseTableSpace = 1;
 	Gp_role = GP_ROLE_DISPATCH;
 
     //InitMinimizePostgresEnv(argc, argv, "template1", "template1");
-	InitMinimizePostgresEnv("optimizer", FLAGS_dir.data(), FLAGS_database.data(), "root");
+	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
 
 	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);
@@ -74,7 +65,6 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 
 int OptimizerServerRun(int argc, char** argv) {
 	// Parse gflags. We recommend you to use gflags as well.
-	// gflags::ParseCommandLineFlags(&argc, &argv, true);
 	FLAGS_reuse_addr = true;
 	FLAGS_reuse_port = true;
 	// Generally you only need one Server.

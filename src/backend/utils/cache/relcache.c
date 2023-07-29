@@ -1862,7 +1862,7 @@ InitTableAmRoutine(Relation relation)
 /*
  * Initialize table access method support for a table like relation
  */
-bool not_initdb = false;
+extern bool not_initdb;
 void
 RelationInitTableAccessMethod(Relation relation)
 {

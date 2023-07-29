@@ -63,16 +63,16 @@ func GetDatabase(organization, database string) (*sdb.Database, error) {
   return sdbDB, e 
 }
 
-func CreateDatabase(organization, dbname string) error {
+func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
   if organization == "" {
-    return errors.New("organization must be set")
+    return nil, errors.New("organization must be set")
   }
   if dbname == "" {
-    return errors.New("database must be set")
+    return nil, errors.New("database must be set")
   }
   db, err := fdb.OpenDefault()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
   organizationId, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
@@ -88,12 +88,12 @@ func CreateDatabase(organization, dbname string) error {
   })
 
   if e != nil {
-    return e
+    return nil, e
   }
   log.Printf("get organizationId : %d", organizationId.(uint64))
 
   dbid := uint64(0)
-  _, e = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+  sdbDatabase, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := fdbkv.NewKvOperator(tr)
 
     idKey := kvpair.FirstClassObjectMaxKey{MaxTag:kvpair.FCDatabaseMaxIDTag}
@@ -128,13 +128,14 @@ func CreateDatabase(organization, dbname string) error {
     if err != nil {
       return nil, err
     }
-    return nil, err
+    return sdbDatabase, err
   })
   if e == nil {
     lakeop := new(lakehouse.LakeOperator)
     lakeop.Copy(1, types.DatabaseId(dbid))
+    return sdbDatabase.(*sdb.Database), e
   }
-  return e 
+  return nil, e 
 }
 
 func GetUser(organization, user, passwd string) (*sdb.User, error) {
@@ -198,18 +199,18 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
   return nil, e
 }
 
-func CreateUser(organization, account, passwd string) error {
+func CreateUser(organization, account, passwd string) (*sdb.User, error) {
   if (organization == "") {
-    return errors.New("organization must be set")
+    return nil, errors.New("organization must be set")
   }
   if (account == "") {
-    return errors.New("username must be set")
+    return nil, errors.New("username must be set")
   }
   db, err := fdb.OpenDefault()
 	if err != nil {
-		return err
+		return nil, err
 	}
-  _, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+  user, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := fdbkv.NewKvOperator(tr)
 
     keyOrganName := &kvpair.OrganizationNameKey{Name: organization}
@@ -252,7 +253,10 @@ func CreateUser(organization, account, passwd string) error {
       return nil, err
     }
 
-    return nil, err
+    return user, err
   })
-  return e 
+  if e != nil {
+    return nil, e
+  }
+  return user.(*sdb.User), e 
 }

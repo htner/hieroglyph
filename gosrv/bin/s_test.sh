@@ -41,8 +41,3 @@ echo ""
 echo "create user"
 echo "-----------------------------"
 ./stool createuser -o test -u test -p 123 
-
-echo ""
-echo "create db"
-echo "-----------------------------"
-./stool createdb -o test -d test 

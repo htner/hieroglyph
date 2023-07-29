@@ -29,4 +29,5 @@ extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
 
+extern bool not_initdb;
 

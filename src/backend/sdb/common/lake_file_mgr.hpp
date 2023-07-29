@@ -66,7 +66,7 @@ public:
     //request.set_message("I'm a RPC to connect stream");
     stub->GetFileList(&cntl, &request, &response, NULL);
     if (cntl.Failed()) {
-      LOG(ERROR) << "Fail to PrepareInsertFiles, " << cntl.ErrorText();
+      LOG(ERROR) << "Fail to GetFileList, database " << dbid << " rel " << rel << " error" << cntl.ErrorText();
       return files;
     }
     for (int i = 0; i < response.files_size(); i++) {

@@ -39,10 +39,11 @@ var CreateAccountCmd = &cobra.Command{
 	Short: "Create CloudDB Account",
 	Long: `The utility is used to create the SDB CloudDB Account.`,
 	Run: func(cmd *cobra.Command, args []string) {
-    err := account.CreateSdbAccount(accountName, password, organization)
+    acc, err := account.CreateSdbAccount(accountName, password, organization)
     if err != nil {
       log.Printf("create account err: %s", err.Error())
     }
+    log.Println("create account ", acc)
 	},
 }
 
@@ -51,10 +52,11 @@ var CreateDatabaseCmd = &cobra.Command{
 	Short: "Create CloudDB Database",
 	Long: `The utility is used to create the SDB CloudDB Database.`,
 	Run: func(cmd *cobra.Command, args []string) {
-    err := account.CreateDatabase(organization, database)
+    db, err := account.CreateDatabase(organization, database)
     if err != nil {
       log.Printf("create database err: %s", err.Error())
     }
+    log.Println("create database ", db)
 	},
 }
 
@@ -63,10 +65,11 @@ var CreateUserCmd = &cobra.Command{
 	Short: "Create CloudDB User",
 	Long: `The utility is used to create the SDB CloudDB user.`,
 	Run: func(cmd *cobra.Command, args []string) {
-    err := account.CreateUser(organization, username, password)
+    user, err := account.CreateUser(organization, username, password)
     if err != nil {
       log.Printf("create user err: %s", err.Error())
     }
+    log.Println("create user ", user)
 	},
 }
 

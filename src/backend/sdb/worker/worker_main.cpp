@@ -30,21 +30,8 @@
 
 #include "backend/sdb/worker/execute_task.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
-
-DECLARE_string(dir);
-DECLARE_string(database);
-
-DECLARE_uint64(dbid);
-DECLARE_int32(port);
-DECLARE_int32(idle_timeout_s);
-DECLARE_bool(gzip);
-DECLARE_bool(reuse_port);
-DECLARE_bool(reuse_addr);
-
-
-extern Oid MyDatabaseId;
-extern Oid MyDatabaseTableSpace;
-extern bool not_initdb;
+#include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/flags.hpp"
 
 int WorkerServerRun(int argc, char** argv);
 
@@ -57,9 +44,10 @@ int WorkerServiceMain(int argc, char* argv[]) {
 
 	not_initdb = true;
 	MyDatabaseId = FLAGS_dbid;
+	dbid = FLAGS_dbid;
 	MyDatabaseTableSpace = 1;
 
-	InitMinimizePostgresEnv("worker", FLAGS_dir.data(), FLAGS_database.data(), "root");
+	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
 	Gp_role = GP_ROLE_EXECUTE;
 	std::thread worker_thread(WorkerServerRun, argc, argv);
 

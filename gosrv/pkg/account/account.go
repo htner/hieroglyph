@@ -92,22 +92,22 @@ func GetSdbAccount(account, passwd string) (*sdb.SdbAccount, error) {
   return nil, err
 }
 
-func CreateSdbAccount(account, passwd, organizationName string) error {
+func CreateSdbAccount(account, passwd, organizationName string) (*sdb.SdbAccount, error)  {
   if organizationName == "" {
     organizationName = account
   }
   if organizationName == "" {
-    return errors.New("organization must be set")
+    return nil, errors.New("organization must be set")
   }
   if account == "" {
-    return errors.New("account must be set")
+    return nil, errors.New("account must be set")
   }
 
   db, err := fdb.OpenDefault()
 	if err != nil {
-		return err
+		return nil, err
 	}
-  _, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+  acc, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := fdbkv.NewKvOperator(tr)
 
     idKey := kvpair.FirstClassObjectMaxKey{MaxTag:kvpair.FCAccountMaxIDTag}
@@ -173,9 +173,12 @@ func CreateSdbAccount(account, passwd, organizationName string) error {
     if err != nil {
       return nil, err
     }
-    return nil, err
+    return sdbAccount, nil 
   })
-  return e 
+  if e != nil {
+    return nil, e
+  }
+  return acc.(*sdb.SdbAccount), e 
 }
 
 

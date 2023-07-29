@@ -79,7 +79,7 @@ func (L *LakeRelCopyOperator) Copy() error {
   fdblock.Database = types.DatabaseId(L.sourceDb) 
   fdblock.Relation = L.sourceRel
   fdblock.LockType = ReadLock
-  fdblock.Sid = 0 
+  fdblock.Sid = 1 
 
   data, err := mgr.DoWithAutoLock(db, &fdblock,
     func(tr fdb.Transaction) (interface{}, error) {
