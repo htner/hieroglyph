@@ -74,7 +74,7 @@ void exec_worker_query(const char *query_string,
 extern int PostPortNumber;
 
 PlannedStmt *utility_optimizer(Query *query);
-void prepare_catalog(List *prepare_catlog_list);
+void prepare_catalog(Oid *oid_arr, int size);
 
 }
 

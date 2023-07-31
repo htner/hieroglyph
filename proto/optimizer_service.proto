@@ -50,6 +50,7 @@ message OptimizeRequest {
   uint64 dbid = 5;
   uint64 xid = 6;
   uint64 commandid = 7;
+  repeated uint32 reload_catalog_oid = 8;
 }
 
 // The response message containing the greetings

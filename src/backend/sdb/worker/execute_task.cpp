@@ -31,6 +31,7 @@ void ExecuteTask::Run() {
 	Prepare();
 	PrepareGuc();
 	HandleQuery();
+	Upload();
 	CommitTransactionCommand();
 
 	service_->FinishTask(GetKey());
@@ -64,8 +65,16 @@ void ExecuteTask::PrepareGuc() {
 }
 
 void ExecuteTask::PrepareCatalog() {
+    Oid *oid_arr = nullptr;
+    std::vector<Oid> oids;
+    int size = request_.reload_catalog_oid().size();
+    for (int i = 0; i < size; ++i) {
+      oids.emplace_back(request_.reload_catalog_oid(i));
+    }
+    oid_arr = &oids[0];
+
 	StartTransactionCommand();
-	prepare_catalog(NULL);
+	prepare_catalog(oid_arr, size);
 	CommitTransactionCommand();
 	// jump now
 }

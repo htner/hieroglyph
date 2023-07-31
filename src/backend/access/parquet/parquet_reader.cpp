@@ -93,9 +93,10 @@ class DefaultParquetReader : public ParquetReader {
    * MultifileExecutionState.
    */
   DefaultParquetReader(Oid rel, uint64_t fileid, const char *filename,
-                       TupleDesc tuple_desc)
+                TupleDesc tuple_desc, const std::vector<bool> &fetched_col)
       : ParquetReader(), row_group_(-1), num_rows_(0) {
-    exchanger_ = std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc);
+    exchanger_ =
+	 	std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc, fetched_col);
     reader_entry_ = NULL;
     filename_ = filename;
     fileid_ = fileid;
@@ -268,7 +269,8 @@ class DefaultParquetReader : public ParquetReader {
   }
 };
 
-ParquetReader *CreateParquetReader(Oid rel, uint64_t fileid, const char *filename,
-                                   TupleDesc tuple_desc) {
-  return new DefaultParquetReader(rel, fileid, filename, tuple_desc);
+ParquetReader *CreateParquetReader(Oid rel, uint64_t fileid,
+ 						const char *filename, TupleDesc tuple_desc,
+						const std::vector<bool> &fetched_col) {
+  return new DefaultParquetReader(rel, fileid, filename, tuple_desc, fetched_col);
 }

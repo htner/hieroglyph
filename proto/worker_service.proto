@@ -88,6 +88,7 @@ message PrepareTaskRequest {
 
   map<int32, WorkerInfo> workers = 24;  // worker id -> info
   string result_dir = 25;
+  repeated uint32 reload_catalog_oid = 26;
 }
 
 // The response message containing the greetings

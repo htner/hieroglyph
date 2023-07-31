@@ -149,6 +149,13 @@ struct RowGroupFilter {
   bool is_column; /* for schemaless actual column `exist` operator */
 };
 
+struct ExtractColumnsContext {
+	std::vector<bool> * fetched_col;
+	bool have_fetched;
+};
+
+using node_walker_type = bool (*)();
+
 static std::unordered_map<Oid, ParquetS3WriterState *> fmstates;
 
 ParquetS3WriterState *GetModifyState(Relation rel) {
@@ -818,11 +825,6 @@ static List *get_filenames_from_userfunc(const char *funcname,
 }
 */
 
-struct UsedColumnsContext {
-  std::set<int> *cols;
-  AttrNumber nattrs;
-};
-
 static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
   static bool init_s3sdk = false;
   if (!init_s3sdk) {
@@ -872,6 +874,53 @@ static bool GetUsedColumns(Node *node, AttrNumber nattrs,
 }
 */
 
+static bool ExtractColumnsWalker(Node *node, ExtractColumnsContext* cxt) {
+	if (node == nullptr) {
+		return false;
+	}
+
+	if (IsA(node, Var)) {
+		Var *var = reinterpret_cast<Var *>(node);
+
+		if (var->varattno > 0) {
+			(*cxt->fetched_col)[var->varattno - 1] = true;
+			cxt->have_fetched = true;
+			return false;
+		} else if (var->varattno == 0) {
+			std::vector<bool>(cxt->fetched_col->size(), true).swap(*cxt->fetched_col);
+			cxt->have_fetched = true;
+			return true;
+		}
+	}
+
+	return expression_tree_walker(node,
+	 						(node_walker_type)ExtractColumnsWalker,
+							(void *)cxt);
+}
+
+static void ExtractFetchedColumns(List *target_list, List *qual,
+ 								  std::vector<bool> &fetched_col) {
+	if (target_list == nullptr && qual == nullptr) {
+		std::vector<bool>(fetched_col.size(), true).swap(fetched_col);
+		return;
+	}
+
+	ExtractColumnsContext cxt;
+	cxt.fetched_col = &fetched_col;
+	cxt.have_fetched = false;
+
+    (void) ExtractColumnsWalker((Node *)target_list, &cxt);
+	(void) ExtractColumnsWalker((Node *)qual, &cxt);
+	/*
+	 * In some cases (for example, count(*)), targetlist and qual may be null,
+	 * ExtractColumnsWalker will return immediately, so no columns are specified.
+	 * We always scan the first column.
+	 */
+	if (!cxt.have_fetched) {
+		fetched_col[0] = true;
+	}
+}
+
 static ParquetScanDesc ParquetBeginRangeScanInternal(
     Relation relation, Snapshot snapshot,
     // Snapshot appendOnlyMetaDataSnapshot,
@@ -908,12 +957,14 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 		scan->rs_base.rs_key = NULL;
 	}
 
-	TupleDesc tupDesc = RelationGetDescr(relation);
 	//GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
 
 	s3client = ParquetGetConnectionByRelation(relation);
 
 	TupleDesc tupleDesc = RelationGetDescr(relation);
+	std::vector<bool> fetched_col(tupleDesc->natts, false);
+
+	ExtractFetchedColumns(targetlist, qual, fetched_col);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
 	reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
@@ -922,7 +973,8 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 		char dirname[100];
 		sprintf(dirname, "sdb%d", MyDatabaseId);
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc,
+			reader_type, reader_cxt, dirname, s3client,
+			relation->rd_id, tupleDesc, fetched_col,
 			use_threads, use_mmap, max_open_files);
 
 		for (size_t i = 0; i < lake_files.size(); ++i) {
@@ -975,6 +1027,34 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                NULL, flags, NULL);
 
   return (TableScanDesc)parquet_desc;
+}
+
+extern "C"
+TableScanDesc ParquetBeginScanExtractColumns(
+    Relation rel, Snapshot snapshot, List *targetlist, List *qual, bool *proj,
+    List *constraintList, uint32 flags) {
+  ParquetScanDesc parquet_desc;
+
+  LOG(INFO) << "parquet begin scan Extract Columns";
+  /*
+  seginfo = GetAllFileSegInfo(relation,
+                                                          snapshot,
+  &segfile_count, NULL);
+                                                          */
+  auto lake_files =
+   	ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
+  for (size_t i = 0; i < lake_files.size(); ++i) {
+		LOG(INFO) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
+		//filenames.push_back(lake_files[i].file_name());
+  }
+
+  parquet_desc = ParquetBeginRangeScanInternal(rel, snapshot, lake_files,
+   									   0 /* nkeys */, nullptr /* ScanKey */,
+   									   nullptr /* ParallelTableScanDesc*/,
+									   targetlist, qual, nullptr /* bitmapqualorig*/,
+									   flags, nullptr);
+
+  return reinterpret_cast<TableScanDesc>(parquet_desc);
 }
 
 extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction) {
@@ -1509,6 +1589,7 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 
 	TupleDesc tupleDesc = RelationGetDescr(relation);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
+	std::vector<bool> fetched_col(tupleDesc->natts, true);
 
 	auto reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
@@ -1517,7 +1598,7 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 		sprintf(dirname, "sdb%d", MyDatabaseId);
 		state = create_parquet_execution_state(
 			reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc,
-			use_threads, use_mmap, max_open_files);
+			fetched_col, use_threads, use_mmap, max_open_files);
 
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
 

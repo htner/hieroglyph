@@ -61,6 +61,7 @@ private:
 
     MemoryContext           cxt;
     TupleDesc               tuple_desc;
+	std::vector<bool>       fetched_col_;
     bool                    use_threads;
     bool                    use_mmap;
 
@@ -79,7 +80,9 @@ private:
 		if (it == files.end()) {
 			return nullptr;
 		}
-        r = CreateParquetReader(rel_, it->second.fileid_, it->second.filename.c_str(), tuple_desc);
+        r = CreateParquetReader(rel_, it->second.fileid_,
+		 						it->second.filename.c_str(),
+		 						tuple_desc, fetched_col_);
         r->SetRowgroupsList(it->second.rowgroups);
         r->SetOptions(use_threads, use_mmap);
         if (s3_client)
@@ -95,11 +98,12 @@ public:
                             const char *dirname,
                             Aws::S3::S3Client *s3_client,
                             TupleDesc tuple_desc,
+							const std::vector<bool>& fetched_col,
                             bool use_threads,
                             bool use_mmap)
-        : reader(NULL), cxt(cxt), tuple_desc(tuple_desc),
-          use_threads(use_threads), use_mmap(use_mmap),
-          dirname(dirname), s3_client(s3_client)
+        : reader(nullptr), cxt(cxt), tuple_desc(tuple_desc),
+		  fetched_col_(fetched_col), use_threads(use_threads),
+		  use_mmap(use_mmap), dirname(dirname), s3_client(s3_client)
     { }
 
     ~MultifileExecutionStateS3() {
@@ -151,7 +155,7 @@ public:
 		if (it == files.end()) {
 			return false;
 		}
-        r = CreateParquetReader(rel_, it->second.fileid_, it->second.filename.c_str(), tuple_desc);
+        r = CreateParquetReader(rel_, it->second.fileid_, it->second.filename.c_str(), tuple_desc, fetched_col_);
         r->SetRowgroupsList(it->second.rowgroups);
         r->SetOptions(use_threads, use_mmap);
         if (s3_client)
@@ -190,14 +194,16 @@ create_parquet_execution_state(ReaderType reader_type,
 							   Aws::S3::S3Client *s3_client,
 							   Oid rel,
 							   TupleDesc tuple_desc,
+							   const std::vector<bool>& fetched_col,
 							   bool use_threads,
 							   bool use_mmap,
 							   int32_t max_open_files) {
 	ParquetS3ReaderState* result;
     switch (reader_type) {
         case RT_MULTI:
-            result = new MultifileExecutionStateS3(reader_cxt, dirname, s3_client, tuple_desc,
-												   use_threads, use_mmap);
+            result = new MultifileExecutionStateS3(reader_cxt, dirname,
+			 							s3_client, tuple_desc, fetched_col,
+										use_threads, use_mmap);
 			break;
         default:
             throw std::runtime_error("unknown reader type");

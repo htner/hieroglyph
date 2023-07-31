@@ -239,7 +239,7 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 	indstate = CatalogOpenIndexes(heapRel);
 
 	simple_heap_insert(heapRel, tup);
-
+	// simple_parquet_upload(heapRel);
 	return;
 
 	/*
