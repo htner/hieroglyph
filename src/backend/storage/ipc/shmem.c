@@ -276,7 +276,7 @@ ShmemAllocUnlocked(Size size)
 
 	newFree = newStart + size;
 	if (newFree > ShmemSegHdr->totalsize)
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
 				 errmsg("out of shared memory (%zu bytes requested)",
 						size)));
@@ -410,6 +410,106 @@ ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 	void	   *structPtr;
 
 	LWLockAcquire(ShmemIndexLock, LW_EXCLUSIVE);
+
+	if (!ShmemIndex)
+	{
+		PGShmemHeader *shmemseghdr = ShmemSegHdr;
+
+		/* Must be trying to create/attach to ShmemIndex itself */
+		Assert(strcmp(name, "ShmemIndex") == 0);
+
+		if (IsUnderPostmaster)
+		{
+			/* Must be initializing a (non-standalone) backend */
+			Assert(shmemseghdr->index != NULL);
+			structPtr = shmemseghdr->index;
+			*foundPtr = true;
+		}
+		else
+		{
+			/*
+			 * If the shmem index doesn't exist, we are bootstrapping: we must
+			 * be trying to init the shmem index itself.
+			 *
+			 * Notice that the ShmemIndexLock is released before the shmem
+			 * index has been initialized.  This should be OK because no other
+			 * process can be accessing shared memory yet.
+			 */
+			Assert(shmemseghdr->index == NULL);
+			structPtr = ShmemAlloc(size);
+			shmemseghdr->index = structPtr;
+			*foundPtr = false;
+		}
+		LWLockRelease(ShmemIndexLock);
+		return structPtr;
+	}
+
+	Assert(strlen(name) < SHMEM_INDEX_KEYSIZE);
+	/* look it up in the shmem index */
+	result = (ShmemIndexEnt *)
+		hash_search(ShmemIndex, name, HASH_ENTER_NULL, foundPtr);
+
+	if (!result)
+	{
+		LWLockRelease(ShmemIndexLock);
+		ereport(ERROR,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 errmsg("could not create ShmemIndex entry for data structure \"%s\"",
+						name)));
+	}
+
+	if (*foundPtr)
+	{
+		/*
+		 * Structure is in the shmem index so someone else has allocated it
+		 * already.  The size better be the same as the size we are trying to
+		 * initialize to, or there is a name conflict (or worse).
+		 */
+		if (result->size != size)
+		{
+			LWLockRelease(ShmemIndexLock);
+			ereport(ERROR,
+					(errmsg("ShmemIndex entry size is wrong for data structure"
+							" \"%s\": expected %zu, actual %zu",
+							name, size, result->size)));
+		}
+		structPtr = result->location;
+	}
+	else
+	{
+		/* It isn't in the table yet. allocate and initialize it */
+		structPtr = ShmemAllocNoError(size);
+		if (structPtr == NULL)
+		{
+			/* out of memory; remove the failed ShmemIndex entry */
+			hash_search(ShmemIndex, name, HASH_REMOVE, NULL);
+			LWLockRelease(ShmemIndexLock);
+			ereport(ERROR,
+					(errcode(ERRCODE_OUT_OF_MEMORY),
+					 errmsg("not enough shared memory for data structure"
+							" \"%s\" (%zu bytes requested)",
+							name, size)));
+		}
+		result->size = size;
+		result->location = structPtr;
+	}
+
+	LWLockRelease(ShmemIndexLock);
+
+	Assert(ShmemAddrIsValid(structPtr));
+
+	Assert(structPtr == (void *) CACHELINEALIGN(structPtr));
+
+	return structPtr;
+}
+
+
+void *FakeShmemInitStruct(const char *name, Size size, bool *foundPtr) {
+	*foundPtr = false;
+	return MemoryContextAlloc(TopMemoryContext, size);
+
+	ShmemIndexEnt *result;
+	void	   *structPtr;
 
 	if (!ShmemIndex)
 	{

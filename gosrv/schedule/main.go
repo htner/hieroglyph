@@ -20,9 +20,9 @@ import (
 )
 
 var (
-	optimizerAddr = flag.String("optimizer_addr", "localhost:39999", "the address to connect to optimizer")
-	workIp        = flag.String("worker_addr", "localhost", "the int to connect to worker")
-	workPort      = flag.Int("worker_port", 40000, "the port to connect to worker")
+	optimizerAddr = flag.String("optimizer_addr", "localhost:8999", "the address to connect to optimizer")
+	//workIp        = flag.String("worker_addr", "localhost", "the int to connect to worker")
+	//workPort      = flag.Int("worker_port", 40000, "the port to connect to worker")
 	//name          = flag.String("name", defaultName, "Name to greet")
 )
 

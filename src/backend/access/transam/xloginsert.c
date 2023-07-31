@@ -329,6 +329,7 @@ XLogRegisterBlock(uint8 block_id, RelFileNode *rnode, ForkNumber forknum,
 void
 XLogRegisterData(char *data, int len)
 {
+	return;
 	XLogRecData *rdata;
 
 	Assert(begininsert_called);
@@ -367,6 +368,7 @@ XLogRegisterData(char *data, int len)
 void
 XLogRegisterBufData(uint8 block_id, char *data, int len)
 {
+	return;
 	registered_buffer *regbuf;
 	XLogRecData *rdata;
 

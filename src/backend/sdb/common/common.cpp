@@ -22,7 +22,7 @@ bool kResultIsMinio = true;
 
 uint64_t read_xid = 0;
 uint64_t commit_xid = 0;
-uint64_t dbid = 0;
+uint64_t dbid = 1;
 uint64_t sessionid = 1;
 uint64_t query_id = 0;
 uint64_t slice_count = 0;

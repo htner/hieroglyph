@@ -4872,8 +4872,10 @@ PostgresMain(int argc, char *argv[],
 		 */
 		CreateDataDirLockFile(false);
 
+#ifdef SDB_NOUSE
 		/* read control file (error checking and contains config ) */
 		LocalProcessControlFile(false);
+#endif
 
 		/* Initialize MaxBackends (if under postmaster, was done already) */
 		InitializeMaxBackends();

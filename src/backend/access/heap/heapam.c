@@ -1982,6 +1982,8 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 	bool		needwal;
 
 	needwal = !(options & HEAP_INSERT_SKIP_WAL) && RelationNeedsWAL(relation);
+	// SDB not need wal
+	needwal = false;
 	gp_expand_protect_catalog_changes(relation);
 
 #ifdef FAULT_INJECTOR
@@ -2245,6 +2247,8 @@ heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 	AssertArg(!(options & HEAP_INSERT_NO_LOGICAL));
 
 	needwal = !(options & HEAP_INSERT_SKIP_WAL) && RelationNeedsWAL(relation);
+	// SDB not need wal
+	needwal = false;
 	saveFreeSpace = RelationGetTargetPageFreeSpace(relation,
 												   HEAP_DEFAULT_FILLFACTOR);
 

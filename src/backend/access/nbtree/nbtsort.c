@@ -583,7 +583,10 @@ _bt_leafbuild(BTSpool *btspool, BTSpool *btspool2)
 	 * We need to log index creation in WAL iff WAL archiving/streaming is
 	 * enabled UNLESS the index isn't WAL-logged anyway.
 	 */
+	wstate.btws_use_wal = false;
+#ifdef SDB_NOUSE
 	wstate.btws_use_wal = XLogIsNeeded() && RelationNeedsWAL(wstate.index);
+#endif
 
 	/* reserve the metapage */
 	wstate.btws_pages_alloced = BTREE_METAPAGE + 1;

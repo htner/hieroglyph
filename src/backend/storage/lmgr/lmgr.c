@@ -905,6 +905,7 @@ SpeculativeInsertionLockAcquire(TransactionId xid)
 void
 SpeculativeInsertionLockRelease(TransactionId xid)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, speculativeInsertionToken);
@@ -921,6 +922,7 @@ SpeculativeInsertionLockRelease(TransactionId xid)
 void
 SpeculativeInsertionWait(TransactionId xid, uint32 token)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, token);
@@ -1004,6 +1006,7 @@ XactLockTableWaitErrorCb(void *arg)
 void
 WaitForLockersMultiple(List *locktags, LOCKMODE lockmode, bool progress)
 {
+	return;
 	List	   *holders = NIL;
 	ListCell   *lc;
 	int			total = 0;
@@ -1082,6 +1085,7 @@ WaitForLockersMultiple(List *locktags, LOCKMODE lockmode, bool progress)
 void
 WaitForLockers(LOCKTAG heaplocktag, LOCKMODE lockmode, bool progress)
 {
+	return;
 	List	   *l;
 
 	l = list_make1(&heaplocktag);
@@ -1102,6 +1106,7 @@ void
 LockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
 				   LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1123,6 +1128,7 @@ void
 UnlockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
 					 LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1143,6 +1149,7 @@ void
 LockSharedObject(Oid classid, Oid objid, uint16 objsubid,
 				 LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1164,6 +1171,7 @@ void
 UnlockSharedObject(Oid classid, Oid objid, uint16 objsubid,
 				   LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1185,6 +1193,7 @@ void
 LockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
 						   LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1203,6 +1212,7 @@ void
 UnlockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
 							 LOCKMODE lockmode)
 {
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_OBJECT(tag,
@@ -1225,6 +1235,7 @@ UnlockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
 void
 DescribeLockTag(StringInfo buf, const LOCKTAG *tag)
 {
+	return;
 	switch ((LockTagType) tag->locktag_type)
 	{
 		case LOCKTAG_RELATION:

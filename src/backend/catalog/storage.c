@@ -1,5 +1,4 @@
-/*-------------------------------------------------------------------------
- *
+/*------------------------------------------------------------------------
  * storage.c
  *	  code to create and destroy physical storage for relations
  *
@@ -103,6 +102,8 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence, SMgrImpl smgr_whic
 			elog(ERROR, "invalid relpersistence: %c", relpersistence);
 			return NULL;		/* placate compiler */
 	}
+
+	needs_wal = false;
 
 	srel = smgropen(rnode, backend, smgr_which);
 	smgrcreate(srel, MAIN_FORKNUM, false);
