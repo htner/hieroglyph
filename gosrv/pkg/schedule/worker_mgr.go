@@ -8,7 +8,7 @@ import (
 )
 
 const (
-  basePort = 40000
+  basePort = 9100
 )
 
 type WorkerMgr struct {
@@ -30,7 +30,7 @@ func (mgr *WorkerMgr) GetServerSliceList(slices []*sdb.PBPlanSlice) ([]*sdb.Work
   // ports := []int{40001, 40003, 40005}
 	if len(slices) == 0 {
 			workinfo := &sdb.WorkerInfo{
-				Addr:  fmt.Sprintf("127.0.0.1:%d", basePort + 2 * seg - 1),
+				Addr:  fmt.Sprintf("127.0.0.1:%d", basePort + seg),
 				Id:    int64(seg),
 				Segid: seg,
 			}
@@ -42,32 +42,33 @@ func (mgr *WorkerMgr) GetServerSliceList(slices []*sdb.PBPlanSlice) ([]*sdb.Work
 
 			workerSlices = append(workerSlices, workerslice)
 			workinfos = append(workinfos, workinfo)
+      seg++
 	}
 
-log.Println("dddtest GetServerSliceList 1 ", workerSlices)
-	for i, slice := range slices {
-		if int32(i) != slice.SliceIndex {
-			log.Fatalf("slice index not match %d.%s", i, slice.String())
-		}
-		totalSeg += slice.NumSegments;
-    
-log.Println("dddtest GetServerSliceList 1.5 ", totalSeg, seg)
-		for ; seg <= totalSeg; seg++ {
-			workinfo := &sdb.WorkerInfo{
-				Addr:  fmt.Sprintf("127.0.0.1:%d", basePort + 2 * seg - 1),
-				Id:    int64(seg),
-				Segid: seg,
-			}
+  log.Println("dddtest GetServerSliceList 1 ", workerSlices)
+  for i, slice := range slices {
+    if int32(i) != slice.SliceIndex {
+      log.Fatalf("slice index not match %d.%s", i, slice.String())
+    }
+    totalSeg += slice.NumSegments;
 
-			workerslice := &sdb.WorkerSliceInfo{
-				WorkerInfo: workinfo,
-				Sliceid:    slice.SliceIndex,
-			}
-			workerSlices = append(workerSlices, workerslice)
-			workinfos = append(workinfos, workinfo)
-		}
+    log.Println("dddtest GetServerSliceList 1.5 ", totalSeg, seg)
+    for ; seg <= totalSeg; seg++ {
+      workinfo := &sdb.WorkerInfo{
+        Addr:  fmt.Sprintf("127.0.0.1:%d", basePort + seg),
+        Id:    int64(seg),
+        Segid: seg,
+      }
+
+      workerslice := &sdb.WorkerSliceInfo{
+        WorkerInfo: workinfo,
+        Sliceid:    slice.SliceIndex,
+      }
+      workerSlices = append(workerSlices, workerslice)
+      workinfos = append(workinfos, workinfo)
+    }
   }
 
-log.Println("dddtest GetServerSliceList 2 ", workerSlices)
-	return workinfos, workerSlices, nil
+  log.Println("dddtest GetServerSliceList 2 ", workerSlices)
+  return workinfos, workerSlices, nil
 }

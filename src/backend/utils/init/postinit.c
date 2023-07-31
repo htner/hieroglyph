@@ -695,15 +695,21 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 *
 	 * Sets up MyBackendId, a unique backend identifier.
 	 */
+	MyBackendId = 1;
+
+#ifdef SDB_NOUSE
 	MyBackendId = InvalidBackendId;
 
 	SharedInvalBackendInit(false);
+#endif
 
 	if (MyBackendId > MaxBackends || MyBackendId <= 0)
 		elog(FATAL, "bad backend ID: %d", MyBackendId);
 
 	/* Now that we have a BackendId, we can participate in ProcSignal */
+#ifdef SDB_NOUSE
 	ProcSignalInit(MyBackendId);
+#endif
 
 	/*
 	 * Also set up timeout handlers needed for backend operation.  We need
@@ -736,7 +742,9 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		 * This is handled by calling RecoveryInProgress and ignoring the
 		 * result.
 		 */
+#ifdef SDB_NOUSE
 		(void) RecoveryInProgress();
+#endif
 	}
 	else
 	{
@@ -751,6 +759,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		 */
 		CreateAuxProcessResourceOwner();
 
+#ifdef SDB_NOUSE
 		StartupXLOG();
 		/* Release (and warn about) any buffer pins leaked in StartupXLOG */
 		ReleaseAuxProcessResources(true);
@@ -758,6 +767,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		CurrentResourceOwner = NULL;
 
 		on_shmem_exit(ShutdownXLOG, 0);
+#endif
 	}
 
 	/*
@@ -942,8 +952,10 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 				(errcode(ERRCODE_TOO_MANY_CONNECTIONS),
 				 errmsg("remaining connection slots are reserved for non-replication superuser connections")));
 
+	#ifdef SDB_NOUSE
 	if (am_superuser)
 		check_superuser_connection_limit();
+	#endif
 
 	/* Check replication permissions needed for walsender processes. */
 	if (am_walsender)

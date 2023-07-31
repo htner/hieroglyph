@@ -1122,6 +1122,7 @@ LWLockDequeueSelf(LWLock *lock)
 bool
 LWLockAcquire(LWLock *lock, LWLockMode mode)
 {
+	return true;
 	PGPROC	   *proc = MyProc;
 	bool		result = true;
 	int			extraWaits = 0;
@@ -1290,6 +1291,7 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
 bool
 LWLockConditionalAcquire(LWLock *lock, LWLockMode mode)
 {
+	return true;
 	bool		mustwait;
 
 	AssertArg(mode == LW_SHARED || mode == LW_EXCLUSIVE);
@@ -1345,6 +1347,7 @@ LWLockConditionalAcquire(LWLock *lock, LWLockMode mode)
 bool
 LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
 {
+	return true;
 	PGPROC	   *proc = MyProc;
 	bool		mustwait;
 	int			extraWaits = 0;
@@ -1470,6 +1473,7 @@ LWLockConflictsWithVar(LWLock *lock,
 					   uint64 *valptr, uint64 oldval, uint64 *newval,
 					   bool *result)
 {
+	return true;
 	bool		mustwait;
 	uint64		value;
 
@@ -1528,6 +1532,7 @@ LWLockConflictsWithVar(LWLock *lock,
 bool
 LWLockWaitForVar(LWLock *lock, uint64 *valptr, uint64 oldval, uint64 *newval)
 {
+	return true;
 	PGPROC	   *proc = MyProc;
 	int			extraWaits = 0;
 	bool		result = false;
@@ -1663,6 +1668,7 @@ LWLockWaitForVar(LWLock *lock, uint64 *valptr, uint64 oldval, uint64 *newval)
 void
 LWLockUpdateVar(LWLock *lock, uint64 *valptr, uint64 val)
 {
+	return;
 	proclist_head wakeup;
 	proclist_mutable_iter iter;
 
@@ -1717,6 +1723,7 @@ LWLockUpdateVar(LWLock *lock, uint64 *valptr, uint64 val)
 void
 LWLockRelease(LWLock *lock)
 {
+	return;
 	LWLockMode	mode;
 	uint32		oldstate;
 	bool		check_waiters;
@@ -1790,6 +1797,7 @@ LWLockRelease(LWLock *lock)
 void
 LWLockReleaseClearVar(LWLock *lock, uint64 *valptr, uint64 val)
 {
+	return;
 	LWLockWaitListLock(lock);
 
 	/*
@@ -1816,6 +1824,7 @@ LWLockReleaseClearVar(LWLock *lock, uint64 *valptr, uint64 val)
 void
 LWLockReleaseAll(void)
 {
+	return;
 	while (num_held_lwlocks > 0)
 	{
 		HOLD_INTERRUPTS();		/* match the upcoming RESUME_INTERRUPTS */
@@ -1851,6 +1860,7 @@ LWLockHeldByMe(LWLock *l)
 bool
 LWLockAnyHeldByMe(LWLock *l, int nlocks, size_t stride)
 {
+	return true;
 	char	   *held_lock_addr;
 	char	   *begin;
 	char	   *end;
@@ -1877,6 +1887,7 @@ LWLockAnyHeldByMe(LWLock *l, int nlocks, size_t stride)
 bool
 LWLockHeldByMeInMode(LWLock *l, LWLockMode mode)
 {
+	return true;
 	int			i;
 
 	for (i = 0; i < num_held_lwlocks; i++)

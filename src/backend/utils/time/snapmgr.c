@@ -311,6 +311,7 @@ SnapMgrInit(void)
 Snapshot
 GetTransactionSnapshot(void)
 {
+	return &SnapshotAnyData;
 	/*
 	 * Return historic snapshot if doing logical decoding. We'll never need a
 	 * non-historic transaction snapshot in this (sub-)transaction, so there's
@@ -484,6 +485,7 @@ GetOldestSnapshot(void)
 Snapshot
 GetCatalogSnapshot(Oid relid)
 {
+	return &SnapshotAnyData;
 	/*
 	 * Return historic snapshot while we're doing logical decoding, so we can
 	 * see the appropriate state of the catalog.

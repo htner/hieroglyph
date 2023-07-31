@@ -657,6 +657,7 @@ GetStableLatestTransactionId(void)
 static void
 AssignTransactionId(TransactionState s)
 {
+	return;
 	bool		isSubXact = (s->parent != NULL);
 	ResourceOwner currentOwner;
 	bool		log_unknown_top = false;
@@ -2657,9 +2658,11 @@ StartTransaction(void)
 	/*
 	 * initialize other subsystems for new transaction
 	 */
+#ifdef SDB_NOUSE
 	AtStart_GUC();
 	AtStart_Cache();
 	AfterTriggerBeginXact();
+#endif
 
 	/*
 	 * done with start processing, set current transaction state to "in
@@ -2702,7 +2705,9 @@ StartTransaction(void)
 	if (ShouldAssignResGroupOnMaster())
 		AssignResGroupOnMaster();
 
+#ifdef SDB_NOUSE
 	initialize_wal_bytes_written();
+#endif
 	ShowTransactionState("StartTransaction");
 
 	ereportif(Debug_print_full_dtm, LOG,
@@ -2728,8 +2733,10 @@ CommitTransaction(void)
 	is_parallel_worker = (s->blockState == TBLOCK_PARALLEL_INPROGRESS);
 
 	/* Enforce parallel mode restrictions during parallel worker commit. */
+#ifdef SDB_NOUSE
 	if (is_parallel_worker)
 		EnterParallelMode();
+#endif
 
 	ShowTransactionState("CommitTransaction");
 
@@ -2774,6 +2781,7 @@ CommitTransaction(void)
 	 * the transaction-abort path.
 	 */
 
+#ifdef SDB_NOUSE
 	CallXactCallbacks(is_parallel_worker ? XACT_EVENT_PARALLEL_PRE_COMMIT
 					  : XACT_EVENT_PRE_COMMIT);
 
@@ -3000,6 +3008,10 @@ CommitTransaction(void)
 	AtEOXact_WorkFile();
 	pgstat_report_xact_timestamp(0);
 
+#endif
+	/* Prevent cancel/die interrupt while cleaning up */
+	HOLD_INTERRUPTS();
+
 	CurrentResourceOwner = NULL;
 	ResourceOwnerDelete(TopTransactionResourceOwner);
 	s->curTransactionOwner = NULL;
@@ -3008,12 +3020,14 @@ CommitTransaction(void)
 
 	AtCommit_Memory();
 
+	/*
 	finishDistributedTransactionContext("CommitTransaction", false);
 
 	if (gp_local_distributed_cache_stats)
 	{
 		LocalDistribXactCache_ShowStats("CommitTransaction");
 	}
+	*/
 
 	s->fullTransactionId = InvalidFullTransactionId;
 	s->subTransactionId = InvalidSubTransactionId;
@@ -3532,7 +3546,9 @@ AbortTransaction(void)
 	 * Do abort to all QE. NOTE: we don't process
 	 * signals to prevent recursion until we've notified the QEs.
 	 */
+#ifdef SDB_NOUSE
 	rollbackDtxTransaction();
+#endif
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
@@ -3541,7 +3557,9 @@ AbortTransaction(void)
 	 */
 	ProcArrayEndTransaction(MyProc, latestXid);
 
+#ifdef SDB_NOUSE
 	EndLocalDistribXact(false);
+#endif
 
 	SIMPLE_FAULT_INJECTOR("abort_after_procarray_end");
 	/*

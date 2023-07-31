@@ -87,7 +87,7 @@ int OptimizerServerRun(int argc, char** argv) {
 		}
 	}
 
-	FLAGS_port = PostPortNumber;
+	// FLAGS_port = PostPortNumber;
 
 	// Start the server.
 	brpc::ServerOptions options;

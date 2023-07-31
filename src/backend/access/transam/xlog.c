@@ -4944,6 +4944,8 @@ UpdateControlFile(void)
 uint64
 GetSystemIdentifier(void)
 {
+	// FOR SDB
+	return 0;
 	Assert(ControlFile != NULL);
 	return ControlFile->system_identifier;
 }
@@ -4954,6 +4956,8 @@ GetSystemIdentifier(void)
 char *
 GetMockAuthenticationNonce(void)
 {
+	// FOR SDB
+	return false;
 	Assert(ControlFile != NULL);
 	return ControlFile->mock_authentication_nonce;
 }
@@ -4964,6 +4968,8 @@ GetMockAuthenticationNonce(void)
 bool
 DataChecksumsEnabled(void)
 {
+	// FOR SDB
+	return false;
 	Assert(ControlFile != NULL);
 	return (ControlFile->data_checksum_version > 0);
 }
@@ -5064,6 +5070,7 @@ check_wal_buffers(int *newval, void **extra, GucSource source)
 void
 LocalProcessControlFile(bool reset)
 {
+	return;
 	Assert(reset || ControlFile == NULL);
 	ControlFile = palloc(sizeof(ControlFileData));
 	ReadControlFile();
@@ -8460,6 +8467,7 @@ CheckRecoveryConsistency(void)
 bool
 RecoveryInProgress(void)
 {
+	return false;
 	/*
 	 * We check shared state each time only until we leave recovery mode. We
 	 * can't re-enter recovery, so there's no need to keep checking after the
@@ -10266,6 +10274,7 @@ KeepLogSeg(XLogRecPtr recptr, XLogSegNo *logSegNo)
 void
 XLogPutNextOid(Oid nextOid)
 {
+	return;
 	XLogBeginInsert();
 	XLogRegisterData((char *) (&nextOid), sizeof(Oid));
 	(void) XLogInsert(RM_XLOG_ID, XLOG_NEXTOID);

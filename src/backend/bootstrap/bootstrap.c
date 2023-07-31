@@ -453,7 +453,9 @@ AuxiliaryProcessMain(int argc, char *argv[])
 			 */
 			SetProcessingMode(BootstrapProcessing);
 			bootstrap_signals();
+#ifdef SDB_NOUSE
 			BootStrapXLOG();
+#endif
 			BootstrapModeMain();
 			proc_exit(1);		/* should never return */
 
