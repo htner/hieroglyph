@@ -102,6 +102,7 @@
 #include "cdb/cdbvars.h"        /* Gp_role */
 #include "cdb/cdbsreh.h"
 #include "storage/md.h"
+#include "sdb/reload_cache.h"
 
 
 #define RELCACHE_INIT_FILEMAGIC		0x773266	/* version ID value */
@@ -1856,7 +1857,10 @@ LookupOpclassInfo(Oid operatorClassOid,
 static void
 InitTableAmRoutine(Relation relation)
 {
-	relation->rd_tableam = GetTableAmRoutine(relation->rd_amhandler);
+	if (relation->rd_amhandler == PARQUET_TABLE_AM_HANDLER_OID)
+		relation->rd_tableam = GetParquetamTableAmRoutine();
+	else
+		relation->rd_tableam = GetTableAmRoutine(relation->rd_amhandler);
 }
 
 /*
@@ -1909,7 +1913,8 @@ RelationInitTableAccessMethod(Relation relation)
 			elog(ERROR, "cache lookup failed for access method %u",
 				 relation->rd_rel->relam);
 		aform = (Form_pg_am) GETSTRUCT(tuple);
-		relation->rd_amhandler = aform->amhandler;
+		//relation->rd_amhandler = aform->amhandler;
+		relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
 		ReleaseSysCache(tuple);
 		/*
 		 * Greenplum: append-optimized relations should not have a valid
@@ -4328,7 +4333,7 @@ RelationCacheInitializePhase3(void)
 	 * relcache load when a rel does have rules or triggers, so we choose to
 	 * nail them for performance reasons.
 	 */
-	if (true || Gp_role == GP_ROLE_EXECUTE) {
+	if (false && Gp_role == GP_ROLE_EXECUTE) {
 			elog(WARNING, "try to reindex ---------------------------------");
 			//Oid relid = 1259; // pg_class
 			//Oid indexid = 2610; // pg_index
@@ -4419,21 +4424,21 @@ RelationCacheInitializePhase3(void)
 			relation_close(rel_index, AccessShareLock);
 
 			for (size_t i = 0; i < curr_pg_type_index_size; ++i) {
-				elog(WARNING, "reindex pg_type %d -> rel %d", pg_type_index[i], TypeRelationId);
+				elog(WARNING, "QQTEST reindex pg_type %d -> rel %d", pg_type_index[i], TypeRelationId);
 				unlink_oid(pg_type_index[i], false);
 				force_reindex_index(pg_type_index[i], TypeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
 			kInitIndex = IIState_PG_TYPE;
 
 			for (size_t i = 0; i < curr_pg_class_index_size; ++i) {
-				elog(WARNING, "reindex pg_class %d -> rel %d", pg_class_index[i], RelationRelationId);
+				elog(WARNING, "QQTEST reindex pg_class %d -> rel %d", pg_class_index[i], RelationRelationId);
 				unlink_oid(pg_class_index[i], false);
 				force_reindex_index(pg_class_index[i], RelationRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
 			kInitIndex = IIState_PG_CLASS;
 
 			for (size_t i = 0; i < curr_pg_attribute_index_size; ++i) {
-				elog(WARNING, "reindex pg_attribute %d -> rel %d", pg_attribute_index[i], AttributeRelationId);
+				elog(WARNING, "QQTEST reindex pg_attribute %d -> rel %d", pg_attribute_index[i], AttributeRelationId);
 				unlink_oid(pg_attribute_index[i], false);
 				force_reindex_index(pg_attribute_index[i], AttributeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
 			}
@@ -4442,6 +4447,7 @@ RelationCacheInitializePhase3(void)
 			for (size_t i = 0; i < curr_index_size; ++i) {
 				Oid indexid = catalog_index[i];
 				Oid relid = index_to_rels[indexid];
+				elog(WARNING, "QQTest reindex pg_catalog %d -> rel %d", indexid, relid);
 				if (relid != InvalidOid) {
 					unlink_oid(indexid, true);
 					unlink_oid(indexid, false);
@@ -4472,6 +4478,9 @@ RelationCacheInitializePhase3(void)
 			pfree(pg_attribute_index);
 		
 	}
+
+	if (true || Gp_role == GP_ROLE_EXECUTE)
+		ReloadAllCatalogCacheIndex();
 
 	if (!criticalRelcachesBuilt)
 	{
@@ -6892,3 +6901,5 @@ unlink_initfile(const char *initfilename, int elevel)
 							initfilename)));
 	}
 }
+
+

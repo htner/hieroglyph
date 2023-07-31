@@ -62,6 +62,7 @@ message PrepareTaskRequest {
 
   LakeSpaceDetail db_space = 26;
   LakeSpaceDetail result_space = 27;
+  repeated uint32 reload_catalog_oid = 28;
 }
 
 // The response message containing the greetings

@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <arrow/record_batch.h>
+#include <vector>
 
 namespace pdb
 {
@@ -15,7 +16,7 @@ class ColumnExchanger;
 
 class RecordBatchExchanger {
 public:
-  RecordBatchExchanger(Oid rel, TupleDesc tuple_desc);
+  RecordBatchExchanger(Oid rel, TupleDesc tuple_desc, const std::vector<bool>& fetched_col);
   RecordBatchExchanger(const RecordBatchExchanger&) = delete;
   RecordBatchExchanger& operator= (const RecordBatchExchanger&) = delete;
 

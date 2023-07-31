@@ -31,6 +31,7 @@ type QueryHandler struct {
 
 	lasterr error
   newQueryId uint64
+  reloadCatalogOid []uint32
 }
 
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
@@ -50,6 +51,7 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 		if err != nil {
 		}
 		catalogFiles[oid] = files
+    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
 	}
 
 	// NewQueryId
@@ -238,6 +240,7 @@ func (Q *QueryHandler) prepare() bool {
 			taskid := &sdb.TaskIdentify{QueryId: Q.newQueryId, SliceId: int32(sliceid), SegId: workerSlice.WorkerInfo.Segid}
 			query.TaskIdentify = taskid
 			query.SliceTable.LocalSlice = int32(sliceid)
+      query.ReloadCatalogOid = Q.reloadCatalogOid
 
 			//localSliceTable := sliceTable
 			//addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
@@ -254,7 +257,7 @@ func (Q *QueryHandler) prepare() bool {
 			workClient := sdb.NewWorkerClient(workConn)
 
 			// Contact the server and print out its response.
-			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*60)
+			ctx, workCancel := context.WithTimeout(context.Background(), time.Second*6000)
 			defer workCancel()
 
 			reply, err := workClient.Prepare(ctx, query)
@@ -282,9 +285,15 @@ func (Q *QueryHandler) startWorkers() bool {
 	wg.Add(len(Q.workerSlices))
 	allSuccess := true
 
+  i := 0
+  log.Println("dddtest worker slices ", Q.workerSlices)
   for _, workerSlice := range Q.workerSlices {
     // Send To Work
     taskid := sdb.TaskIdentify{QueryId: Q.newQueryId, SliceId: int32(workerSlice.Sliceid), SegId: workerSlice.WorkerInfo.Segid}
+    if i > 0 {
+      time.Sleep(2 * time.Second)
+      i++
+    }
     go func(tid sdb.TaskIdentify, addr string) {
       defer wg.Done()
       log.Printf("addr:%s", addr)
@@ -327,9 +336,14 @@ func (Q *QueryHandler) optimize() (error) {
   c := sdb.NewOptimizerClient(conn)
 
   // Contact the server and print out its response.
-  ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+  ctx, cancel := context.WithTimeout(context.Background(), time.Second*6000)
   defer cancel()
-  optimizerResult, err := c.Optimize(ctx, &sdb.OptimizeRequest{Name: "query", Sql: Q.request.Sql})
+  req := &sdb.OptimizeRequest{
+    Name : "query",
+    Sql  : Q.request.Sql,
+    ReloadCatalogOid : Q.reloadCatalogOid,
+  }
+  optimizerResult, err := c.Optimize(ctx, req)
   if err != nil {
     log.Printf("could not optimize: %v", err)
     return fmt.Errorf("optimizer error")

@@ -463,6 +463,8 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId) ([]*sdb.LakeFileD
 }
 
 func (L *LakeRelOperator) SatisfiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) ([]*sdb.LakeFileDetail, error){
+  return files, nil
+
 	satisfiesFiles := make([]*sdb.LakeFileDetail, 0)
   db, err := fdb.OpenDefault()
 	if err != nil {

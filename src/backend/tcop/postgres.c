@@ -18,6 +18,8 @@
  */
 
 #include "postgres.h"
+#include "catalog/pg_attribute_d.h"
+#include "catalog/pg_type_d.h"
 
 #include <fcntl.h>
 #include <limits.h>
@@ -107,6 +109,7 @@
 #include "utils/session_state.h"
 #include "utils/vmem_tracker.h"
 #include "catalog/pg_proc.h"
+#include "sdb/reload_cache.h"
 
 /* ----------------
  *		global variables
@@ -6595,15 +6598,31 @@ utility_optimizer(Query *query)
 	return stmt;
 }
 
-void prepare_catalog(List *prepare_catlog_list)
+void prepare_catalog(Oid *oid_arr, int size)
 {
-	ListCell	*iter;
-	// bool   have_pg_class = false;
-	// bool   have_pg_attr = false;
-	// bool   have_pg_proc = false;
-	// bool   have_pg_type = false;
+	bool have_pg_type = false;
+	bool have_pg_class = false;
+	bool have_pg_attri = false;
 
-	// 1. invalid all catalog
+	for (int i = 0; i < size; ++i)
+	{
+		switch (oid_arr[i])
+		{
+			case TypeRelationId:
+				have_pg_type = true;
+				break;
+			case RelationRelationId:
+				have_pg_class = true;
+				break;
+			case AttributeRelationId:
+				have_pg_attri = true;
+				break;
+			default:
+				break;
+		}
+	}
+
+	// 1. invalid all relation cache
 	RelationCacheInvalidate(false);
 
 	// 2. remove pg_internal.init which content is invalid
@@ -6611,33 +6630,51 @@ void prepare_catalog(List *prepare_catlog_list)
 	RelationCacheInitFilePostInvalidate();
 
 	// 3. reset all catalog cache and its index
-	// foreach(iter, prepare_catlog_list)
-	// {
-	// 	Oid pre_cat_oid = lfirst_oid(iter);
-	// 	switch(pre_cat_oid) {
-	// 		case RelationRelationId :
-	// 			have_pg_class = true;
-	// 			break;
-	// 		case AttributeRelationId:
-	// 			have_pg_attr = true;
-	// 			break;
-	// 		case TypeRelationId:
-	// 			have_pg_type = true;
-	// 			break;
-	// 		case ProcedureRelationId:
-	// 			have_pg_proc = true;
-	// 			break;
-	// 		default:
-	// 			break;
-	// 	}
-
-	// 	InvalidateCatalogSnapshot();
-	// CatalogCacheFlushCatalogAndIndex(pre_cat_oid);
-	// }
-
 	InvalidateCatalogSnapshot();
-	ResetCatalogCaches();
-	// 4. recreate all catalog cache, fix it in future
 	kInitIndex = IIState_NULL;
-	RelationCacheInitializePhase3();
+
+	// 4.1 we must reload pg_type first
+	if (have_pg_type)
+	{
+		CatalogCacheFlushCatalogAndIndex(TypeRelationId);
+		ReloadOneCatalogCacheIndex(TypeRelationId);
+		kInitIndex = IIState_PG_TYPE;
+	}
+
+	// 4.2 then we should reload pg_class
+	if (have_pg_class)
+	{
+		CatalogCacheFlushCatalogAndIndex(RelationRelationId);
+		ReloadOneCatalogCacheIndex(RelationRelationId);
+		kInitIndex = IIState_PG_CLASS;
+	}
+
+	// 4.3 finaly, we should reload pg_attri
+	if (have_pg_attri)
+	{
+		CatalogCacheFlushCatalogAndIndex(AttributeRelationId);
+		ReloadOneCatalogCacheIndex(AttributeRelationId);
+	}
+
+	// 4.4 we should reset kInitIndex to IIState_PG_ATTR, even we do nothing.
+	kInitIndex = IIState_PG_ATTR;
+
+	for (int i = 0; i < size; ++i)
+	{
+		if (oid_arr[i] == RelationRelationId)
+			continue;
+		else if (oid_arr[i] == TypeRelationId)
+			continue;
+		else if (oid_arr[i] == AttributeRelationId)
+			continue;
+	
+		CatalogCacheFlushCatalogAndIndex(oid_arr[i]);
+		// 4. recreate one relation catalog cache
+		ReloadOneCatalogCacheIndex(oid_arr[i]);
+	}
+	//ResetCatalogCaches();
+	// kInitIndex is the flag for systable_beginscan function to adjust indexok is true
+	kInitIndex = IIState_FINISH;
+	//kInitIndex = IIState_NULL;
+	//RelationCacheInitializePhase3();
 }

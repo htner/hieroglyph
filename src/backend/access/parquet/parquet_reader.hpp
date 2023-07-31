@@ -86,7 +86,8 @@ class ParquetReader {
   int32_t id();
 };
 
-ParquetReader *CreateParquetReader(Oid rel_id, uint64_t fileid, const char *filename,
-                                   TupleDesc tuple_desc);
+ParquetReader *CreateParquetReader(Oid rel_id, uint64_t fileid,
+							const char *filename, TupleDesc tuple_desc,
+							const std::vector<bool> &fetched_col);
 
 #endif

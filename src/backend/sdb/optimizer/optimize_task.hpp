@@ -39,7 +39,15 @@ public:
   }
 
 	void PrepareCatalog() {
-	  prepare_catalog(nullptr);
+    Oid *oid_arr = nullptr;
+    std::vector<Oid> oids;
+    LOG(INFO) << "dddtest reload oid " << request_->DebugString();
+    int size = request_->reload_catalog_oid().size();
+    for (int i = 0; i < size; ++i) {
+      oids.emplace_back(request_->reload_catalog_oid(i));
+    }
+    oid_arr = &oids[0];
+	  prepare_catalog(oid_arr, size);
     // skip now
   }
 
