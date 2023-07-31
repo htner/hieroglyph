@@ -50,13 +50,9 @@ extern TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                       ParallelTableScanDesc pscan,
                                       uint32 flags);
 
-static TableScanDesc ParquetBeginScanExtractColumns(
+extern TableScanDesc ParquetBeginScanExtractColumns(
     Relation rel, Snapshot snapshot, List *targetlist, List *qual, bool *proj,
-    List *constraintList, uint32 flags) {
-  elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
-  return NULL;
-}
-
+    List *constraintList, uint32 flags);
 /*
  * GPDB: Extract columns for scan from targetlist and quals,
  * stored in key as struct ScanKeyData. This is mainly

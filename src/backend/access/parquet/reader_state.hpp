@@ -55,6 +55,7 @@ ParquetS3ReaderState *create_parquet_execution_state(ReaderType reader_type,
                                                      Aws::S3::S3Client *s3_client,
                                                      Oid rel,
                                                      TupleDesc tuple_desc,
+													 const std::vector<bool>& fetched_col,
                                                      bool use_threads,
                                                      bool use_mmap,
                                                      int32_t max_open_files);
