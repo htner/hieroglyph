@@ -14,6 +14,7 @@
 
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/HeadObjectRequest.h>
+#include <fstream>
 
 using namespace std;
 
@@ -110,4 +111,32 @@ S3RandomAccessFile::GetSize()
 
 	int64_t fileSize = object.GetResultWithOwnership().GetContentLength();
 	return fileSize;
+}
+
+arrow::Status
+CopyToLocalFile(Aws::S3::S3Client *s3_client,
+					   const Aws::String &bucket, const Aws::String &object, const std::string& filename) {
+	Aws::S3::Model::GetObjectRequest object_request;
+	object_request.WithBucket(bucket.c_str()).WithKey(object.c_str());
+	object_request.SetBucket(bucket);
+	object_request.SetKey(object);
+	/*
+	object_request.SetResponseStreamFactory([](){
+		return Aws::New<Aws::StringStream >(S3_ALLOCATION_TAG); });
+	*/
+
+	Aws::S3::Model::GetObjectOutcome get_object_outcome = s3_client->GetObject(object_request);
+	if (!get_object_outcome.IsSuccess()) {
+        auto err = get_object_outcome.GetError();
+        Aws::String msg = "GetObject failed. " + err.GetExceptionName() + ": " + err.GetMessage();
+		return arrow::Status(arrow::StatusCode::IOError, msg.c_str());
+	}
+
+	//int64_t n_read = get_object_outcome.GetResult().GetContentLength();
+    //offset += n_read;
+	std::ofstream outfile;
+	outfile.open(filename, std::ios::out | std::ios::trunc | std::ios::binary);
+	outfile << get_object_outcome.GetResult().GetBody().rdbuf();
+	outfile.close();
+	return arrow::Status::OK();
 }

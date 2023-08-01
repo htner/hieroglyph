@@ -25,16 +25,15 @@ extern "C"
 #include "backend/access/parquet/parquet_s3/parquet_s3.h"
 }
 
-class S3RandomAccessFile : public arrow::io::RandomAccessFile
-{
-	private:
+class S3RandomAccessFile : public arrow::io::RandomAccessFile {
+private:
 	Aws::String bucket_;
 	Aws::String object_;
 	Aws::S3::S3Client *s3_client_;
 	int64_t offset;
 	bool isclosed;
 
-	public:
+public:
 	S3RandomAccessFile(Aws::S3::S3Client *s3_client,
 					   const Aws::String &bucket, const Aws::String &object);
 
@@ -47,8 +46,7 @@ class S3RandomAccessFile : public arrow::io::RandomAccessFile
 	arrow::Result<int64_t> GetSize();
 };
 
-typedef enum FileLocation_t
-{
+typedef enum FileLocation_t {
     LOC_NOT_DEFINED,
     LOC_LOCAL,
     LOC_S3
@@ -61,20 +59,17 @@ typedef enum FileLocation_t
  * a unique_ptr. In order to initialize it in parquet_s3_fdw, we define 
  * FileReaderCache class and the cache entry has the pointer of this class.
  */
-class FileReaderCache
-{
+class FileReaderCache {
 	public:
 		std::unique_ptr<parquet::arrow::FileReader> reader;
 };
 
-typedef struct ReaderCacheKey
-{
+typedef struct ReaderCacheKey {
 	char dname[256];
 	char fname[256];
 } ReaderCacheKey;
 
-typedef struct ReaderCacheEntry
-{
+typedef struct ReaderCacheEntry {
 	ReaderCacheKey key;			/* hash key (must be first) */
 	FileReaderCache *file_reader;
 	arrow::MemoryPool *pool;
@@ -103,6 +98,9 @@ extern Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
                                          const char *awsRegion);
 
 extern void s3_client_close(Aws::S3::S3Client *s3_client);
+
+extern arrow::Status CopyToLocalFile(Aws::S3::S3Client *s3_client,
+					   const Aws::String &bucket, const Aws::String &object, const std::string& filename);
 
 #define IS_S3_PATH(str) (str != NULL && strncmp(str, "s3://", 5) == 0)
 

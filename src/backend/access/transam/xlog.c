@@ -1,4 +1,4 @@
-/*-------------------------------------------------------------------------
+/*-------------------------------------------------------------------------xlog.c
  *
  * xlog.c
  *		PostgreSQL write-ahead log manager
@@ -10305,6 +10305,7 @@ XLogPutNextOid(Oid nextOid)
 void
 XLogPutNextRelfilenode(Oid nextRelfilenode)
 {
+	return;
 	XLogBeginInsert();
 	XLogRegisterData((char *) (&nextRelfilenode), sizeof(Oid));
 	(void) XLogInsert(RM_XLOG_ID, XLOG_NEXTRELFILENODE);

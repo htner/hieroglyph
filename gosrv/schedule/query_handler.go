@@ -128,7 +128,7 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 		GucVersion: 1,
 		Workers:    workinfos,
 		SliceTable: Q.sliceTable,
-		ResultDir:  "/home/gpadmin/code/pg/scloud/gpAux/gpdemo/datadirs/qddir",
+		ResultDir:  "base/result",
 	}
 }
 
