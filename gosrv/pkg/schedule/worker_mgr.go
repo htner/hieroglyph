@@ -42,7 +42,9 @@ func (mgr *WorkerMgr) GetServerSliceList(slices []*sdb.PBPlanSlice) ([]*sdb.Work
 
 			workerSlices = append(workerSlices, workerslice)
 			workinfos = append(workinfos, workinfo)
-      seg++
+      //seg++
+      log.Println("dddtest GetServerSliceList with slice empty: ", workerSlices)
+      return workinfos, workerSlices, nil
 	}
 
   log.Println("dddtest GetServerSliceList 1 ", workerSlices)
