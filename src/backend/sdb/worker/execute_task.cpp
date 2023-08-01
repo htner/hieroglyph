@@ -93,8 +93,46 @@ void ExecuteTask::HandleQuery() {
 	*/
 	const std::string& plan_info = request_.plan_info();
 	PlannedStmt* plan = (PlannedStmt *) deserializeNode(plan_info.data(), plan_info.size());
-	if (!plan || !IsA(plan, PlannedStmt))
+	if (!plan || !IsA(plan, PlannedStmt)) {
 		LOG(ERROR) << "MPPEXEC: receive invalid planned statement";
+		std::unique_ptr<brpc::Channel> channel;
+		std::unique_ptr<sdb::Schedule_Stub> stub;//(&channel);
+		brpc::Controller cntl;
+		channel = std::make_unique<brpc::Channel>();
+
+		// Initialize the channel, NULL means using default options. 
+		brpc::ChannelOptions options;
+		options.protocol = "h2:grpc";
+		//options.connection_type = "pooled";
+		options.timeout_ms = 10000/*milliseconds*/;
+		options.max_retry = 5;
+		if (channel->Init("127.0.0.1", 10002, &options) != 0) {
+			LOG(ERROR) << "Fail to initialize channel";
+			return;
+		}
+		stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
+
+		sdb::PushWorkerResultRequest request;
+		auto task_id = request.mutable_task_id();
+		*task_id = request_.task_identify();
+		auto result = request.mutable_result();
+		result->set_dbid(request_.dbid());
+		result->set_query_id(request_.task_identify().query_id());
+		result->set_rescode(50000);
+		result->set_message("invalid planned statement");
+		//result->set_result_dir(result_dir);
+		//result->set_meta_file("");
+		//result->add_data_files(result_file);
+
+		sdb::PushWorkerResultReply response;
+
+		stub->PushWorkerResult(&cntl, &request, &response, NULL);
+		if (cntl.Failed()) {
+			LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+			return;
+		}
+		return;
+	}
 	
 	SerializedParams *params = NULL;
 	if (!request_.plan_params().empty()) {
@@ -130,10 +168,10 @@ void ExecuteTask::ReportResult(const std::string& result_dir, const std::string&
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
 	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	//options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10002", NULL) != 0) {
+	if (channel->Init("127.0.0.1", 10002, &options) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}

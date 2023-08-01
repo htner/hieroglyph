@@ -34,8 +34,6 @@ public:
     PrepareCatalog();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
-    HandleOptimize(parsetree_list);
-    CommitTransactionCommand();
   }
 
 	void PrepareCatalog() {
@@ -74,23 +72,28 @@ public:
   }
 
   void PlanQuery(Query* query) {
-	PlannedStmt *plan = NULL;
+    PlannedStmt *plan = NULL;
     char* plan_str = NULL;
 
     if (query->commandType == CMD_UTILITY) {
-	  	plan = utility_optimizer(query);
+      plan = utility_optimizer(query);
     } else {
-    	plan = optimize_query(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
-	}
+      plan = optimize_query(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
+    }
 
-	if (plan_str) {
-    	std::string plan_str_copy(plan_str);
-    	auto params_str = PrepareParams(plan);
+    if (plan == NULL) {
+      reply_->set_message("plan is empty");
+      return
+    }
 
-    	reply_->set_plan_dxl_str(plan_str_copy);
-    	reply_->set_plan_params_str(params_str);
-    	SetSlices(plan);
-	}
+    if (plan_str) {
+      std::string plan_str_copy(plan_str);
+      auto params_str = PrepareParams(plan);
+
+      reply_->set_plan_dxl_str(plan_str_copy);
+      reply_->set_plan_params_str(params_str);
+      SetSlices(plan);
+    }
 
     int planstmt_len;
     int planstmt_len_uncompressed;

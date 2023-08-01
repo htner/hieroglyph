@@ -17,10 +17,12 @@
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/ListObjectsRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
+#include <arrow/io/file.h>
 #include <dirent.h>
 #include <sys/stat.h>
 
 #include <fstream>
+#include <filesystem>
 
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 
@@ -841,10 +843,26 @@ ReaderCacheEntry *parquetGetFileReader(Aws::S3::S3Client *s3client, char *dname,
   if (entry->file_reader == NULL || entry->file_reader->reader == nullptr) {
     std::unique_ptr<parquet::arrow::FileReader> reader;
     entry->pool = arrow::default_memory_pool();
+		/*
     std::shared_ptr<arrow::io::RandomAccessFile> input(
         new S3RandomAccessFile(s3client, dname, fname));
     arrow::Status status =
         parquet::arrow::OpenFile(input, entry->pool, &reader);
+		*/
+	std::string filename = "base/tmp/";
+	std::filesystem::create_directory(filename);
+
+	filename += fname;
+	if (!std::filesystem::exists(filename)) {
+		CopyToLocalFile(s3client, dname, fname, filename);
+	}
+
+	auto result = arrow::io::ReadableFile::Open(filename, entry->pool);
+	if (!result.status().ok()) {
+		//
+	}
+	std::shared_ptr<arrow::io::ReadableFile> infile = result.ValueOrDie();
+	arrow::Status status = parquet::arrow::OpenFile(infile, entry->pool, &reader);
 
     if (!status.ok()) {
 			int *i = 0;

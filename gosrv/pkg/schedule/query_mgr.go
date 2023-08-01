@@ -141,6 +141,8 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, state uint32, msg, detail 
 		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
 		value := new(sdb.QueryResult)
 		value.Result = result
+    value.Message = detail
+    value.State = state
 		err = kvOp.WritePB(key, value)
 		if err != nil {
 			return nil, err
@@ -151,7 +153,7 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, state uint32, msg, detail 
 	return e
 }
 
-func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.WorkerResultData, error) {
+func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.QueryResult, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
@@ -172,5 +174,5 @@ func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.WorkerResultData, err
 	if e != nil {
 		return nil, e
 	}
-	return value.(*sdb.WorkerResultData), e
+	return value.(*sdb.QueryResult), e
 }

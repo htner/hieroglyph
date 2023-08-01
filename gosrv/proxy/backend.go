@@ -11,10 +11,10 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"reflect"
 	"strings"
 	"time"
+  "bytes"
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
 	"github.com/htner/sdb/gosrv/pkg/service"
@@ -24,6 +24,10 @@ import (
 	_ "github.com/mbobakov/grpc-consul-resolver" // It's important
 	//"github.com/hashicorp/consul/api"
 	"google.golang.org/grpc"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 const grpcServiceConfig = `{"loadBalancingConfig": [ { "round_robin": {} } ]}`
@@ -277,14 +281,59 @@ func (p *Proxy) readClientConn() error{
   return nil
 }
 
-func (p *Proxy) sendQueryResultToFronted(resp *sdb.ExecQueryReply) error {
+func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error {
+
+  //const defaultRegion = "us-east-1"
+  staticResolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+    return aws.Endpoint{
+      PartitionID:       "aws",
+      URL:               "http://localhost:9000", // or where ever you ran minio
+      SigningRegion:     "us-east-1",
+      HostnameImmutable: true,
+    }, nil
+  })
+
+  cfg := aws.Config{
+    Region:           "us-east-1",
+    Credentials:      credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""),
+    EndpointResolver: staticResolver,
+  }
+
+  result := resp.Result
+  s3Client := s3.NewFromConfig(cfg)
+  out, err := s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
+    Bucket:     aws.String("sdb1"),
+    Key:        aws.String(fmt.Sprintf("%s/%s", result.ResultDir, result.DataFiles[0])),
+  })
+
+  if err != nil {
+    //log.Printf("Unable to copy item from bucket %q to bucket %q, %v", L.sourceSpace.Base.Bucket, L.sourceSpace.Base.Bucket, err)
+    return err
+  }
+
+  size := int(out.ContentLength)
+
+	buffer := make([]byte, size)
+	defer out.Body.Close()
+	var bbuffer bytes.Buffer
+	for true {
+		num, rerr := out.Body.Read(buffer)
+		if num > 0 {
+			bbuffer.Write(buffer[:num])
+		} else if rerr == io.EOF || rerr != nil {
+			break
+		}
+	}
+
+  /*
 	fileName := fmt.Sprintf("%d_%d_%d.queryres", resp.QueryId, resp.Uid, resp.Dbid)
 	resFile := fmt.Sprintf("%s/%s", resp.ResultDir, fileName)
 	file, err := os.Open(resFile)
 	if err != nil {
 		return err
 	}
-	reader := bufio.NewReader(file)
+  */
+	reader := bufio.NewReader(&bbuffer)
 
 	buf := make([]byte, 8)
 	n, err := reader.Read(buf)
@@ -371,16 +420,23 @@ func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
 	queryId := resp.QueryId
 	var respResult *sdb.CheckQueryResultReply
 	for true {
-		respResult, err = client.CheckQueryResult(ctx, &sdb.CheckQueryResultRequest{QueryId: queryId})
+    respResult, err = client.CheckQueryResult(ctx, &sdb.CheckQueryResultRequest{Dbid: p.dbid, QueryId: queryId})
 		log.Println("check query result resp:", respResult, err)
 		if err != nil {
 			p.SendError("58030", "get query result error")
 			return err
 		}
-    time.Sleep(time.Second)
+    if respResult.Rescode == 20000 {
+      time.Sleep(time.Second)
+    } else if respResult.Rescode == 0{
+      break
+    } else {
+			p.SendError("58030", fmt.Sprint("get query result error %ld", respResult.Rescode))
+      return nil
+    }
 	}
 
-	err = p.sendQueryResultToFronted(resp)
+	err = p.sendQueryResultToFronted(respResult)
 	if err != nil {
 		log.Println("send query result to fronted err ", err)
 		p.SendError("58040", "query result error")

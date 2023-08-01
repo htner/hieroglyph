@@ -117,13 +117,18 @@ bool ObjectStream::Upload() {
 
 int ObjectStream::WriteResultToFile(char msgtype, const char *buf, int size) {
 
+	std::filesystem::path p(local_file_);
+	std::filesystem::path dir = p.parent_path();
+	if (!std::filesystem::exists(dir)) {
+		std::filesystem::create_directory(dir);
+	}
 	if (!file_stream_->is_open()) {
 		file_stream_->open(local_file_,
 				std::fstream::out | std::fstream::binary | std::fstream::app);
 	}
 
 	if (!file_stream_->is_open()) {
-		elog(ERROR, "open file failed reason %d, %d",
+		elog(PANIC, "open file failed reason %d, %d",
 						file_stream_->rdstate(),
 						file_stream_->exceptions());
 		return -1;
