@@ -261,7 +261,7 @@ func (p *Proxy) readClientConn() error{
 //>>>>>>> tmp task manager
 //=======
 			//port, err := strconv.Atoi(resp.Message)
-			err = p.sendQueryToSchedule(msg)
+			err = p.processQuery(msg)
       if err != nil {
         return err
       }
@@ -328,14 +328,17 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.ExecQueryReply) error {
 	}
 
 	p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
-	err = p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
-func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
+func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
+  defer func() {
+    err = p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+    if err != nil {
+      log.Println(err)
+    }
+  }()
+
 	fmt.Println("Query", msg)
 	scheduleServerName := service.ScheduleName()
 	consul := "consul://127.0.0.1:8500/" + scheduleServerName + "?wait=14s&tag=public"
@@ -347,7 +350,7 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(128e+6)),
 	)
 	if err != nil {
-		p.SendError("58000")
+		p.SendError("58000", "schedule server connect error")
 		return err
 	}
 	defer conn.Close()
@@ -361,7 +364,7 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
   resp, err := client.Depart(ctx, req)
 	log.Println("get resp:", resp, err)
 	if err != nil {
-		p.SendError("58030")
+		p.SendError("58030", "exec query error")
 		return err
 	}
 
@@ -371,7 +374,7 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
 		respResult, err = client.CheckQueryResult(ctx, &sdb.CheckQueryResultRequest{QueryId: queryId})
 		log.Println("check query result resp:", respResult, err)
 		if err != nil {
-			p.SendError("58030")
+			p.SendError("58030", "get query result error")
 			return err
 		}
     time.Sleep(time.Second)
@@ -380,15 +383,15 @@ func (p *Proxy) sendQueryToSchedule(msg *pgproto3.Query) (err error) {
 	err = p.sendQueryResultToFronted(resp)
 	if err != nil {
 		log.Println("send query result to fronted err ", err)
-		p.SendError("58040")
+		p.SendError("58040", "query result error")
 		return
 	}
 	return nil
 }
 
-func (p *Proxy) SendError(code string) {
-	buf := (&pgproto3.ErrorResponse{Code: "58030"}).Encode(nil)
-	_, err := p.frontendConn.Write(buf)
+func (p *Proxy) SendError(code string, msg string) {
+  errMsg := &pgproto3.ErrorResponse{Code: code, Message: msg}
+	err := p.backend.Send(errMsg)
 	if err != nil {
 		return // fmt.Errorf("error writing query response: %w", err)
 	}
@@ -447,7 +450,7 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
       p.backend.Send(ok)
       return nil
     } else {
-      p.SendError(resp.Rescode)
+      p.SendError(resp.Rescode, resp.Msg)
       return errors.New("error")
     }
 
@@ -460,6 +463,6 @@ func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 		}
     count++
 	}
-	p.SendError("58030")
+	p.SendError("58030", "auth error")
 	return errors.New("unkonw message")
 }
