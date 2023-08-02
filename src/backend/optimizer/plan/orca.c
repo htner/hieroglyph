@@ -84,6 +84,27 @@ log_optimizer(PlannedStmt *plan, bool fUnexpectedFailure)
 	}
 }
 
+PlannedStmt *
+orca_optimizer(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str)
+{
+	PlannedStmt *stmt = NULL;
+
+	PG_TRY();
+	{
+		stmt = optimize_query(parse, cursorOptions, boundParams, plan_str);
+	}
+    PG_CATCH();
+    {
+        ErrorData *errdata;
+        errdata = CopyErrorData();
+        FlushErrorState();
+		elog(WARNING, "orca optimizer failed %s", errdata->message);
+        FreeErrorData(errdata);
+    }
+    PG_END_TRY();
+
+	return stmt;
+}
 
 /*
  * optimize_query

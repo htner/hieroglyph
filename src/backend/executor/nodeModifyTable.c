@@ -2374,8 +2374,8 @@ ExecModifyTable(PlanState *pstate)
 	 */
 	if (node->mt_done)
 		return NULL;
-
-	if (Gp_role == GP_ROLE_EXECUTE && !Gp_is_writer)
+#ifdef SDB_NOUSE
+	if (false && Gp_role == GP_ROLE_EXECUTE && !Gp_is_writer)
 	{
 		/*
 		 * Current Greenplum MPP architecture only support one writer gang, and
@@ -2391,6 +2391,7 @@ ExecModifyTable(PlanState *pstate)
 		 */
 		elog(ERROR, "Reader Gang execute ModifyTable node, some bugs must happen");
 	}
+#endif
 
 	/*
 	 * On first call, fire BEFORE STATEMENT triggers before proceeding.
@@ -2702,7 +2703,9 @@ ExecModifyTable(PlanState *pstate)
 	 * We're done, but fire AFTER STATEMENT triggers before exiting.
 	 */
 	/* In GPDB, don't fire statement triggers in reader processes */
+#ifdef SDB_NOUSE
 	if (Gp_role != GP_ROLE_EXECUTE || Gp_is_writer)
+#endif
 		fireASTriggers(node);
 
 	node->mt_done = true;
@@ -2773,7 +2776,9 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	}
 
 	/* GPDB: Don't fire statement-triggers in QE reader processes */
+#ifdef SDB_NOUSE
 	if (Gp_role != GP_ROLE_EXECUTE || Gp_is_writer)
+#endif
 		mtstate->fireBSTriggers = true;
 
 	/*
