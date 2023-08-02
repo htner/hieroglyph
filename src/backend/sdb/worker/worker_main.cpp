@@ -47,6 +47,13 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	dbid = FLAGS_dbid;
 	MyDatabaseTableSpace = 1;
 
+	kDBBucket = FLAGS_bucket;
+	kDBS3User = FLAGS_s3user;
+	kDBS3Password = FLAGS_s3passwd;
+	kDBS3Region = FLAGS_region;
+	kDBS3Endpoint = FLAGS_endpoint;
+	kDBIsMinio = FLAGS_isminio;
+
 	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
 	Gp_role = GP_ROLE_EXECUTE;
 	std::thread worker_thread(WorkerServerRun, argc, argv);

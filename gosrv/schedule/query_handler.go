@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/htner/sdb/gosrv/pkg/config"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/types"
@@ -117,6 +118,9 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 		workinfos[worker.Segid] = worker
 	}
 
+  var spaceConfig config.LakeSpaceConfig
+  conf, _ := spaceConfig.GetConfig(Q.request.Dbid)
+
 	Q.baseWorkerQuery = &sdb.PrepareTaskRequest{
 		TaskIdentify: &sdb.TaskIdentify{QueryId: Q.newQueryId, SliceId: 0, SegId: 0},
 		Sessionid:    Q.request.Sid,
@@ -131,6 +135,8 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 		Workers:    workinfos,
 		SliceTable: Q.sliceTable,
 		ResultDir:  "base/result",
+    ResultSpace: conf,
+    DbSpace: conf, 
 	}
 }
 
@@ -229,7 +235,7 @@ func (Q *QueryHandler) prepare() bool {
 	var wg sync.WaitGroup
 	wg.Add(len(Q.workerSlices))
 	allSuccess := true
-	for _, workerSlice := range Q.workerSlices   {
+	for _, workerSlice := range Q.workerSlices {
 		// Send To Work
 		var cloneTask *sdb.PrepareTaskRequest
 		cloneTask = proto.Clone(Q.baseWorkerQuery).(*sdb.PrepareTaskRequest)
@@ -337,6 +343,8 @@ func (Q *QueryHandler) optimize() (error) {
   defer conn.Close()
   c := sdb.NewOptimizerClient(conn)
 
+  var spaceConfig config.LakeSpaceConfig
+  conf, _ := spaceConfig.GetConfig(Q.request.Dbid)
   // Contact the server and print out its response.
   ctx, cancel := context.WithTimeout(context.Background(), time.Second*6000)
   defer cancel()
@@ -344,6 +352,7 @@ func (Q *QueryHandler) optimize() (error) {
     Name : "query",
     Sql  : Q.request.Sql,
     ReloadCatalogOid : Q.reloadCatalogOid,
+    DbSpace: conf,
   }
   optimizerResult, err := c.Optimize(ctx, req)
   if err != nil {

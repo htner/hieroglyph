@@ -108,6 +108,7 @@ extern "C" {
 #include "parquet/statistics.h"
 
 #include "backend/sdb/common/singleton.hpp"
+#include "backend/sdb/common/common.hpp"
 
 /* from costsize.c */
 #define LOG2(x) (log(x) / 0.693147180559945)
@@ -168,7 +169,7 @@ ParquetS3WriterState *GetModifyState(Relation rel) {
 }
 
 ParquetS3WriterState *CreateParquetModifyState(Relation rel,
-                                               char *dirname,
+                                               char *bucket,
                                                Aws::S3::S3Client *s3client,
                                                TupleDesc tuple_desc,
                                                bool use_threads) {
@@ -185,7 +186,7 @@ ParquetS3WriterState *CreateParquetModifyState(Relation rel,
   auto cxt = AllocSetContextCreate(parquet_am_cxt, "modify state temporary data",
                                    ALLOCSET_DEFAULT_SIZES);
   std::set<int> attrs;
-  fmstate = create_parquet_modify_state(cxt, dirname, s3client, tuple_desc,
+  fmstate = create_parquet_modify_state(cxt, bucket, s3client, tuple_desc,
                                         attrs, use_threads, true);
   fmstates[oid] = fmstate;
   return fmstate;
@@ -378,7 +379,7 @@ static bool parquet_s3_column_is_existed(
  *      row groups satisfy clauses. Store resulting row group list to
  *      fdw_private.
  */
-List *extract_rowgroups_list(const char *filename, const char *dirname,
+List *extract_rowgroups_list(const char *filename, const char *bucket,
                              Aws::S3::S3Client *s3_client, TupleDesc tupleDesc,
                              std::list<RowGroupFilter> &filters,
                              uint64 *matched_rows, uint64 *total_rows,
@@ -394,7 +395,7 @@ List *extract_rowgroups_list(const char *filename, const char *dirname,
     if (s3_client) {
       char *dname;
       char *fname;
-      parquetSplitS3Path(dirname, filename, &dname, &fname);
+      parquetSplitS3Path(bucket, filename, &dname, &fname);
       reader_entry = parquetGetFileReader(s3_client, dname, fname);
       reader = std::move(reader_entry->file_reader->reader);
       pfree(dname);
@@ -570,7 +571,7 @@ struct FieldInfo {
  * extract_parquet_fields
  *      Read parquet file and return a list of its fields
  */
-List *extract_parquet_fields(const char *path, const char *dirname,
+List *extract_parquet_fields(const char *path, const char *bucket,
                              Aws::S3::S3Client *s3_client) noexcept {
   List *res = NULL;
   std::string error;
@@ -586,7 +587,7 @@ List *extract_parquet_fields(const char *path, const char *dirname,
       arrow::MemoryPool *pool = arrow::default_memory_pool();
       char *dname;
       char *fname;
-      parquetSplitS3Path(dirname, path, &dname, &fname);
+      parquetSplitS3Path(bucket, path, &dname, &fname);
       std::shared_ptr<arrow::io::RandomAccessFile> input(
           new S3RandomAccessFile(s3_client, dname, fname));
       status = parquet::arrow::OpenFile(input, pool, &reader);
@@ -832,7 +833,8 @@ static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
     init_s3sdk = true;
   }
   Aws::S3::S3Client *s3client = s3_client_open(
-      "minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
+	  kDBS3User.data(), kDBS3Password.data(), kDBIsMinio, kDBS3Endpoint.data(), kDBS3Region.data());
+      //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
   
   return s3client;
 }
@@ -933,7 +935,6 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	std::vector<int> rowgroups;
 	bool use_mmap = false;
 	bool use_threads = false;
-	//char *dirname = NULL;
 	Aws::S3::S3Client *s3client = NULL;
 	ReaderType reader_type = RT_MULTI;
 	int max_open_files = 10;
@@ -970,10 +971,8 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
-		char dirname[100];
-		sprintf(dirname, "sdb%d", MyDatabaseId);
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, dirname, s3client,
+			reader_type, reader_cxt, kDBBucket.data(), s3client,
 			relation->rd_id, tupleDesc, fetched_col,
 			use_threads, use_mmap, max_open_files);
 
@@ -1310,8 +1309,6 @@ extern "C" void ParquetDmlInit(Relation rel) {
     target_attrs.insert(i);
   }
 
-	char dirname[100];
-	sprintf(dirname, "sdb%d", MyDatabaseId);
 	if (parquet_am_cxt == nullptr) {
 		parquet_am_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
 										 ALLOCSET_DEFAULT_SIZES);
@@ -1319,7 +1316,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
-    auto fmstate = CreateParquetModifyState(rel, dirname, s3client,
+    auto fmstate = CreateParquetModifyState(rel, kDBBucket.data(), s3client,
                                             tupleDesc, use_threads);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
@@ -1390,11 +1387,9 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		char dirname[100];
-		sprintf(dirname, "sdb%d", MyDatabaseId);
 		auto s3client = ParquetGetConnectionByRelation(rel);
 		fmstate =
-			CreateParquetModifyState(rel, dirname, s3client, desc, true);
+			CreateParquetModifyState(rel, kDBBucket.data(), s3client, desc, true);
 
 		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
 		LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
@@ -1495,11 +1490,9 @@ void simple_parquet_insert_cache(Relation rel, HeapTuple tuple) {
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		char dirname[100];
-		sprintf(dirname, "sdb%d", MyDatabaseId);
 		auto s3client = ParquetGetConnectionByRelation(rel);
 		fmstate =
-			CreateParquetModifyState(rel, dirname, s3client, desc, true);
+			CreateParquetModifyState(rel, kDBBucket.data(), s3client, desc, true);
 
 		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
 		//LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
@@ -1574,7 +1567,6 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
     ParquetS3ReaderState *state;
 	bool use_mmap = false;
 	bool use_threads = false;
-	//char *dirname = NULL;
 	ReaderType reader_type = RT_MULTI;
 	int max_open_files = 10;
 
@@ -1594,10 +1586,8 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	auto reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
-		char dirname[100];
-		sprintf(dirname, "sdb%d", MyDatabaseId);
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, dirname, s3client, relation->rd_id, tupleDesc,
+			reader_type, reader_cxt, kDBBucket.data(), s3client, relation->rd_id, tupleDesc,
 			fetched_col, use_threads, use_mmap, max_open_files);
 
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
