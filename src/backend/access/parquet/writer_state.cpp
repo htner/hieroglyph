@@ -209,9 +209,12 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
   if (inserter_ == nullptr) {
     char uuid[1024];
     static uint32_t local_index = 0;
-    uint64_t worker_uuid = 1;
+	const std::chrono::time_point<std::chrono::system_clock> now =
+											std::chrono::system_clock::now();
+	
+    uint64_t worker_uuid =
+	   std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
     sprintf(uuid, "%s_%d_%lu_%u.parquet", rel_name, rel_id, worker_uuid, local_index++);
-//>>>>>>> fix boot pg_type problem
     inserter_ = NewInserter(uuid, slot);
   }
   if (inserter_ != nullptr) {
