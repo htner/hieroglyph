@@ -49,6 +49,13 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 	MyDatabaseTableSpace = 1;
 	Gp_role = GP_ROLE_DISPATCH;
 
+	kDBBucket = FLAGS_bucket;
+	kDBS3User = FLAGS_s3user;
+	kDBS3Password = FLAGS_s3passwd;
+	kDBS3Region = FLAGS_region;
+	kDBS3Endpoint = FLAGS_endpoint;
+	kDBIsMinio = FLAGS_isminio;
+
     //InitMinimizePostgresEnv(argc, argv, "template1", "template1");
 	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
 

@@ -19,6 +19,13 @@ extern "C" {
 #include <sys/stat.h>
 #include <fstream>
 
+extern std::string kResultBucket;
+extern std::string kResultS3User;
+extern std::string kResultS3Password;
+extern std::string kResultS3Region;
+extern std::string kResultS3Endpoint;
+extern bool kResultIsMinio;
+
 namespace fs = std::filesystem;
 
 uint64_t htonll(uint64_t x)
@@ -68,7 +75,8 @@ ObjectStream::ObjectStream(const char *dirname, const char *filename)
   Aws::InitAPI(*aws_sdk_options_);
 
   s3_client_.reset(s3_client_open(
-      "minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1"));
+	 kResultS3User.data(), kResultS3Password.data(), kResultIsMinio, kResultS3Endpoint.data(), kResultS3Region.data()));
+      //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1"));
   local_file_ = dirname_ + "/" + filename_;
 
   fs::path filepath (local_file_);
@@ -81,15 +89,13 @@ ObjectStream::ObjectStream(const char *dirname, const char *filename)
 }
 
 bool ObjectStream::Upload() {
-  std::string bucket;
   char *filepath;
   Aws::S3::Model::PutObjectRequest request;
   std::shared_ptr<Aws::IOStream> input_data;
   Aws::S3::Model::PutObjectOutcome outcome;
 
-  bucket = "sdb" + std::to_string(MyDatabaseId);
   filepath = local_file_.data();
-  request.SetBucket(bucket);
+  request.SetBucket(kResultBucket.data());
 
   /*
    * We are using the name of the file as the key for the object in the bucket.
@@ -106,7 +112,7 @@ bool ObjectStream::Upload() {
 
   if (outcome.IsSuccess()) {
     elog(WARNING, "parquet_s3_fdw: added object %s (%s, %s) to bucket %s", filepath,
-         dirname_.c_str(), local_file_.c_str(), bucket.data());
+         dirname_.c_str(), local_file_.c_str(), kResultBucket.data());
     return true;
   } else {
     elog(ERROR, "parquet_s3_fdw: PutObject: %s",

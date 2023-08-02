@@ -12,3 +12,10 @@ DEFINE_bool(gzip, false, "compress body using gzip");
 DEFINE_int32(try_num, 20, "try numbers for brpc");
 DEFINE_bool(optimizer, false, "is optimizer");
 DEFINE_bool(worker, false, "is worker");
+
+DEFINE_string(endpoint, "127.0.0.1:9000", "");
+DEFINE_string(s3user, "minioadmin", "");
+DEFINE_string(s3passwd, "minioadmin", "");
+DEFINE_string(region, "ap1", "");
+DEFINE_string(bucket, "sdb1", "");
+DEFINE_bool(isminio, false, "");
