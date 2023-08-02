@@ -55,6 +55,8 @@ message OptimizeRequest {
 
   LakeSpaceDetail db_space = 8;
   repeated uint32 reload_catalog_oid = 9;
+
+  repeated LakeRelVersion versions = 21;
 }
 
 // The response message containing the greetings

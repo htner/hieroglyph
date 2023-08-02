@@ -29,10 +29,3 @@ message TaskIdentify {
   int32 slice_id = 2;
   int32 seg_id = 3;
 }
-
-message LakeRelVersion {
-  uint64 oid = 1;
-  uint64 version = 2;
-  bool curr_change = 3;
-  bool is_catalog = 4;
-}

@@ -114,15 +114,16 @@ func (p *Proxy) readClientConn() error{
 	}
   fmt.Println("startup:", string(buf))
 
-	sslRequest := startupMessage.(*pgproto3.SSLRequest)
-	fmt.Println("sslrequest", sslRequest)
-	buf, err = json.Marshal(sslRequest)
-	if err != nil {
-		return err
-	}
-  fmt.Println("sslrequest detail:", string(buf))
+  var ok bool
+	var sslRequest *pgproto3.SSLRequest
+  if sslRequest, ok = startupMessage.(*pgproto3.SSLRequest); ok {
+    fmt.Println("sslrequest", sslRequest)
+    buf, err = json.Marshal(sslRequest)
+    if err != nil {
+      return err
+    }
+    fmt.Println("sslrequest detail:", string(buf))
 
-	if sslRequest != nil {
 		s := []byte{'S'}
 		n, err := p.frontendConn.Write(s)
 		fmt.Println("write", n, err)
@@ -178,8 +179,8 @@ func (p *Proxy) readClientConn() error{
 	//fmt.Println("StartupMessage", msg)
 	//password := new(pgproto3.AuthenticationCleartextPassword)
 	//p.backend.Send(password)
-	relStartupRequest := startupMessage.(*pgproto3.StartupMessage)
-	if relStartupRequest == nil {
+  var relStartupRequest *pgproto3.StartupMessage
+	if relStartupRequest, ok = startupMessage.(*pgproto3.StartupMessage); !ok {
 		fmt.Println("not a startupMessage")
 		return err
 	}
