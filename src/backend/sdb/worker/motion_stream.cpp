@@ -79,7 +79,7 @@ bool MotionStream::Start(const sdb::TaskIdentify& key, const std::string& server
 	options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel_->Init(server_addr.c_str(), NULL) != 0) {
+	if (channel_->Init(server_addr.c_str(), &options) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return false;
 	}
