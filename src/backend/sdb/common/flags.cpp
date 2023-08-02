@@ -1,5 +1,3 @@
-#pragma once
-
 #include <gflags/gflags.h>
 
 DEFINE_string(database, "template1", "database");

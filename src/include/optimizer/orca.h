@@ -23,6 +23,7 @@
 
 extern PlannedStmt * optimize_query(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str);
 extern Node *transformGroupedWindows(Node *node, void *context);
+extern PlannedStmt * orca_optimizer(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str);
 
 #else
 

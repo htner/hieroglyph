@@ -20,6 +20,7 @@
 #include "postgres.h"
 #include "catalog/pg_attribute_d.h"
 #include "catalog/pg_type_d.h"
+#include "utils/elog.h"
 
 #include <fcntl.h>
 #include <limits.h>
@@ -834,16 +835,29 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 	if (log_parser_stats)
 		ResetUsage();
 
-	query = parse_analyze(parsetree, query_string, paramTypes, numParams,
+	PG_TRY();
+	{
+		query = parse_analyze(parsetree, query_string, paramTypes, numParams,
 						  queryEnv);
 
-	if (log_parser_stats)
-		ShowUsage("PARSE ANALYSIS STATISTICS");
+		if (log_parser_stats)
+			ShowUsage("PARSE ANALYSIS STATISTICS");
 
-	/*
-	 * (2) Rewrite the queries, as necessary
-	 */
-	querytree_list = pg_rewrite_query(query);
+		/*
+		* (2) Rewrite the queries, as necessary
+		*/
+		querytree_list = pg_rewrite_query(query);
+	}
+	PG_CATCH();
+	{
+		ErrorData *errdata;
+        errdata = CopyErrorData();
+        FlushErrorState();
+		elog(WARNING, "pg analyze and rewrite failed %s", errdata->message);
+        FreeErrorData(errdata);
+		querytree_list = NULL;
+	}
+	PG_END_TRY();
 
 	TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 

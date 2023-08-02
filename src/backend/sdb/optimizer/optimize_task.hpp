@@ -4,11 +4,13 @@
 
 #include <memory>
 #include <string_view>
+#include <butil/logging.h>
 
 #include "optimizer_service.pb.h"
+
 #include "backend/sdb/optimizer/parser.hpp"
-#include <butil/logging.h>
 #include "backend/sdb/common/common.hpp"
+// #include "utils/elog.h"
 
 namespace sdb {
 
@@ -34,12 +36,13 @@ public:
     PrepareCatalog();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
+    HandleOptimize(parsetree_list);
+    CommitTransactionCommand();
   }
 
 	void PrepareCatalog() {
     Oid *oid_arr = nullptr;
     std::vector<Oid> oids;
-    LOG(INFO) << "dddtest reload oid " << request_->DebugString();
     int size = request_->reload_catalog_oid().size();
     for (int i = 0; i < size; ++i) {
       oids.emplace_back(request_->reload_catalog_oid(i));
@@ -56,6 +59,10 @@ public:
 			RawStmt    *parsetree = lfirst_node(RawStmt, parsetree_item);
 			List* querytree_list = pg_analyze_and_rewrite(parsetree, request_->sql().data(),
 												NULL, 0, NULL);
+      if (!querytree_list) {
+        LOG(ERROR) << "analyze and rewrite failed";
+        return;
+      }
 			PlanQueries(querytree_list);
 		}
 	}
@@ -78,12 +85,12 @@ public:
     if (query->commandType == CMD_UTILITY) {
       plan = utility_optimizer(query);
     } else {
-      plan = optimize_query(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
+        plan = orca_optimizer(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
     }
 
     if (plan == NULL) {
       reply_->set_message("plan is empty");
-      return
+      return;
     }
 
     if (plan_str) {
@@ -102,8 +109,7 @@ public:
 
     reply_->set_planstmt_str(planstmt_str);
 
-    elog_node_display(PG_LOG, "parse results:", plan, true);
-    // COptTasks::Optimize(query);
+    elog_node_display(PG_LOG, "query plan: ", plan, false);
   } 
 
   // FIXME_SDB call pg function now
