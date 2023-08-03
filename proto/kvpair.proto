@@ -104,7 +104,7 @@ message WorkerResultData {
 
 message LakeRelVersion {
   uint64 oid = 1; // rel oid
-  uint64 version = 2; // rel version
+  uint64 rel_version = 2; // rel version
   uint64 cur_last_modify_queryid = 3;
   bool is_catalog = 4;
 }
