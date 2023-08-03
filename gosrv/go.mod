@@ -7,6 +7,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.19.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.29
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.37.1
+	github.com/buraksezer/consistent v0.10.0
+	github.com/cespare/xxhash v1.1.0
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/consul/api v1.20.0
 	github.com/jackc/pgproto3/v2 v2.3.2

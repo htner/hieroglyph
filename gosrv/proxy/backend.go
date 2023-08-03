@@ -21,8 +21,7 @@ import (
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	"github.com/jackc/pgproto3/v2"
 
-	_ "github.com/mbobakov/grpc-consul-resolver" // It's important
-	//"github.com/hashicorp/consul/api"
+	_ "github.com/mbobakov/grpc-consul-resolver" // It's important "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -69,7 +68,9 @@ func (p *Proxy) Run() error {
 	defer p.Close()
 
   err := p.readClientConn()
-	log.Printf("read client conn %s", err.Error())
+  if err != nil {
+    log.Printf("read client conn %s", err.Error())
+  }
 
   /*
 	for {

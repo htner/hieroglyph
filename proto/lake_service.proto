@@ -115,9 +115,14 @@ message GetFilesRequest {
     uint64 commit_xid = 4;
     uint64 commandid = 5;
     uint64 rel = 6;
+
     uint64 slice_count = 7;
     uint64 slice_seg_index = 8;
-    bool is_write = 9;
+
+    uint64 rel_version = 9;
+    uint64 rel_last_modify_queryid = 10;
+
+    bool is_write = 11;
 }
 
 message GetFilesResponse {
