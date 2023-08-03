@@ -30,7 +30,7 @@ import  "config.proto";
 message LakeFile {
     uint64 fileid = 1;
     string file_name = 2;
-    uint64 space = 3;
+    //uint64 space = 3;
 }
 
 // must be no side effects, for cache
@@ -102,9 +102,8 @@ message WorkerResultData {
   repeated string data_files = 7;
 }
 
-message LakeRelVersion {
-  uint64 oid = 1; // rel oid
-  uint64 rel_version = 2; // rel version
-  uint64 cur_last_modify_queryid = 3;
-  bool is_catalog = 4;
+message RelLakeList {
+  uint64 rel = 1;
+  repeated LakeFile files = 2;
+  string version = 3;
 }

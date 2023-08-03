@@ -1,8 +1,11 @@
 package lakehouse
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 
@@ -48,26 +51,33 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 	fdblock.Database = L.T.Database
 	fdblock.Relation = rel
 	fdblock.LockType = ReadLock
-	fdblock.Sid = L.T.Sid
+  fdblock.Sid = L.T.Sid
 
-	var session *kvpair.Session
+  var session *kvpair.Session
 
-	data, err := mgr.DoWithAutoLock(db, &fdblock,
-		func(tr fdb.Transaction) (interface{}, error) {
-			t := L.T
-			session, err = t.CheckReadAble(tr)
-			if err != nil {
-        log.Printf("check read able error %v", err)
-				return nil, err
-			}
+  _, err = mgr.DoWithAutoLock(db, &fdblock,
+    func(tr fdb.Transaction) (interface{}, error) {
+      t := L.T
+      session, err = t.CheckReadAble(tr)
+      return nil, err
+      /*
+return nil, nil
+*/
+    }, 3)
 
-      var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
+  if err != nil {
+    log.Printf("check read able error %v", err)
+    return nil, err
+  }
 
-			sKeyStart, err := kvpair.MarshalRangePerfix(&key)
-			if err != nil {
-        log.Printf("marshal ranage perfix %v", err)
-				return nil, err
-			}
+  data, err := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
+    var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
+
+    sKeyStart, err := kvpair.MarshalRangePerfix(&key)
+    if err != nil {
+      log.Printf("marshal ranage perfix %v", err)
+      return nil, err
+    }
       key.Fileid = math.MaxUint64 
       sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
 			if err != nil {
@@ -105,7 +115,7 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 			}
 
 			return files, nil
-		}, 3)
+  })
 
 	if err != nil {
 		return nil, err
@@ -120,6 +130,9 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
   files, err = L.statifiesMvcc(files, session.WriteTranscationId)
   if err != nil {
     return nil, err
+  }
+  if segCount == 0 {
+    return files, nil
   }
   return L.statifiesHash(rel, files, segCount, segIndex);
   // return files, err
@@ -273,4 +286,28 @@ func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDe
     }
   }
   return statifiesFiles, nil
+}
+
+func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelLakeList, error) {
+  files, err := L.GetAllFile(rel, 0, 0)
+  if err != nil {
+    return nil, err
+  }
+
+
+  md5h := md5.New()
+  sha1h := sha1.New()
+
+  relLakeList := new(sdb.RelLakeList)
+  relLakeList.Rel = uint64(rel)
+  
+  var name string
+  for _, file := range files {
+    relLakeList.Files = append(relLakeList.Files, file.BaseInfo)
+    name += file.BaseInfo.FileName
+    io.WriteString(md5h, file.BaseInfo.FileName)
+    io.WriteString(sha1h, file.BaseInfo.FileName)
+  }
+  relLakeList.Version = string(md5h.Sum(nil)) + string(sha1h.Sum(nil))
+  return relLakeList, nil
 }
