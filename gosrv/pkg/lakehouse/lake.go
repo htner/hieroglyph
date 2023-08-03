@@ -153,12 +153,14 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
         return nil, err
       }
 
+      /*
       changeRelKey := &kvpair.TransactionChangeRelKey{Database: L.T.Database, Rel:rel, Xid:L.T.Xid}
       var emptyValue kvpair.EmptyValue
       err = kvOp.Write(changeRelKey, &emptyValue)
       if err != nil {
         return nil, err
       }
+      */
       log.Printf("change files finish")
 			return nil, nil
 		}, 3)
@@ -234,12 +236,14 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
         return nil, err
       }
 
+      /*
       changeRelKey := &kvpair.TransactionChangeRelKey{Database: L.T.Database, Rel:rel, Xid:L.T.Xid}
       var emptyValue kvpair.EmptyValue
       err = kvOp.Write(changeRelKey, &emptyValue)
       if err != nil {
         return nil, err
       }
+      */
 
 			return nil, nil
 		}, 3)
@@ -297,12 +301,14 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*sdb.LakeFileDeta
         return nil, err
       }
 
+      /*
       changeRelKey := &kvpair.TransactionChangeRelKey{Database: L.T.Database, Rel:rel, Xid:L.T.Xid}
       var emptyValue kvpair.EmptyValue
       err = kvOp.Write(changeRelKey, &emptyValue)
       if err != nil {
         return nil, err
       }
+      */
 
 			return nil, nil
 		}, 3)

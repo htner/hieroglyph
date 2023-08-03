@@ -30,7 +30,7 @@ type QueryHandler struct {
 	workers      []*sdb.WorkerInfo
 	workerSlices []*sdb.WorkerSliceInfo
 
-  rel_versions []*sdb.LakeRelVersion
+  catalogFiles []*sdb.RelLakeList
 
 	lasterr error
   newQueryId uint64
@@ -48,11 +48,16 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	tr.Start(true)
 
   //catalogFiles := make(map[uint32][]*sdb.LakeFileDetail)
-	//lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(req.Dbid), types.SessionId(req.Sid), lakehouse.InvaildTranscaton)
+	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(req.Dbid), types.SessionId(req.Sid), lakehouse.InvaildTranscaton)
+  Q.catalogFiles = make([]*sdb.RelLakeList, 0)
 	for oid := range postgres.CatalogNames {
+    relLakeList, err := lakeop.GetRelLakeList(types.RelId(oid)) 
+		if err != nil {
+      log.Println(err)
+      return 0, nil
+	  }	
+    Q.catalogFiles = append(Q.catalogFiles, relLakeList)
 		//files, err := lakeop.GetAllFileForRead(types.RelId(oid))
-		//if err != nil {
-		//}
 		//catalogFiles[oid] = files
     Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
 	}

@@ -53,8 +53,10 @@ message PrepareTaskRequest {
   bytes plan_params = 14;
 
   uint64 guc_version = 20;
-  repeated LakeRelVersion versions = 21;
+  //repeated LakeRelVersion versions = 21;
   //repeated WorkerInfo workers = 22;
+  RelLakeList CatalogList = 22;
+
   PBSliceTable slice_table = 23;
 
   map<int32, WorkerInfo> workers = 24;  // worker id -> info

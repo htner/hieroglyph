@@ -48,9 +48,9 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
       fmt.Printf("do function %s error : %v", GetFunctionName(f), err)
 			return nil, err
 		}
-		_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-			return nil, L.Unlock(tr, lock)
-		})
+		//_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+	  //	return nil, L.Unlock(tr, lock)
+		//})
 	}
 	return data, err
 }
