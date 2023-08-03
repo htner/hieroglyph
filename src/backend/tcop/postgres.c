@@ -112,6 +112,8 @@
 #include "catalog/pg_proc.h"
 #include "sdb/reload_cache.h"
 
+#include "utils/inval.h"
+
 /* ----------------
  *		global variables
  * ----------------
@@ -6647,6 +6649,7 @@ void prepare_catalog(Oid *oid_arr, int size)
 
 	// 3. reset all catalog cache and its index
 	InvalidateCatalogSnapshot();
+	ClearInvalidMessage();
 	kInitIndex = IIState_NULL;
 
 	// 4.1 we must reload pg_type first

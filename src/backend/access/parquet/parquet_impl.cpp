@@ -1419,8 +1419,8 @@ extern "C" void ParquetTupleInsert(Relation rel, TupleTableSlot *slot,
                                    CommandId cid, int options,
                                    struct BulkInsertStateData *bistate) {
   auto fmstate = GetModifyState(rel);
-  if (fmstate != NULL) {
-    return;
+  if (fmstate == NULL) {
+    Assert(false);
   }
   fmstate->ExecInsert(slot);
   // return slot;
