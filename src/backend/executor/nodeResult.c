@@ -203,7 +203,7 @@ TupleMatchesHashFilter(ResultState *node, TupleTableSlot *resultSlot)
 		res = (targetSeg == GpIdentity.segindex);
 	}
 
-	return res;
+	return true;
 }
 
 /* ----------------------------------------------------------------
