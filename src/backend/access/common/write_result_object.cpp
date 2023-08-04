@@ -51,6 +51,8 @@ public:
 	ObjectStream(const char *dirname, const char *filename);
 	~ObjectStream() = default;
 
+	void Init();
+
 	bool Upload();
 
 	int WriteResultToFile(char msgtype, const char *buf, int size);
@@ -71,12 +73,19 @@ private:
 
 ObjectStream::ObjectStream(const char *dirname, const char *filename)
   : dirname_(dirname), filename_(filename) {
+}
+
+void ObjectStream::Init() {
   aws_sdk_options_ = std::make_unique<Aws::SDKOptions>();
   Aws::InitAPI(*aws_sdk_options_);
 
   s3_client_.reset(s3_client_open(
-	 kResultS3User.data(), kResultS3Password.data(), kResultIsMinio, kResultS3Endpoint.data(), kResultS3Region.data()));
-      //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1"));
+	 				kResultS3User.data(),
+					kResultS3Password.data(),
+					kResultIsMinio,
+					kResultS3Endpoint.data(),
+					kResultS3Region.data()));
+  //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1"));
   local_file_ = dirname_ + "/" + filename_;
 
   fs::path filepath (local_file_);
@@ -170,6 +179,7 @@ CreateObjectStream(const char* dirname, const char *filename)
 {
 	Assert(object_stream == nulltpr);
 	object_stream = new ObjectStream(dirname, filename);
+	object_stream->Init();
 }
 
 int
