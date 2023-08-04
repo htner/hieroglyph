@@ -13,11 +13,11 @@ std::string kDBS3Region = "ap1";
 std::string kDBS3Endpoint = "127.0.0.1:9000";
 bool kDBIsMinio = true;
 
-std::string kResultBucket;
-std::string kResultS3User;
-std::string kResultS3Password;
-std::string kResultS3Region;
-std::string kResultS3Endpoint;
+std::string kResultBucket = "sdb1";
+std::string kResultS3User = "minioadmin";
+std::string kResultS3Password = "minioadmin";
+std::string kResultS3Region = "ap1";
+std::string kResultS3Endpoint = "127.0.0.1:9000";
 bool kResultIsMinio = true;
 
 uint64_t read_xid = 0;
