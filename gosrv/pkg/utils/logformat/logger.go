@@ -1,4 +1,4 @@
-package slog
+package logformat
 
 import "github.com/sirupsen/logrus"
 

@@ -169,11 +169,7 @@ void ParquetS3WriterState::CommitUpload() {
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
 
-	sdb::UpdateFilesRequest request;
-	for (auto it = add_files.begin(); it != add_files.end(); ++it) {
-		auto f = request.add_add_files();
-		*f = *it;
-	}
+	sdb::DeleteFilesRequest request;
 
 	for (auto it = delete_files.begin(); it != delete_files.end(); ++it) {
 		auto f = request.add_remove_files();
@@ -182,9 +178,9 @@ void ParquetS3WriterState::CommitUpload() {
 	//auto add_file  = prepare_request->add_add_files();
 	//add_file->set_file_name(file_name_);
 	//add_file->set_space();
-	sdb::UpdateFilesResponse response;
+	sdb::DeleteFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
-	stub->UpdateFiles(&cntl, &request, &response, NULL);
+	stub->DeleteFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
 		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
 		return;

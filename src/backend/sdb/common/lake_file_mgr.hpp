@@ -36,6 +36,14 @@ public:
   }
 
   std::vector<sdb::LakeFile> GetLakeFiles(uint64_t rel) {
+
+    std::unordered_map<uint64, sdb::RelFiles>::iterator it = rel_files_.find(rel);
+    if (it != rel_files_.end()) {
+      LOG(INFO) << "get rel files from local"; 
+      std::vector<sdb::LakeFile> files(it->second.files().begin(), it->second.files().end());
+      return files;
+    }
+
     std::unique_ptr<brpc::Channel> channel;
     std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
     brpc::Controller cntl;

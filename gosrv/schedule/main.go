@@ -10,7 +10,8 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/htner/sdb/gosrv/pkg/service"
-	"github.com/htner/sdb/gosrv/pkg/utils/slog"
+
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -70,7 +71,6 @@ func main() {
 	fdb.MustAPIVersion(710)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
-	slog.SetLogger(true)
 
 	port := 10002
 	done := make(chan bool, 1)

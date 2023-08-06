@@ -6,6 +6,7 @@
 #include "backend/sdb/common/common.hpp"
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
+#include "backend/sdb/common/lake_file_mgr.hpp"
 
 namespace sdb {
 
@@ -21,8 +22,8 @@ void ExecuteTask::Run() {
 	LOG(INFO) << "MPPEXEC: execute run";
 
 	//kGlobalTask = shared_from_this();
-	StartTransactionCommand();
 	Prepare();
+	StartTransactionCommand();
 	PrepareGuc();
 	HandleQuery();
 	Upload();
@@ -66,6 +67,11 @@ void ExecuteTask::Prepare() {
 	kResultS3Region = request_.result_space().detail().region();
 	kResultS3Endpoint = request_.result_space().detail().endpoint();
 	kResultIsMinio = request_.result_space().detail().is_minio();
+
+    std::vector<sdb::RelFiles> catalog_list(request_.catalog_list().begin(), request_.catalog_list().end());
+    std::vector<sdb::RelFiles> user_rel_list(request_.user_rel_list().begin(), request_.user_rel_list().end());
+	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
+	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(user_rel_list);
 }
 
 void ExecuteTask::PrepareGuc() {

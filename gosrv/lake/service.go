@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair" 
   "github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
+	log "github.com/sirupsen/logrus"
 )
 
 // server is used to implement proto.ScheduleServer
@@ -18,8 +20,7 @@ type LakeServer struct {
 }
 
 func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest) (*sdb.StartTransactionResponse, error) {
-  tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sessionid)) 
-  tr.Start(true)
+	log.Println("prepare start transaction ", req)
 
   var session kvpair.Session
   session.Uid = 1
@@ -29,6 +30,9 @@ func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest
   session.ReadTranscationId = lakehouse.InvaildTranscaton
   session.WriteTranscationId = lakehouse.InvaildTranscaton
   lakehouse.WriteSession(&session)
+
+  tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sessionid)) 
+  tr.Start(true)
 
   return new(sdb.StartTransactionResponse), nil
 }
@@ -66,7 +70,7 @@ func (s *LakeServer) AllocateXid(ctx context.Context, req *sdb.AllocateXidReques
 // Depart implements proto.ScheduleServer
 // It just returns commid
 func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.PrepareInsertFilesRequest) (*sdb.PrepareInsertFilesResponse, error) {
-	log.Println("prepare request", request)
+	log.Println("prepare insert request", request)
 	lakeop := lakehouse.NewLakeRelOperator(
 		types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
@@ -79,26 +83,11 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.Prepar
   return &sdb.PrepareInsertFilesResponse{Files: files}, nil
 }
 
-func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRequest) (*sdb.UpdateFilesResponse, error) {
+func (s *LakeServer) DeleteFiles(ctx context.Context, request *sdb.DeleteFilesRequest) (*sdb.DeleteFilesResponse, error) {
 	log.Println("update files", request)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
 		types.TransactionId(request.CommitXid))
-
-	newFiles := make([]*sdb.LakeFileDetail, 0)
-	for _, f := range request.AddFiles {
-    file := &sdb.LakeFileDetail{}
-    file.Dbid = request.Dbid
-    file.Rel = request.Rel
-    file.BaseInfo = f
-
-
-    file.Xmin = request.CommitXid
-    file.Xmax = uint64(lakehouse.InvaildTranscaton)
-    file.XminState = uint32(lakehouse.XS_START)
-    file.XmaxState = uint32(lakehouse.XS_NULL)
-		newFiles = append(newFiles, file)
-	}
 
   /*
 	for _, file := range request.RemoveFiles {
@@ -111,7 +100,7 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRe
 	}
   */
 
-	err := lakeop.ChangeFiles(types.RelId(request.Rel), newFiles, request.RemoveFiles)
+	err := lakeop.DeleteFiles(types.RelId(request.Rel), request.RemoveFiles)
 	if err != nil {
     log.Printf("change files error: %s", err.Error())
 		return nil, fmt.Errorf("insert files error")
@@ -122,7 +111,7 @@ func (s *LakeServer) UpdateFiles(ctx context.Context, request *sdb.UpdateFilesRe
 		return nil, fmt.Errorf("delete files error")
 	}
   */
-	return &sdb.UpdateFilesResponse{}, nil
+	return &sdb.DeleteFilesResponse{}, nil
 }
 
 

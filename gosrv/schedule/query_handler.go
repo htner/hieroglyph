@@ -12,6 +12,8 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -58,9 +60,7 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
       return 0, nil
 	  }	
     Q.catalogFiles = append(Q.catalogFiles, relLakeList)
-		//files, err := lakeop.GetAllFileForRead(types.RelId(oid))
-		//catalogFiles[oid] = files
-    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
+    // Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
 	}
 
 	// NewQueryId
@@ -143,6 +143,8 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 		ResultDir:  "base/result",
     ResultSpace: conf,
     DbSpace: conf, 
+    CatalogList: Q.catalogFiles,
+    UserRelList: Q.userRelFiles,
 	}
 }
 
@@ -359,6 +361,7 @@ func (Q *QueryHandler) optimize() (error) {
     Sql  : Q.request.Sql,
     ReloadCatalogOid : Q.reloadCatalogOid,
     DbSpace: conf,
+    CatalogList: Q.catalogFiles,
   }
   optimizerResult, err := c.Optimize(ctx, req)
   if err != nil {

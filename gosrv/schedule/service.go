@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/types"

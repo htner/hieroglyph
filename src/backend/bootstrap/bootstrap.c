@@ -554,9 +554,9 @@ static void CopyPGClassTableToParquet() {
 					   RelationGetDescr(rel), &isnull);
 		if (DatumGetObjectId(datum) == 2) {
 			tuple = heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
-			elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
+			// elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
 		} else if (DatumGetObjectId(datum) == 403) {
-			elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
+			// elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
 		}
 		simple_parquet_insert_cache(rel, tuple);
 		//simple_parquet_insert(rel, tuple);

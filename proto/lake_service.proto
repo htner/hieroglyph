@@ -13,7 +13,7 @@ service Lake {
     rpc Abort(AbortRequest) returns (AbortResponse) {}
 
     rpc PrepareInsertFiles(PrepareInsertFilesRequest) returns (PrepareInsertFilesResponse) {}
-    rpc UpdateFiles(UpdateFilesRequest) returns (UpdateFilesResponse) {}
+    rpc DeleteFiles(DeleteFilesRequest) returns (DeleteFilesResponse) {}
     rpc GetFileList(GetFilesRequest) returns (GetFilesResponse) {}
 }
 
@@ -96,17 +96,16 @@ message PrepareInsertFilesResponse {
     repeated LakeFile files = 1;
 }
 
-message UpdateFilesRequest {
+message DeleteFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
     uint64 commit_xid = 3;
     uint64 commandid = 4;
     uint64 rel = 5;
-    repeated LakeFile add_files = 6;
-    repeated LakeFile remove_files = 7;
+    repeated LakeFile remove_files = 6;
 }
 
-message UpdateFilesResponse {
+message DeleteFilesResponse {
 }
 
 message GetFilesRequest {

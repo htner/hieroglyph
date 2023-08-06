@@ -3,12 +3,14 @@ package lakehouse
 import (
 	"crypto/md5"
 	"crypto/sha1"
+  "encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
+  log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash"
@@ -25,10 +27,18 @@ import (
 // In your code, you probably have a custom data type
 // for your cluster members. Just add a String function to implement
 // consistent.Member interface.
-type myMember uint64 
+type myMember struct {
+  hash string 
+  id uint64
+}
+
+func buildMyMemeber(id uint64) myMember {
+
+  return myMember{hash: fmt.Sprintf("%d", id), id: id}
+}
 
 func (m myMember) String() string {
-	return fmt.Sprint("%d", m)
+  return m.hash
 }
 
 // consistent package doesn't provide a default hashing function. 
@@ -71,50 +81,52 @@ return nil, nil
   }
 
   data, err := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
-    var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
+    var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0, Spaceid: 0}
 
     sKeyStart, err := kvpair.MarshalRangePerfix(&key)
     if err != nil {
       log.Printf("marshal ranage perfix %v", err)
       return nil, err
     }
-      key.Fileid = math.MaxUint64 
-      sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
-			if err != nil {
-        log.Printf("marshal ranage perfix %v", err)
-				return nil, err
-			}
+    key.Fileid = math.MaxUint64 
+    key.Spaceid = math.MaxUint64 
+    sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
+    if err != nil {
+      log.Printf("marshal ranage perfix %v", err)
+      return nil, err
+    }
 
-			keyStart := fdb.Key(sKeyStart)
-			keyEnd := fdb.Key(sKeyEnd)
-			rr := tr.GetRange(fdb.KeyRange{Begin:keyStart, End: keyEnd},
-				fdb.RangeOptions{Limit: 10000})
-			ri := rr.Iterator()
+    keyStart := fdb.Key(sKeyStart)
+    keyEnd := fdb.Key(sKeyEnd)
+    rr := tr.GetRange(fdb.KeyRange{Begin:keyStart, End: keyEnd},
+      fdb.RangeOptions{Limit: 10000})
+    ri := rr.Iterator()
 
-			// Advance will return true until the iterator is exhausted
-			files := make([]*sdb.LakeFileDetail, 0)
-			for ri.Advance() {
-				file := &sdb.LakeFileDetail{}
-				data, e := ri.Get()
-				if e != nil {
-					log.Printf("Unable to read next value: %v\n", e)
-					return nil, nil
-				}
-        var key kvpair.FileKey
-				err = kvpair.UnmarshalKey(data.Key, &key)
-				if err != nil {
-          log.Printf("UnmarshalKey error ? %v %v", data, err)
-					return nil, err
-				}
-        proto.Unmarshal(data.Value, file)
-				if err != nil {
-          log.Printf("Unmarshal error %v", err)
-					return nil, err
-				}
-        files = append(files, file)
-			}
+    // Advance will return true until the iterator is exhausted
+    files := make([]*sdb.LakeFileDetail, 0)
+    for ri.Advance() {
+      file := &sdb.LakeFileDetail{}
+      data, e := ri.Get()
+      log.Println(data)
+      if e != nil {
+        log.Printf("Unable to read next value: %v\n", e)
+        return nil, nil
+      }
+      var key kvpair.FileKey
+      err = kvpair.UnmarshalKey(data.Key, &key)
+      if err != nil {
+        log.Printf("UnmarshalKey error ? %v %v", data, err)
+        return nil, err
+      }
+      proto.Unmarshal(data.Value, file)
+      if err != nil {
+        log.Printf("Unmarshal error %v", err)
+        return nil, err
+      }
+      files = append(files, file)
+    }
 
-			return files, nil
+    return files, nil
   })
 
 	if err != nil {
@@ -224,7 +236,9 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
       xmaxState := file.XmaxState
       kvReader := fdbkv.NewKvReader(rtr)
       // TODO 性能优化
-      {
+      if file.Xmin == 1 {
+        xminState = uint32(XS_COMMIT)
+      } else {
         state, err := L.T.State(kvReader, types.TransactionId(file.Xmin))
         if err != nil {
           return nil, err
@@ -274,14 +288,16 @@ func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDe
 	}
 	c := consistent.New(nil, cfg)
 
-  for i := uint64(1); i <= segCount; i++ {
-    c.Add(myMember(i))
+  for i := uint64(0); i < segCount; i++ {
+    c.Add(buildMyMemeber(i))
   }
-  curSegIndex := fmt.Sprint("%d", segIndex)
+  curMember := buildMyMemeber(segIndex)
 
   for _, file := range files {
-    owner := c.LocateKey([]byte(fmt.Sprint("%d", file.BaseInfo.FileId)))
-    if owner.String() == curSegIndex {
+    owner := c.LocateKey([]byte(fmt.Sprintf("%d", file.BaseInfo.FileId)))
+    log.Println(owner, file)
+    //if mem, ok := owner.(myMember)
+    if owner.String() == curMember.String() {
       statifiesFiles = append(statifiesFiles, file)
     }
   }
@@ -294,7 +310,6 @@ func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelFiles, error)
     return nil, err
   }
 
-
   md5h := md5.New()
   sha1h := sha1.New()
 
@@ -304,10 +319,10 @@ func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelFiles, error)
   var name string
   for _, file := range files {
     relLakeList.Files = append(relLakeList.Files, file.BaseInfo)
-    name += fmt.Sprint("%d", file.BaseInfo.FileId)
-    io.WriteString(md5h, fmt.Sprint("%d", file.BaseInfo.FileId))
-    io.WriteString(sha1h, fmt.Sprint("%d", file.BaseInfo.FileId))
+    name += fmt.Sprintf("%d", file.BaseInfo.FileId)
+    io.WriteString(md5h, fmt.Sprintf("%d", file.BaseInfo.FileId))
+    io.WriteString(sha1h, fmt.Sprintf("%d", file.BaseInfo.FileId))
   }
-  relLakeList.Version = string(md5h.Sum(nil)) + string(sha1h.Sum(nil))
+  relLakeList.Version = hex.EncodeToString(md5h.Sum(nil)) + hex.EncodeToString(sha1h.Sum(nil))
   return relLakeList, nil
 }
