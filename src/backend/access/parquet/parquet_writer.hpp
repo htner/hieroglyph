@@ -27,6 +27,8 @@ extern "C" {
 #include "postgres.h"
 }
 
+#include "kvpair.pb.h"
+
 /*
  * ParquetWriter
  *      - Read parquet file and cache this value
@@ -83,6 +85,8 @@ class ParquetWriter {
   Oid rel_id;
   std::string old_filename_;
   std::string filename_;
+  sdb::LakeFile file_handler_;
+  std::string s3_filename_;
   std::vector<std::string> column_names_;
   std::set<size_t> deletes_;
   /* schema of target file */

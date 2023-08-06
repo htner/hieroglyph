@@ -11,7 +11,7 @@ func (c *LakeSpaceConfig) GetConfig(dbid uint64) (*sdb.LakeSpaceDetail, error){
   detail.Base = new(sdb.LakeSpaceInfo)
   detail.Detail = new(sdb.S3Endpoint)
   
-  detail.Base.ZoneId = 1
+  detail.Base.SpaceId = 1
   detail.Base.Bucket = "sdb1"
 
   detail.Detail.Region = "ap-northeast-1"

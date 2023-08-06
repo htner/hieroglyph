@@ -32,8 +32,8 @@ public:
     kDBS3Endpoint = request_->db_space().detail().endpoint();
     kDBIsMinio = request_->db_space().detail().is_minio();
 
-    StartTransactionCommand();
     PrepareCatalog();
+    StartTransactionCommand();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
     HandleOptimize(parsetree_list);
@@ -41,6 +41,8 @@ public:
   }
 
 	void PrepareCatalog() {
+    LakeFileMgrSingleton->Get
+
     Oid *oid_arr = nullptr;
     std::vector<Oid> oids;
     int size = request_->reload_catalog_oid().size();

@@ -16,6 +16,7 @@
 #include <arrow/api.h>
 #include <arrow/array.h>
 #include <arrow/io/api.h>
+#include <fcntl.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/schema.h>
 #include <parquet/arrow/writer.h>
@@ -146,7 +147,7 @@ void ParquetWriter::ParquetWriteFile(const char *dirname,
     /* Upload to S3 system if needed */
     if (s3_client) {
       bool uploaded = parquet_upload_file_to_s3(
-          dirname, s3_client, filename_.c_str(), local_path.c_str());
+          dirname, s3_client, s3_filename_.c_str(), local_path.c_str());
 
       /* clean-up the local temporary file */
       /* delete temporary file */
@@ -261,13 +262,15 @@ void ParquetWriter::PrepareUpload() {
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
 	sdb::PrepareInsertFilesRequest request;
-	auto add_file  = request.add_add_files();
-	*add_file = filename_;
+	//auto add_file  = request.add_add_files();
+	//*add_file = filename_;
 
+	// FIX_SDB: 
 	request.set_dbid(dbid);
 	request.set_sessionid(sessionid);
 	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
+	request.set_count(1);
 
 	LOG(INFO) << "prepare upload file " << request.DebugString();
 	sdb::PrepareInsertFilesResponse response;
@@ -277,9 +280,19 @@ void ParquetWriter::PrepareUpload() {
 		LOG(ERROR) << "Fail to PrepareInsertFiles, " << cntl.ErrorText();
 		return;
 	}
+	if (response.files().size() == 0) {
+		LOG(ERROR) << "Fail to PrepareInsertFiles, size == 0";
+		return;
+	}
+	file_handler_ = response.files(0);
+	s3_filename_ = std::to_string(file_handler_.space_id()) + "_" + 
+		std::to_string(file_handler_.file_id()) + ".parque";
 }
 
 void ParquetWriter::CommitUpload() {
+	if (old_filename_.size() == 0)  {
+		return;
+	}
 	std::unique_ptr<brpc::Channel> channel;
 	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
 	brpc::Controller cntl;
@@ -298,9 +311,9 @@ void ParquetWriter::CommitUpload() {
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
 	sdb::UpdateFilesRequest request;
-	auto add_file = request.add_add_files();
-	add_file->set_fileid(0);
-	add_file->set_file_name(filename_);
+	//auto add_file = request.add_add_files();
+	//add_file->set_file_id(0);
+	//add_file->set_file_name(filename_);
 	//add_file->set_space(1);
 	//*add_file = filename_;
 	request.set_dbid(dbid);

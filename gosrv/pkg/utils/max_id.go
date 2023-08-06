@@ -75,3 +75,21 @@ func (I* MaxIdOperator) Sync() error {
   max_id.Value = I.current 
   return kvOp.Write(I.key, &max_id)
 }
+
+func (I* MaxIdOperator) Add(count uint64) (uint64, uint64, error) {
+  kvOp := fdbkv.NewKvOperator(I.tr)
+  var max_id kvpair.MaxId
+  err := kvOp.Read(I.key, &max_id)
+  if err != nil {
+    if err != fdbkv.EmptyDataErr {
+      log.Println("read maxfile id error:", err)
+      return 0, 0, err
+    }
+  }
+  start := max_id.Value + 1
+  max_id.Value += count
+  err = kvOp.Write(I.key, &max_id)
+  I.current = max_id.Value
+  I.init = true
+  return start, max_id.Value, err 
+}

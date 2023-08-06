@@ -149,7 +149,7 @@ void ParquetS3WriterState::Upload() {
 void ParquetS3WriterState::CommitUpload() {
 	auto auto_switch = AutoSwitch(cxt);
 	std::list<sdb::LakeFile> add_files;
-	std::list<sdb::LakeFileHandle> delete_files;
+	std::list<sdb::LakeFile> delete_files;
 
 	std::unique_ptr<brpc::Channel> channel;
 	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);

@@ -5,6 +5,8 @@
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
+#include "backend/sdb/common/singleton.hpp"
+#include "kvpair.pb.h"
 #include "lake_service.pb.h"
 
 extern uint64_t read_xid;
@@ -16,6 +18,7 @@ extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
 
 namespace sdb {
+
 class LakeRelFiles {
 public:
   LakeRelFiles() {
@@ -71,13 +74,21 @@ public:
     }
     for (int i = 0; i < response.files_size(); i++) {
       files.push_back(response.files(i)); 
-      LOG(INFO) << "get a file: " << response.files(i).file_name();
+      LOG(INFO) << "get a file: " << response.files(i).file_id();
     }
     return files;
   }
 
+  void SetRelLakeLists(std::vector<sdb::RelFiles> rels) {
+    for (size_t i = 0; i < rels.size(); ++i) {
+      rel_files_[rels[i].rel()] = rels[i];
+    }
+  }
+
 private:
-  //std::unordered_map<uint64, LakeRelFiles> rel_files_;
+  std::unordered_map<uint64, sdb::RelFiles> rel_files_;
 };
+
+using LakeFileMgrSingleton = ThreadSafeSingleton<LakeFileMgr>;
 
 }

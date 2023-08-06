@@ -977,7 +977,10 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 			use_threads, use_mmap, max_open_files);
 
 		for (size_t i = 0; i < lake_files.size(); ++i) {
-			state->add_file(lake_files[i].fileid(), lake_files[i].file_name().c_str(), NULL);
+
+			auto filename = std::to_string(lake_files[i].space_id()) + "_" + 
+				std::to_string(lake_files[i].file_id()) + ".parque";
+			state->add_file(lake_files[i].file_id(), filename.c_str(), NULL);
 		}
 	} catch (std::exception &e) {
 		error = e.what();
@@ -1014,7 +1017,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                           */
   auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(ERROR) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
+		LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
 		//filenames.push_back(lake_files[i].file_name());
   }
 
@@ -1043,7 +1046,7 @@ TableScanDesc ParquetBeginScanExtractColumns(
   auto lake_files =
    	ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(INFO) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
+		LOG(INFO) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
 		//filenames.push_back(lake_files[i].file_name());
   }
 
@@ -1324,7 +1327,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
 	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(rel->rd_id);
 	for (size_t i = 0; i < lake_files.size(); ++i) {
 		//LOG(INFO) << lake_files[i].file_name();
-		LOG(ERROR) << lake_files[i].fileid() <<  " -> " << lake_files[i].file_name();
+		LOG(ERROR) << lake_files[i].file_id(); //<<  " -> " << lake_files[i].file_name();
        //fmstate->add_file(i, filenames[i].data());
     }
 
@@ -1593,7 +1596,10 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
 
 		for (size_t i = 0; i < lake_files.size(); i++) {
-			state->add_file(lake_files[i].fileid(), lake_files[i].file_name().data(), NULL);
+			auto filename = std::to_string(lake_files[i].space_id()) + "_" + 
+				std::to_string(lake_files[i].file_id()) + ".parque";
+			// FIXME_SDB add space id future
+			state->add_file(lake_files[i].file_id(), filename.data(), NULL);
 		}
 	} catch (std::exception &e) {
 		error = e.what();

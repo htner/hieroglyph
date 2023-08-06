@@ -280,7 +280,7 @@ func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDe
   curSegIndex := fmt.Sprint("%d", segIndex)
 
   for _, file := range files {
-    owner := c.LocateKey([]byte(file.BaseInfo.FileName))
+    owner := c.LocateKey([]byte(fmt.Sprint("%d", file.BaseInfo.FileId)))
     if owner.String() == curSegIndex {
       statifiesFiles = append(statifiesFiles, file)
     }
@@ -288,7 +288,7 @@ func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDe
   return statifiesFiles, nil
 }
 
-func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelLakeList, error) {
+func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelFiles, error) {
   files, err := L.GetAllFile(rel, 0, 0)
   if err != nil {
     return nil, err
@@ -298,15 +298,15 @@ func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelLakeList, err
   md5h := md5.New()
   sha1h := sha1.New()
 
-  relLakeList := new(sdb.RelLakeList)
+  relLakeList := new(sdb.RelFiles)
   relLakeList.Rel = uint64(rel)
   
   var name string
   for _, file := range files {
     relLakeList.Files = append(relLakeList.Files, file.BaseInfo)
-    name += file.BaseInfo.FileName
-    io.WriteString(md5h, file.BaseInfo.FileName)
-    io.WriteString(sha1h, file.BaseInfo.FileName)
+    name += fmt.Sprint("%d", file.BaseInfo.FileId)
+    io.WriteString(md5h, fmt.Sprint("%d", file.BaseInfo.FileId))
+    io.WriteString(sha1h, fmt.Sprint("%d", file.BaseInfo.FileId))
   }
   relLakeList.Version = string(md5h.Sum(nil)) + string(sha1h.Sum(nil))
   return relLakeList, nil
