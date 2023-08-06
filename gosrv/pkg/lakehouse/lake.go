@@ -18,12 +18,12 @@ func NewLakeRelOperator(dbid types.DatabaseId, sid types.SessionId, xid types.Tr
 	return &LakeRelOperator{T: NewTranscationWithXid(dbid, xid, sid)}
 }
 
-func (L *LakeRelOperator) PrepareFiles(rel types.RelId, files []string) error {
+func (L *LakeRelOperator) PrepareFiles(rel types.RelId, count uint64) (files []*sdb.LakeFile, err error) {
 	// 上锁
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		log.Println("PrepareFiles open err: ", err)
-		return err
+		return nil, err
 	}
 	var mgr LockMgr
 	var fdblock Lock
@@ -32,6 +32,8 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, files []string) error {
 	fdblock.LockType = InsertLock
 	fdblock.Sid = L.T.Sid
 
+  files = make([]*sdb.LakeFile, 0)
+
 	_, e := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
@@ -39,19 +41,34 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, files []string) error {
 			if err != nil {
 				return nil, err
 			}
-			kvOp := NewKvOperator(tr)
+
+      kvOp := NewKvOperator(tr)
+      idKey := kvpair.SecondClassObjectMaxKey{MaxTag:kvpair.MAXFILEIDTag, Dbid: L.T.Database}
+      idOp := utils.NewMaxIdOperator(tr, &idKey)
+      start, end, err := idOp.Add(count)
+      if err != nil {
+        return nil, err
+      }
+
+			// kvOp := NewKvOperator(tr)
       var prepareFiles sdb.PrepareLakeFiles
-      prepareFiles.Filenames = files
+      for i := start; i <= end; i++ {
+        file := &sdb.LakeFile{FileId: i, SpaceId: 1}
+        prepareFiles.Files = append(prepareFiles.Files, file)
+        files = append(files, file)
+        //prepareFiles.StartFileId = start
+        //prepareFiles.EndFileId = end
+      }
       key := kvpair.NewLakeLogItemKey(L.T.Database, rel, L.T.Xid, kvpair.PreInsertMark)
       return nil, kvOp.WritePB(key, &prepareFiles)
 		}, 3)
 	if e != nil {
 		log.Println("PrepareFiles lock err: ", e)
 	}
-	return e
+	return files, e
 }
 
-func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFileDetail, deleteFiles []*sdb.LakeFileHandle) error {
+func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFileDetail, deleteFiles []*sdb.LakeFile) error {
 	// 上锁
 	db, err := fdb.OpenDefault()
 	if err != nil {
@@ -94,7 +111,8 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
         key.Relation = rel  
         key.Fileid = fileid 
 
-        file.BaseInfo.Fileid = fileid
+        file.BaseInfo.FileId = fileid
+
 				file.Dbid = uint64(L.T.Database)
 				file.Rel = uint64(rel)
 				file.Xmin = uint64(t.Xid)
@@ -126,11 +144,11 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
       deleteInfo.Files = deleteFiles
 
 			for _, file := range deleteInfo.Files {
-
         var key kvpair.FileKey
         key.Database = L.T.Database
         key.Relation = rel
-        key.Fileid = file.Id
+        key.Fileid = file.FileId
+        key.Spaceid = file.SpaceId
 
         var file sdb.LakeFileDetail
 				err = kvOp.ReadPB(&key, &file)
@@ -167,6 +185,7 @@ func (L *LakeRelOperator) ChangeFiles(rel types.RelId, insertFiles []*sdb.LakeFi
 	return e
 }
 
+/*
 func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDetail) error {
 	// 上锁
 	db, err := fdb.OpenDefault()
@@ -235,16 +254,6 @@ func (L *LakeRelOperator) InsertFiles(rel types.RelId, files []*sdb.LakeFileDeta
       if err != nil {
         return nil, err
       }
-
-      /*
-      changeRelKey := &kvpair.TransactionChangeRelKey{Database: L.T.Database, Rel:rel, Xid:L.T.Xid}
-      var emptyValue kvpair.EmptyValue
-      err = kvOp.Write(changeRelKey, &emptyValue)
-      if err != nil {
-        return nil, err
-      }
-      */
-
 			return nil, nil
 		}, 3)
 	return e
@@ -280,7 +289,8 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*sdb.LakeFileDeta
         var key kvpair.FileKey
         key.Database = L.T.Database
         key.Relation = rel
-        key.Fileid = file.BaseInfo.Fileid
+        key.Spaceid = file.BaseInfo.SpaceId
+        key.Fileid = file.BaseInfo.FileId
 
 				file.Dbid = uint64(L.T.Database)
 				file.Rel = uint64(rel)
@@ -292,7 +302,10 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*sdb.LakeFileDeta
 					return nil, err
 				}
 
-        deleteInfo.Files = append(deleteInfo.Files, &sdb.LakeFileHandle{Id: key.Fileid, Name: file.BaseInfo.FileName})
+        //prepareFiles.SpaceId = 1
+        //prepareFiles.StartFileId = start
+        //prepareFiles.EndFileId = end
+        deleteInfo.Files = append(deleteInfo.Files, &sdb.LakeFile{FileId: key.Fileid, SpaceId: file.BaseInfo.SpaceId})
 			}
 
       log_key := kvpair.NewLakeLogItemKey(L.T.Database, rel, L.T.Xid, kvpair.PreInsertMark)
@@ -301,19 +314,11 @@ func (L *LakeRelOperator) DeleleFiles(rel types.RelId, files []*sdb.LakeFileDeta
         return nil, err
       }
 
-      /*
-      changeRelKey := &kvpair.TransactionChangeRelKey{Database: L.T.Database, Rel:rel, Xid:L.T.Xid}
-      var emptyValue kvpair.EmptyValue
-      err = kvOp.Write(changeRelKey, &emptyValue)
-      if err != nil {
-        return nil, err
-      }
-      */
-
-			return nil, nil
+ 			return nil, nil
 		}, 3)
 	return e
 }
+  */
 
 func (L *LakeRelOperator) FlushCommit() {
   // TODO

@@ -137,7 +137,7 @@ func (L *LakeRelCopyOperator) Copy() error {
     return errors.New("data is null")
   }
 
-  copys := make(map[string]string, 0)
+  copys := make([]*sdb.LakeFile, 0)
 
   data, err = mgr.DoWithAutoLock(db, &fdblock,
     func(tr fdb.Transaction) (interface{}, error) {
@@ -171,8 +171,9 @@ func (L *LakeRelCopyOperator) Copy() error {
 
         fileNew := proto.Clone(file).(*sdb.LakeFileDetail)
     
-        fileNew.BaseInfo.FileName = fmt.Sprintf("%d-%d.parquet", L.sourceDb, fileid)
-        fileNew.BaseInfo.Fileid = fileid
+        //fileNew.BaseInfo.FileName = fmt.Sprintf("%d-%d.parquet", L.sourceDb, fileid)
+        fileNew.BaseInfo.SpaceId = 1// fmt.Sprintf("%d-%d.parquet", L.sourceDb, fileid)
+        fileNew.BaseInfo.FileId = fileid
 				fileNew.Dbid = uint64(L.sourceDb)
 				fileNew.Rel = uint64(L.sourceRel)
 				fileNew.Xmin = uint64(1)
@@ -187,7 +188,7 @@ func (L *LakeRelCopyOperator) Copy() error {
 					return nil, err
 				}
 
-        copys[fileNew.BaseInfo.FileName] = file.BaseInfo.FileName
+        copys = append(copys, file.BaseInfo)
       }
     return nil, nil
   }, 3)
@@ -209,11 +210,11 @@ func (L *LakeRelCopyOperator) Copy() error {
   }
 
   s3Client := s3.NewFromConfig(cfg)
-  for dest, source := range copys {
+  for _, source := range copys {
     _, err := s3Client.CopyObject(context.TODO(), &s3.CopyObjectInput{
       Bucket:     aws.String(L.destSpace.Base.Bucket),
       CopySource: aws.String(fmt.Sprintf("%v/%v", L.sourceSpace.Base.Bucket, source)),
-      Key:        aws.String(fmt.Sprintf("%v", dest)),
+      Key:        aws.String(fmt.Sprintf("%d-%d.parquet", source.SpaceId, source.FileId)),
       })
     if err != nil {
         log.Printf("Unable to copy item from bucket %q to bucket %q, %v", L.sourceSpace.Base.Bucket, L.sourceSpace.Base.Bucket, err)

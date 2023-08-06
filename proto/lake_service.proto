@@ -1,6 +1,5 @@
 syntax = "proto3";
 package sdb;
-
 /* to generate service */
 option cc_generic_services = true;
 
@@ -89,10 +88,12 @@ message PrepareInsertFilesRequest {
     uint64 commit_xid = 3;
     uint64 rel = 4;
     uint64 commandid = 5;
-    repeated string add_files = 6;
+    uint64 count = 6;
+    //repeated string add_files = 6;
 }
 
 message PrepareInsertFilesResponse {
+    repeated LakeFile files = 1;
 }
 
 message UpdateFilesRequest {
@@ -102,7 +103,7 @@ message UpdateFilesRequest {
     uint64 commandid = 4;
     uint64 rel = 5;
     repeated LakeFile add_files = 6;
-    repeated LakeFileHandle remove_files = 7;
+    repeated LakeFile remove_files = 7;
 }
 
 message UpdateFilesResponse {

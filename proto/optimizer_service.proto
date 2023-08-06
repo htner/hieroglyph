@@ -56,9 +56,9 @@ message OptimizeRequest {
   LakeSpaceDetail db_space = 8;
   repeated uint32 reload_catalog_oid = 9;
 
-  RelLakeList CatalogList = 10;
-  //repeated LakeRelVersion versions = 21;
 
+  repeated RelFiles CatalogList = 10;
+  //repeated LakeRelVersion versions = 21;
 }
 
 // The response message containing the greetings
@@ -68,4 +68,6 @@ message OptimizeReply {
   bytes plan_dxl_str = 3; // TODO maybe problem FIXME_SDB
   bytes plan_params_str = 4;
   repeated PBPlanSlice slices = 5;
+  repeated uint64 read_rels = 8;
+  repeated uint64 write_rels = 9;
 }

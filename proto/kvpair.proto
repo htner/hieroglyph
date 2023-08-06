@@ -28,9 +28,8 @@ option go_package="./sdb";
 import  "config.proto";
 
 message LakeFile {
-    uint64 fileid = 1;
-    string file_name = 2;
-    //uint64 space = 3;
+  uint64 space_id = 1;
+  uint64 file_id = 2;
 }
 
 // must be no side effects, for cache
@@ -38,13 +37,15 @@ message LakeFileMeta {
     map<string, string> meta = 1;
 }
 
+/*
 message LakeFileHandle {
   uint64 id  = 1;
   string name = 2;
 }
+*/
 
 message DeleteLakeFiles {
-  repeated LakeFileHandle files = 1;
+  repeated LakeFile files = 1;
 }
 
 message InsertLakeFiles {
@@ -52,7 +53,10 @@ message InsertLakeFiles {
 }
 
 message PrepareLakeFiles {
-  repeated string filenames = 1;
+  //uint64 space_id = 1;
+  //uint64 start_file_id = 2;
+  //uint64 end_file_id = 3;
+  repeated LakeFile files = 1;
 }
 
 message LakeLogDetail {
@@ -76,7 +80,7 @@ message LakeFileShared {
 }
 
 message LakeSpaceInfo {
- uint32 zone_id = 1;
+ uint32 space_id = 1;
  string bucket = 2;
 }
 
@@ -102,7 +106,7 @@ message WorkerResultData {
   repeated string data_files = 7;
 }
 
-message RelLakeList {
+message RelFiles {
   uint64 rel = 1;
   repeated LakeFile files = 2;
   string version = 3;
