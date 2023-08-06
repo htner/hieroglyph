@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	_ "github.com/htner/sdb/gosrv/pkg/utils/slog"
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
   log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"

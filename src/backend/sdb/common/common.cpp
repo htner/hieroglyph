@@ -6,11 +6,11 @@
 //extern bool not_initdb;
 //
 
-std::string kDBBucket;
-std::string kDBS3User;
-std::string kDBS3Password;
-std::string kDBS3Region;
-std::string kDBS3Endpoint;
+std::string kDBBucket = "sdb1";
+std::string kDBS3User = "minioadmin";
+std::string kDBS3Password = "minioadmin";
+std::string kDBS3Region = "ap1";
+std::string kDBS3Endpoint = "127.0.0.1:9000";
 bool kDBIsMinio = true;
 
 std::string kResultBucket;

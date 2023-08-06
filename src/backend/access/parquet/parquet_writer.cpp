@@ -204,7 +204,8 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   ParquetWriteFile(dirname, s3_client, *table);
   INSTR_TIME_SET_CURRENT(duration);
   INSTR_TIME_SUBTRACT(duration, start);
-  LOG(INFO) << filename_ << " file has been uploaded in "
+  LOG(INFO) << rel_name << "(" << rel_id  << ") "
+		<< s3_filename_ << " file has been uploaded in "
 	<< duration.tv_sec << " seconds " << duration.tv_nsec/1000 << " microseconds.";
 }
 
@@ -248,7 +249,7 @@ void ParquetWriter::PrepareUpload() {
 	brpc::Controller cntl;
 	channel = std::make_unique<brpc::Channel>();
 
-	LOG(ERROR) << "prepare upload";
+	// LOG(ERROR) << "prepare upload";
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
 	options.protocol = "h2:grpc";
@@ -272,7 +273,7 @@ void ParquetWriter::PrepareUpload() {
 	request.set_rel(rel_id);
 	request.set_count(1);
 
-	LOG(INFO) << "prepare upload file " << request.DebugString();
+	// LOG(INFO) << "prepare upload file " << request.DebugString();
 	sdb::PrepareInsertFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	stub->PrepareInsertFiles(&cntl, &request, &response, NULL);
@@ -310,7 +311,7 @@ void ParquetWriter::CommitUpload() {
 	}
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
-	sdb::UpdateFilesRequest request;
+	sdb::DeleteFilesRequest request;
 	//auto add_file = request.add_add_files();
 	//add_file->set_file_id(0);
 	//add_file->set_file_name(filename_);
@@ -321,10 +322,10 @@ void ParquetWriter::CommitUpload() {
 	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
 
-	sdb::UpdateFilesResponse response;
+	sdb::DeleteFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
 	LOG(INFO) << "commit upload file " << request.DebugString();
-	stub->UpdateFiles(&cntl, &request, &response, NULL);
+	stub->DeleteFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
 		LOG(ERROR) << "Fail to UpdateFiles, " << cntl.ErrorText();
 		return;

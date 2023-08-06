@@ -54,9 +54,9 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	future := t.t.Get(fKey)
 
 	v, e := future.Get()
-  log.Println("kvoprator read, key, value, error:", key, len(sKey), len(v), v, e)
+  // log.Println("kvoprator read, key, value, error:", key, len(sKey), len(v), v, e)
 	if e != nil {
-    log.Printf("kv not found")
+    // log.Printf("kv not found")
 		return errors.New("kv not found")
 	}
   if len(v) == 0 {
@@ -92,7 +92,7 @@ func (t *KvOperator) ReadPB(key kv.FdbKey, msg proto.Message) error {
 
 	v, e := future.Get()
 	//log.Println("v e", key, v, e)
-  log.Println("read pb key, value, error:", key, len(sKey), v, len(v), e)
+  // log.Println("read pb key, value, error:", key, len(sKey), v, len(v), e)
 	if e != nil {
 		return errors.New("kv not found")
 	}

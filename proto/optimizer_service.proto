@@ -57,7 +57,7 @@ message OptimizeRequest {
   repeated uint32 reload_catalog_oid = 9;
 
 
-  repeated RelFiles CatalogList = 10;
+  repeated RelFiles catalog_list = 10;
   //repeated LakeRelVersion versions = 21;
 }
 

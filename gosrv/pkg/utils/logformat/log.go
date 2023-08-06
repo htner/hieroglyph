@@ -1,4 +1,4 @@
-package slog
+package logformat
 
 import (
 	"fmt"
@@ -7,6 +7,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+func init() {
+  SetLogger(true)
+}
 
 // Only the msg is printed, which may be needed for the final release
 type MsgFormatter struct {

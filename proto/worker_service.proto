@@ -55,8 +55,8 @@ message PrepareTaskRequest {
   uint64 guc_version = 20;
   //repeated LakeRelVersion versions = 21;
   //repeated WorkerInfo workers = 22;
-  RelFiles CatalogList = 21;
-  RelFiles UserRelList = 22;
+  repeated RelFiles catalog_list = 21;
+  repeated RelFiles user_rel_list = 22;
 
   PBSliceTable slice_table = 23;
 

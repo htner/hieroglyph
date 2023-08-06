@@ -10,6 +10,7 @@
 
 #include "backend/sdb/optimizer/parser.hpp"
 #include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/lake_file_mgr.hpp"
 // #include "utils/elog.h"
 
 namespace sdb {
@@ -41,7 +42,8 @@ public:
   }
 
 	void PrepareCatalog() {
-    LakeFileMgrSingleton->Get
+    std::vector<sdb::RelFiles> catalog_list(request_->catalog_list().begin(), request_->catalog_list().end());
+    LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
 
     Oid *oid_arr = nullptr;
     std::vector<Oid> oids;

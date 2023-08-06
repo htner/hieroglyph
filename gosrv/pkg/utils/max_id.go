@@ -30,6 +30,7 @@ func (I* MaxIdOperator) GetCurrent() (uint64, error) {
       log.Println("read maxfile id error:", err)
       return 0, err
     }
+    I.current = 10240
   }
   I.current = max_id.Value
   I.init = true
@@ -45,6 +46,7 @@ func (I* MaxIdOperator) GetNext() (uint64, error) {
       log.Println("read maxfile id error:", err)
       return 0, err
     }
+    I.current = 10240
   }
   max_id.Value += 1
   err = kvOp.Write(I.key, &max_id)
@@ -85,6 +87,7 @@ func (I* MaxIdOperator) Add(count uint64) (uint64, uint64, error) {
       log.Println("read maxfile id error:", err)
       return 0, 0, err
     }
+    I.current = 10240
   }
   start := max_id.Value + 1
   max_id.Value += count

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"reflect"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
 	"github.com/htner/sdb/gosrv/pkg/service"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+	log "github.com/sirupsen/logrus"
 	"github.com/jackc/pgproto3/v2"
 
 	_ "github.com/mbobakov/grpc-consul-resolver" // It's important "github.com/hashicorp/consul/api"
