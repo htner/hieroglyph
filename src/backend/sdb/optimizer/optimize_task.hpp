@@ -34,8 +34,8 @@ public:
     kDBIsMinio = request_->db_space().detail().is_minio();
     reply_->set_code(0);
 
-    PrepareCatalog();
     StartTransactionCommand();
+	PrepareCatalog();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
     HandleOptimize(parsetree_list);
