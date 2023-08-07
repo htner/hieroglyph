@@ -60,8 +60,11 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
       return 0, nil
 	  }	
     Q.catalogFiles = append(Q.catalogFiles, relLakeList)
-    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
 	}
+
+  for _, oid := range postgres.ReloadCatalogs {
+    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
+  }
 
 	// NewQueryId
 	newQueryId := uint64(time.Now().UnixMilli())
