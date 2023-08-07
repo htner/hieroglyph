@@ -114,7 +114,6 @@ static DeadLockState deadlock_state = DS_NOT_YET_CHECKED;
 static volatile sig_atomic_t got_deadlock_timeout;
 
 static void RemoveProcFromArray(int code, Datum arg);
-static void ProcKill(int code, Datum arg);
 static void AuxiliaryProcKill(int code, Datum arg);
 static void CheckDeadLock(void);
 
@@ -1016,6 +1015,7 @@ update_spins_per_delay(void)
  * ProcKill() -- Destroy the per-proc data structure for
  *		this process. Release any of its held LW locks.
  */
+#ifdef SDB_NOUSE
 static void
 ProcKill(int code, Datum arg)
 {
@@ -1178,6 +1178,7 @@ ProcKill(int code, Datum arg)
 	if (AutovacuumLauncherPid != 0)
 		kill(AutovacuumLauncherPid, SIGUSR2);
 }
+#endif
 
 /*
  * AuxiliaryProcKill() -- Cut-down version of ProcKill for auxiliary

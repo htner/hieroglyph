@@ -109,5 +109,5 @@ message WorkerResultData {
 message RelFiles {
   uint64 rel = 1;
   repeated LakeFile files = 2;
-  string version = 3;
+  bytes version = 3;
 }

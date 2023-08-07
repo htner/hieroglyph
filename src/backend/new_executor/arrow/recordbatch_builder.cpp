@@ -31,7 +31,10 @@ RecordBatchBuilder::~RecordBatchBuilder() {
 arrow::Status RecordBatchBuilder::AppendTuple(TupleTableSlot* tuple) {
 	for (int i = 0; i < tuple_desc_->natts; i++) {
 		try {
-			builders_[i]->AppendDatum(tuple->tts_values[i], tuple->tts_isnull[i]);
+			auto status = builders_[i]->AppendDatum(tuple->tts_values[i], tuple->tts_isnull[i]);
+			if (!status.ok()) {
+				return status;
+			}
 		} catch (const std::exception &e) {
 			LOG(ERROR) << "record batch : " << e.what();
 			return arrow::Status::UnknownError("");
@@ -44,8 +47,11 @@ std::shared_ptr<arrow::RecordBatch> RecordBatchBuilder::Finish() {
 	std::vector<std::shared_ptr<arrow::Array>> columns;
 	for (size_t i = 0; i < builders_.size(); ++i) {
 		std::shared_ptr<arrow::Array> arr;
-		builders_[i]->GetArrayBuilder()->Finish(&arr);
-		// LOG(ERROR) << "finish col %d size %d" <<  i << " " << arr->length();
+		auto status = builders_[i]->GetArrayBuilder()->Finish(&arr);
+		if (!status.ok()) {
+			LOG(ERROR) << "finish error, col %d size %d" <<  i << " " << arr->length();
+			return nullptr;
+		}
 		columns.push_back(arr);
 		builders_[i]->GetArrayBuilder()->Reset();
 	}

@@ -325,7 +325,7 @@ ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 void
 UnlockRelation(Relation relation, LOCKMODE lockmode)
 {
-	return true;
+	return;
 	LOCKTAG		tag;
 
 	SET_LOCKTAG_RELATION(tag,

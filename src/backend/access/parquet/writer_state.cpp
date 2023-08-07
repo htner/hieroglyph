@@ -75,8 +75,7 @@ ParquetS3WriterState::ParquetS3WriterState(MemoryContext reader_cxt,
       tuple_desc(tuple_desc),
       target_attrs(target_attrs),
       use_threads(use_threads),
-      use_mmap(use_mmap),
-      schemaless(schemaless) {}
+      use_mmap(use_mmap) {}
 
 /**
  * @brief Destroy the Parquet S 3 Fdw Modify State:: Parquet S3 Fdw Modify State

@@ -127,7 +127,6 @@ extern void parquet_s3_init();
 
 static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2);
 static void destroy_parquet_state(void *arg);
-static List *parse_attributes_list(char *start);
 MemoryContext parquet_am_cxt = NULL;
 /*
  * Restriction
@@ -696,136 +695,6 @@ static void destroy_parquet_modify_state(void *arg) {
  * C interface functions
  */
 
-static List *parse_attributes_list(char *start) {
-  List *attrs = NULL;
-  char *token;
-  const char *delim = " ";
-
-  while ((token = strtok(start, delim)) != NULL) {
-    attrs = lappend(attrs, pstrdup(token));
-    start = NULL;
-  }
-
-  return attrs;
-}
-
-/*
- * OidFunctionCall1NullableArg
- *      Practically a copy-paste from FunctionCall1Coll with added capability
- *      of passing a NULL argument.
- */
-static Datum OidFunctionCall1NullableArg(Oid functionId, Datum arg,
-                                         bool argisnull) {
-#if PG_VERSION_NUM < 120000
-  FunctionCallInfoData _fcinfo;
-  FunctionCallInfoData *fcinfo = &_fcinfo;
-#else
-  LOCAL_FCINFO(fcinfo, 1);
-#endif
-  FmgrInfo flinfo;
-  Datum result;
-
-  fmgr_info(functionId, &flinfo);
-  InitFunctionCallInfoData(*fcinfo, &flinfo, 1, InvalidOid, NULL, NULL);
-
-#if PG_VERSION_NUM < 120000
-  fcinfo->arg[0] = arg;
-  fcinfo->argnull[0] = false;
-#else
-  fcinfo->args[0].value = arg;
-  fcinfo->args[0].isnull = argisnull;
-#endif
-
-  result = FunctionCallInvoke(fcinfo);
-
-  /* Check for null result, since caller is clearly not expecting one */
-  if (fcinfo->isnull)
-    LOG(ERROR) << "parquet_s3_fdw: function "
-			<< flinfo.fn_oid
-			<< " returned NULL";
-
-  return result;
-}
-
-/*
- * OidFunctionCallnNullableArg
- *      Practically a copy-paste from FunctionCall2Coll with added capability
- *      of passing a NULL argument.
- */
-static Datum OidFunctionCallnNullableArg(Oid functionId, Datum *args,
-                                         bool *arg_isnulls, int nargs) {
-  FunctionCallInfo fcinfo;
-  FmgrInfo flinfo;
-  Datum result;
-  int i;
-
-  fcinfo = (FunctionCallInfo)palloc0(SizeForFunctionCallInfo(nargs));
-
-  fmgr_info(functionId, &flinfo);
-  InitFunctionCallInfoData(*fcinfo, &flinfo, 2, InvalidOid, NULL, NULL);
-
-  for (i = 0; i < nargs; i++) {
-    fcinfo->args[i].value = args[i];
-    fcinfo->args[i].isnull = arg_isnulls[i];
-  }
-
-  result = FunctionCallInvoke(fcinfo);
-
-  /* Check for null result, since caller is clearly not expecting one */
-  if (fcinfo->isnull)
-    LOG(ERROR) << "parquet_s3_fdw: function "
-			<< flinfo.fn_oid
-			<< " returned NULL";
-
-  return result;
-}
-
-/*
-static List *get_filenames_from_userfunc(const char *funcname,
-                                         const char *funcarg) {
-  Jsonb *j = NULL;
-  Oid funcid;
-  List *f = stringToQualifiedNameList(funcname);
-  Datum filenames;
-  Oid jsonboid = JSONBOID;
-  Datum *values;
-  bool *nulls;
-  int num;
-  List *res = NULL;
-  ArrayType *arr;
-
-  if (funcarg)
-    j = DatumGetJsonbP(DirectFunctionCall1(jsonb_in, CStringGetDatum(funcarg)));
-
-  funcid = LookupFuncName(f, 1, &jsonboid, false);
-  filenames = OidFunctionCall1NullableArg(funcid, (Datum)j, funcarg == NULL);
-
-  arr = DatumGetArrayTypeP(filenames);
-  if (ARR_ELEMTYPE(arr) != TEXTOID)
-    LOG(ERROR) << 
-         "parquet_s3_fdw: function returned an array with non-TEXT element type";
-
-  deconstruct_array(arr, TEXTOID, -1, false, 'i', &values, &nulls, &num);
-
-  if (num == 0) {
-    LOG(WARNING) <<
-         "parquet_s3_fdw:" << get_func_name(funcid) << " function returned an empty array; foreign table "
-         "wasn't created";
-    return NULL;
-  }
-
-  for (int i = 0; i < num; ++i) {
-    if (nulls[i])
-      LOG(ERROR) <<
-           "parquet_s3_fdw: user function returned an array containing NULL "
-           "value(s)";
-    res = lappend(res, makeString(TextDatumGetCString(values[i])));
-  }
-
-  return res;
-}
-*/
-
 static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
   static bool init_s3sdk = false;
   if (!init_s3sdk) {
@@ -1292,7 +1161,6 @@ extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
 extern "C" void ParquetDmlInit(Relation rel) {
   // Oid    foreignTableId = InvalidOid;
   TupleDesc tupleDesc;
-  MemoryContextCallback *callback;
   std::string error;
   arrow::Status status;
   std::set<std::string> sorted_cols;
@@ -1344,7 +1212,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
    * Enable automatic execution state destruction by using memory context
    * callback
    */
-  callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
+  // callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
   // callback->func = destroy_parquet_modify_state;
   // callback->arg = //(void *)fmstate;
   // MemoryContextRegisterResetCallback(estate->es_query_cxt, callback);
@@ -1577,9 +1445,6 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	scan->xs_base.rel = relation;
 
 	/* aoscan->aofetch is initialized lazily on first fetch */
-	TupleDesc tupDesc = RelationGetDescr(relation);
-	//GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
-
 	auto s3client = ParquetGetConnectionByRelation(relation);
 
 	TupleDesc tupleDesc = RelationGetDescr(relation);
@@ -1686,7 +1551,6 @@ double ParquetIndexBuildRangeScan(
     BlockNumber numblocks, IndexBuildCallback callback, void *callback_state,
     TableScanDesc scan) {
 	ParquetScanDesc parquet_scan;
-	bool		checking_uniqueness;
 	Datum		values[INDEX_MAX_KEYS];
 	bool		isnull[INDEX_MAX_KEYS];
 	double		reltuples;
@@ -1695,7 +1559,6 @@ double ParquetIndexBuildRangeScan(
 	EState	   *estate;
 	ExprContext *econtext;
 	Snapshot	snapshot;
-	int64 previous_blkno = -1;
 
 	/*
 	 * sanity checks
@@ -1708,8 +1571,8 @@ double ParquetIndexBuildRangeScan(
 		return 0;
 
 	/* See whether we're verifying uniqueness/exclusion properties */
-	checking_uniqueness = (indexInfo->ii_Unique ||
-						   indexInfo->ii_ExclusionOps != NULL);
+	//checking_uniqueness = (indexInfo->ii_Unique ||
+	//						   indexInfo->ii_ExclusionOps != NULL);
 
 	/*
 	 * "Any visible" mode is not compatible with uniqueness checks; make sure

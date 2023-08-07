@@ -265,7 +265,7 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 }
 
 void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
-	if (recv_streams_.size() < motion_id) {
+	if (recv_streams_.size() < (size_t)motion_id) {
 		recv_streams_.resize(count);
 		mutexs_.clear();
 		conds_.clear();
@@ -303,15 +303,17 @@ void ExecuteTask::SetupRecvStream(int32_t motion_id,
 								  int32_t to_segidex,
 								  int32_t from_route,
 								  int32_t to_route) {
-	if (recv_streams_.size() < motion_id) {
+	if (recv_streams_.size() < (size_t)motion_id) {
 		// motion id must <= size
 		LOG(INFO) << "motion id must <= size";
 		return;
 	}
-	if (recv_streams_[motion_id - 1].size() <= from_route) {
+
+	if (recv_streams_[motion_id - 1].size() <= (size_t)from_route) {
 		LOG(INFO) << "route must < size";
 		return;
 	}
+
 	recv_streams_[motion_id - 1][from_route]->SetInfo(motion_id,
 												  from_slice,
 												  to_slice,
@@ -328,7 +330,7 @@ void ExecuteTask::SetupSendStream(int32_t motion_id,
 								  int32_t to_segidex,
 								  int32_t from_route,
 								  int32_t to_route) {
-	if (send_streams_.size() <= to_route) {
+	if (send_streams_.size() <= (size_t)to_route) {
 		LOG(INFO) << " route must < size (" << send_streams_.size() << " < " << to_route << ")";
 		return;
 	}
@@ -342,7 +344,7 @@ void ExecuteTask::SetupSendStream(int32_t motion_id,
 }
 
 bool ExecuteTask::StartSendStream(int32_t motion_id, int32_t route) {
-	if (send_streams_.size() <= route) {
+	if (send_streams_.size() <= (size_t)route) {
 		LOG(INFO) << "route must < size";
 		return false;
 	}
@@ -356,7 +358,7 @@ bool ExecuteTask::StartSendStream(int32_t motion_id, int32_t route) {
 }
 
 void ExecuteTask::SendChunk(int32_t motion_id, int32 target_route, std::string_view& message) {
-	if (send_streams_.size() > target_route) {
+	if (send_streams_.size() > (size_t)target_route) {
 		// route must < size
 		LOG(ERROR) << "send chunk to " << target_route << " data size" << message.size();
 		send_streams_[target_route]->SendMessage(message.data(), message.size()); 
@@ -379,7 +381,7 @@ void ExecuteTask::SendEos(int32_t motion_id, int32 target_route, std::string_vie
 		BroadcastChunk(motion_id, message);
 		return;
 	}
-	if (send_streams_.size() > target_route) {
+	if (send_streams_.size() > (size_t)target_route) {
 		// route must < size
 		send_streams_[target_route]->SendMessage(message.data(), message.size()); 
 		return;
@@ -390,12 +392,12 @@ void ExecuteTask::SendEos(int32_t motion_id, int32 target_route, std::string_vie
 const std::string& ExecuteTask::RecvTupleChunk(int32_t motion_id, int32 from_route) {
 
 	cache_.clear();
-	if (recv_streams_.size() < motion_id) {
+	if (recv_streams_.size() < (size_t)motion_id) {
 		// motion_id must <= size
 		LOG(ERROR) << "recv_stream.size() " << recv_streams_.size() << " less motion_id " << motion_id;
 		return cache_;
 	}
-	if (recv_streams_[motion_id - 1].size() <= from_route) {
+	if (recv_streams_[motion_id - 1].size() <= (size_t)from_route) {
 		// route must < size
 		LOG(ERROR) << "recv_stream.size() " << recv_streams_[motion_id - 1].size() 
 			<< " less route" << from_route;
@@ -423,11 +425,12 @@ const std::string& ExecuteTask::RecvTupleChunk(int32_t motion_id, int32 from_rou
 		}
 		cond->wait(mlock);
 	}
+	return cache_;
 }
 
 const std::string* ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* target_route) {
 	cache_.clear();
-	if (recv_streams_.size() < motion_id) {
+	if (recv_streams_.size() < (size_t)motion_id) {
 		LOG(ERROR) << "recv_stream.size() " << recv_streams_.size() << " less motion_id " << motion_id;
 		return &cache_;
 	}
@@ -439,7 +442,7 @@ const std::string* ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* targ
 
 	std::unique_lock<std::mutex> mlock(*mutex.get());
 	while (!succ) {
-		for (int i = 0; i < streams.size(); ++i) {
+		for (size_t i = 0; i < streams.size(); ++i) {
 			succ = streams[i]->TryGetBuf(&buf); 
 			if (succ) {
 				auto str = buf.to_string();
@@ -460,6 +463,7 @@ const std::string* ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* targ
 		}
 		cond->wait(mlock);
 	}
+	return nullptr;
 }
 
 void ExecuteTask::BroadcastStopMessage(int32_t motion_id) {
@@ -565,6 +569,7 @@ bool SDBSendChunk(void *t,
 	std::string_view msg((const char*)tc_item->chunk_data, tc_item->chunk_length);
 	sdb::ExecuteTask* task = static_cast<sdb::ExecuteTask*>(t);
 	task->SendChunk(motion_id, target_route, msg);
+	return true;
 }
 
 bool SDBBroadcastChunk(void *t, 
@@ -573,6 +578,7 @@ bool SDBBroadcastChunk(void *t,
 	std::string_view msg((const char*)tc_item->chunk_data, tc_item->chunk_length);
 	sdb::ExecuteTask* task = static_cast<sdb::ExecuteTask*>(t);
 	task->BroadcastChunk(motion_id, msg);
+	return true;
 }
 
 TupleChunkListItem SDBRecvTupleChunkFrom(void *t, 

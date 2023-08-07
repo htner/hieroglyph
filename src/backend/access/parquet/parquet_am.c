@@ -25,9 +25,6 @@
 #include "utils/builtins.h"
 #include "utils/elog.h"
 #include "utils/guc.h"
-// #include "parquet_s3.h"
-
-// PG_MODULE_MAGIC;
 
 // void _PG_init(void);
 extern void parquet_s3_init();
@@ -144,7 +141,7 @@ extern TM_Result ParquetTupleUpdate(Relation relation, ItemPointer otid,
                                     LockTupleMode *lockmode,
                                     bool *update_indexes);
 
-extern TM_Result ParquetTupleLock(Relation relation, ItemPointer tid,
+static TM_Result ParquetTupleLock(Relation relation, ItemPointer tid,
                                   Snapshot snapshot, TupleTableSlot *slot,
                                   CommandId cid, LockTupleMode mode,
                                   LockWaitPolicy wait_policy, uint8 flags,
@@ -153,7 +150,7 @@ extern TM_Result ParquetTupleLock(Relation relation, ItemPointer tid,
   return TM_Ok;
 }
 
-extern void ParquetFinishBulkInsert(Relation relation, int options) {
+static void ParquetFinishBulkInsert(Relation relation, int options) {
   elog(ERROR, "parallel SeqScan not implemented for Parquet tables");
 }
 
@@ -292,25 +289,18 @@ extern void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
                               int options, struct BulkInsertStateData *bistate,
                               TransactionId xid);
 
-void simple_parquet_insert(Relation relation, HeapTuple tup)
-{
-	ParquetInsert(relation, tup, 0, 0, NULL,
-				0);
+/*
+static void simple_parquet_insert(Relation relation, HeapTuple tup) {
+	ParquetInsert(relation, tup, 0, 0, NULL, 0);
 }
 
-void simple_parquet_delete(Relation relation, ItemPointer tid)
-{
-
+static void simple_parquet_delete(Relation relation, ItemPointer tid) {
 }
 
-void simple_parquet_update(Relation relation, ItemPointer otid,
-							   HeapTuple tup)
-{
-
+static void simple_parquet_update(Relation relation, ItemPointer otid,
+							   HeapTuple tup) {
 }
-
-
-
+*/
 
 /*
  * Release resources and deallocate scan. If TableScanDesc.temp_snap,

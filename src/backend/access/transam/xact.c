@@ -369,7 +369,9 @@ static void AtCleanup_Memory(void);
 static void AtAbort_ResourceOwner(void);
 static void AtCCI_LocalCache(void);
 static void AtCommit_Memory(void);
+#ifdef SDB_NOUSE
 static void AtStart_Cache(void);
+#endif
 static void AtStart_Memory(void);
 static void AtStart_ResourceOwner(void);
 static void CallXactCallbacks(XactEvent event);
@@ -398,7 +400,9 @@ static void AtSubCommit_Memory(void);
 static void AtSubStart_Memory(void);
 static void AtSubStart_ResourceOwner(void);
 
+#ifdef SDB_NOUSE
 static void EndLocalDistribXact(bool isCommit);
+#endif
 static void ShowTransactionState(const char *str);
 static void ShowTransactionStateRec(const char *str, TransactionState state);
 static const char *BlockStateAsString(TBlockState blockState);
@@ -1328,6 +1332,7 @@ ForceSyncCommit(void)
  * ----------------------------------------------------------------
  */
 
+#ifdef SDB_NOUSE
 /*
  *	AtStart_Cache
  */
@@ -1336,6 +1341,7 @@ AtStart_Cache(void)
 {
 	AcceptInvalidationMessages();
 }
+#endif
 
 /*
  *	AtStart_Memory
@@ -1463,6 +1469,7 @@ AtSubStart_ResourceOwner(void)
  * ----------------------------------------------------------------
  */
 
+#ifdef SDB_NOUSE
 /*
  *	RecordTransactionCommit
  *
@@ -1785,6 +1792,7 @@ cleanup:
 
 	return latestXid;
 }
+#endif
 
 /*
  *	RecordDistributedForgetCommitted
@@ -2727,7 +2735,7 @@ static void
 CommitTransaction(void)
 {
 	TransactionState s = CurrentTransactionState;
-	TransactionId latestXid;
+	// TransactionId latestXid;
 	bool		is_parallel_worker;
 
 	is_parallel_worker = (s->blockState == TBLOCK_PARALLEL_INPROGRESS);
@@ -3877,7 +3885,6 @@ RestoreTransactionCharacteristics(void)
 	XactReadOnly = save_XactReadOnly;
 	XactDeferrable = save_XactDeferrable;
 }
-
 
 void
 Upload()
@@ -6701,6 +6708,7 @@ TransStateAsString(TransState state)
 	return "UNRECOGNIZED";
 }
 
+#ifdef SDB_NOUSE
 /*
  * EndLocalDistribXact
  */
@@ -6747,6 +6755,7 @@ EndLocalDistribXact(bool isCommit)
 			break;
 	}
 }
+#endif
 
 /*
  * IsoLevelAsUpperString

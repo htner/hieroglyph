@@ -74,7 +74,7 @@ arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchTuple(uint32 index) {
 		Datum* datum = &(slot_->tts_values[i]);	
 		arrow::Status status = column_exchangers_[i]->GetDatumByIndex(index, datum, isnull);
 		if (!status.ok()) {
-			//elog(WARNING, "fetch next tuple finish, index:%d, natt:%d", index_, i);
+			LOG(ERROR) << "fetch next tuple finish error, index: " << index_ << ", natt:" << i;
 			return status;
 		}
 	}

@@ -517,9 +517,7 @@ static void CopyTableToParquet(Oid relid) {
 	relation_close(rel, AccessShareLock);
 }
 
-extern void upload_all() {
-	simple_parquet_uploadall();
-}
+
 
 static void CopyPGClassTableToParquet() {
 	Oid relid = RelationRelationId; // pg_class
@@ -590,7 +588,10 @@ extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
 
-extern void copy_to_parquet(char* table) {
+void upload_all() {
+	simple_parquet_uploadall();
+}
+void copy_to_parquet(char* table) {
 	int tableid = strtoul(table, NULL, 0);
 	/*
 	if (tableid == ProcRelationId) {

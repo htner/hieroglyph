@@ -69,8 +69,10 @@ static void statSendEOS(MotionLayerState *mlStates, MotionNodeEntry *pMNEntry);
 static void statChunksProcessed(MotionLayerState *mlStates, MotionNodeEntry *pMNEntry, int chunksProcessed, int chunkBytes, int tupleBytes);
 static void statNewTupleArrived(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry);
 static void statRecvTuple(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry);
+#ifdef SDB_NOUSE
 static bool ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo);
 static void UpdateSentRecordCache(MotionConn *conn);
+#endif
 
 
 
@@ -306,13 +308,12 @@ UpdateMotionExpectedReceivers(MotionLayerState *mlStates, SliceTable *sliceTable
 	ExecSlice  *mySlice;
 	ExecSlice  *aSlice;
 	ListCell   *cell;
-	CdbProcess *cdbProc;
 	MotionNodeEntry *pEntry;
 
 	mySlice = &sliceTable->slices[sliceTable->localSlice];
 	foreach(cell, mySlice->children)
 	{
-		int			totalNumProcs, activeNumProcs, i;
+		int			totalNumProcs, activeNumProcs;
 		int			childId = lfirst_int(cell);
 
 		aSlice = &sliceTable->slices[childId];
@@ -792,6 +793,7 @@ statRecvTuple(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry)
 /*
  * Return true if the record cache should be sent to master
  */
+#ifdef SDB_NOUSE
 static bool
 ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo)
 {
@@ -799,15 +801,18 @@ ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo)
 		NextRecordTypmod > 0 &&
 		NextRecordTypmod > conn->sent_record_typmod;
 }
+#endif
 
 /*
  * Update the number of sent record types.
  */
+#ifdef SDB_NOUSE
 static void
 UpdateSentRecordCache(MotionConn *conn)
 {
 	conn->sent_record_typmod = NextRecordTypmod;
 }
+#endif
 
 void 
 SendEndOfStream(MotionLayerState *mlStates, void *task, int16 motNodeID) 
@@ -1150,7 +1155,6 @@ processIncomingSDBChunks(MotionLayerState *mlStates,
 				tcNext;
 	MemoryContext oldCtxt;
 	ChunkSorterEntry *chunkSorterEntry;
-	MotionConn *conn;
 
 	/* Keep track of processed chunk stats. */
 	int			numChunks,

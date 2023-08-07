@@ -854,12 +854,15 @@ ReaderCacheEntry *parquetGetFileReader(Aws::S3::S3Client *s3client, char *dname,
 
 	filename += fname;
 	if (!std::filesystem::exists(filename)) {
-		CopyToLocalFile(s3client, dname, fname, filename);
+		auto result = CopyToLocalFile(s3client, dname, fname, filename);
+		if (!result.ok()) {
+			return nullptr;
+		}
 	}
 
 	auto result = arrow::io::ReadableFile::Open(filename, entry->pool);
 	if (!result.status().ok()) {
-		//
+		return nullptr;
 	}
 	std::shared_ptr<arrow::io::ReadableFile> infile = result.ValueOrDie();
 	arrow::Status status = parquet::arrow::OpenFile(infile, entry->pool, &reader);

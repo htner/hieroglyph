@@ -1,9 +1,14 @@
 #include "backend/new_executor/arrow/column_exchanger.hpp"
 #include "backend/new_executor/arrow/boot.hpp"
 extern "C" {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wregister"
 #include "access/relation.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_database.h"
+#include "utils/typcache.h"
+#include "funcapi.h"
+#pragma GCC diagnostic pop
 }
 #include "backend/sdb/common/pg_export.hpp"
 #include <brpc/server.h>
@@ -22,24 +27,17 @@ bool NeedForwardLookupFromPgType(Oid id) {
 namespace pdb {
 
 template <class TYPE_CLASS>
-// auto GetValue(arrow::Array* a, int64_t i) ->
-// decltype(arrow::TypeTraits<TYPE_CLASS>::CType) { decltype(auto)
-// GetValue(arrow::Array* a, int64_t i) { //}-> decltype(CType) {
-auto GetValue(arrow::Array* a, int64_t i) {  //}-> decltype(CType) {
-	//
-  // using CType = typename arrow::TypeTraits<TYPE_CLASS>::CType;
+auto GetValue(const arrow::Array* a, int64_t i) {
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
 
-  // LOG(ERROR) << "1 get value " << i;
-  auto array = reinterpret_cast<ArrayType*>(a);
-  // LOG(ERROR) << "2 get value " << i;
+  auto array = reinterpret_cast<const ArrayType*>(a);
   return array->Value(i);
 }
 
 template <class TYPE_CLASS>
-Datum GetStringToDatum(arrow::Array* a, int64_t i) {
+Datum GetStringToDatum(const arrow::Array* a, int64_t i) {
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
-  auto array = reinterpret_cast<ArrayType*>(a);
+  auto array = reinterpret_cast<const ArrayType*>(a);
   auto view = array->GetView(i);
 
   char* resultptr = (char*)palloc(view.size() + VARHDRSZ);
@@ -49,10 +47,11 @@ Datum GetStringToDatum(arrow::Array* a, int64_t i) {
 }
 
 template <class TYPE_CLASS>
-arrow::Status GetFixStringToDatum(arrow::Array* a, size_t len, int64_t i, Datum* datum) {
+arrow::Status GetFixStringToDatum(const arrow::Array* a,
+								  size_t len, int64_t i, Datum* datum) {
   //LOG(ERROR) << "1 get name data  ";
   using ArrayType = typename arrow::TypeTraits<TYPE_CLASS>::ArrayType;
-  auto array = reinterpret_cast<ArrayType*>(a);
+  auto array = reinterpret_cast<const ArrayType*>(a);
   auto view = array->GetView(i);
  
   char* resultptr = (char*)palloc(len);
@@ -68,32 +67,35 @@ GetDatumFunc GetGetFixStringToDatumFunc(size_t len) {
 }
 
 template <int>
-arrow::Status GetDatum(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum(const arrow::Array* array, int64_t i, Datum* datum) {
   return arrow::Status::OK();
 }
 
-arrow::Status GetChar(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetChar(const arrow::Array* array, int64_t i, Datum* datum) {
   auto value = GetValue<arrow::UInt8Type>(array, i);
   *datum = CharGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<INT2OID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<INT2OID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Int16Type>(array, i);
   *datum = Int16GetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<INT4OID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<INT4OID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Int32Type>(array, i);
   *datum = Int32GetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<OIDOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<OIDOID>(const arrow::Array* array,
+							   int64_t i, Datum* datum) {
   //LOG(ERROR) << " get datum oidoid 1";
   auto value = GetValue<arrow::UInt32Type>(array, i);
   //LOG(ERROR) << " get datum oidoid 2";
@@ -104,102 +106,124 @@ arrow::Status GetDatum<OIDOID>(arrow::Array* array, int64_t i, Datum* datum) {
 }
 
 template <>
-arrow::Status GetDatum<INT8OID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<INT8OID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Int64Type>(array, i);
   *datum = Int64GetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<FLOAT4OID>(arrow::Array* array, int64_t i,
-                                  Datum* datum) {
+arrow::Status GetDatum<FLOAT4OID>(const arrow::Array* array,
+								  int64_t i, Datum* datum) {
   auto value = GetValue<arrow::FloatType>(array, i);
   *datum = Float4GetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<FLOAT8OID>(arrow::Array* array, int64_t i,
-                                  Datum* datum) {
+arrow::Status GetDatum<FLOAT8OID>(const arrow::Array* array,
+								  int64_t i, Datum* datum) {
   auto value = GetValue<arrow::DoubleType>(array, i);
   *datum = Float8GetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<BOOLOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<BOOLOID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::BooleanType>(array, i);
   *datum = BoolGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<BPCHAROID>(arrow::Array* array, int64_t i,
-                                  Datum* datum) {
+arrow::Status GetDatum<BPCHAROID>(const arrow::Array* array,
+								  int64_t i, Datum* datum) {
   *datum = GetStringToDatum<arrow::BinaryType>(array, i);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<VARCHAROID>(arrow::Array* array, int64_t i,
-                                   Datum* datum) {
+arrow::Status GetDatum<VARCHAROID>(const arrow::Array* array,
+								   int64_t i, Datum* datum) {
   *datum = GetStringToDatum<arrow::BinaryType>(array, i);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<BYTEAOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<BYTEAOID>(const arrow::Array* array,
+								 int64_t i, Datum* datum) {
   *datum = GetStringToDatum<arrow::BinaryType>(array, i);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<TEXTOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<TEXTOID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   *datum = GetStringToDatum<arrow::BinaryType>(array, i);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<TIMEOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<CSTRINGOID>(const arrow::Array* a,
+								   int64_t i, Datum* datum) {
+  using ArrayType = typename arrow::TypeTraits<arrow::FixedSizeBinaryType>::ArrayType;
+  auto array = reinterpret_cast<const ArrayType*>(a);
+  auto view = array->GetView(i);
+
+  bool is_cstring = view[view.size() - 1] == 0;
+  auto len = is_cstring ? view.size() : view.size() + 1; 
+  char* resultptr = (char*)palloc0(len);
+  memcpy(resultptr, view.data(), view.size());
+  *datum = PointerGetDatum(resultptr);
+  return arrow::Status::OK();
+}
+
+template <>
+arrow::Status GetDatum<TIMEOID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Time64Type>(array, i);
   *datum = TimeADTGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<TIMESTAMPOID>(arrow::Array* array, int64_t i,
-                                     Datum* datum) {
+arrow::Status GetDatum<TIMESTAMPOID>(const arrow::Array* array,
+									 int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Time64Type>(array, i);
   *datum = TimeADTGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<TIMESTAMPTZOID>(arrow::Array* array, int64_t i,
-                                       Datum* datum) {
+arrow::Status GetDatum<TIMESTAMPTZOID>(const arrow::Array* array,
+									   int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Time64Type>(array, i);
   *datum = TimeADTGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<DATEOID>(arrow::Array* array, int64_t i, Datum* datum) {
+arrow::Status GetDatum<DATEOID>(const arrow::Array* array,
+								int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Time32Type>(array, i);
   *datum = DateADTGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<TIMETZOID>(arrow::Array* array, int64_t i,
-                                  Datum* datum) {
+arrow::Status GetDatum<TIMETZOID>(const arrow::Array* array,
+								  int64_t i, Datum* datum) {
   auto value = GetValue<arrow::Time32Type>(array, i);
   *datum = DateADTGetDatum(value);
   return arrow::Status::OK();
 }
 
 template <>
-arrow::Status GetDatum<NUMERICOID>(arrow::Array* a, int64_t i, Datum* datum) {
-  auto array = reinterpret_cast<arrow::DecimalArray*>(a);
+arrow::Status GetDatum<NUMERICOID>(const arrow::Array* a,
+								   int64_t i, Datum* datum) {
+  auto array = reinterpret_cast<const arrow::DecimalArray*>(a);
   auto value = array->FormatValue(i);
   auto value_datum = CStringGetDatum(value.data());
 
@@ -209,24 +233,20 @@ arrow::Status GetDatum<NUMERICOID>(arrow::Array* a, int64_t i, Datum* datum) {
   return arrow::Status::OK();
 }
 
-arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
-                       bool elmbyval, char elmalign, arrow::Array* a, int64_t i,
-                       Datum* datum) {
+arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type,
+					   int32_t elmlen, bool elmbyval,
+					   char elmalign, const arrow::Array* a,
+					   int64_t i, Datum* datum) {
   Datum* datums;
   bool* nulls;
 
-  //LOG(ERROR) << "get array";
-  arrow::ListArray* list_array = reinterpret_cast<arrow::ListArray*>(a);
+  const arrow::ListArray* list_array = reinterpret_cast<const arrow::ListArray*>(a);
   std::shared_ptr<arrow::Array> array = list_array->value_slice(i);
 
   auto size = array->length();
- LOG(ERROR) << "size is " <<  size;
   if (size == 0) {
-	//LOG(ERROR) << "size is 0";
-	//*datum = PointerGetDatum(NULL);
-	//return arrow::Status::OK();
 	datums = NULL;
-	 nulls = NULL;
+	nulls = NULL;
   } else {
 	datums = (Datum*)palloc(size * sizeof(Datum));
 	nulls = (bool*)palloc(size * sizeof(bool));
@@ -255,23 +275,52 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type, int32_t elmlen,
   return arrow::Status::OK();
 }
 
-arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs,
-                        std::vector<Oid> sub_types, arrow::Array* array,
+arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs, 
+						Oid typid, std::vector<Oid> sub_types, 
+						const arrow::Array* array,
                         int64_t i, Datum* d) {
+  if (array->IsNull(i)) {
+	*d = PointerGetDatum(NULL);
+  }
+  Datum* datums;
+  bool* nulls;
+
+  auto size = sub_funcs.size();
+  datums = (Datum*)palloc(size * sizeof(Datum));
+  nulls = (bool*)palloc(size * sizeof(bool));
+
+  auto typentry =
+		lookup_type_cache(typid, (TYPECACHE_TUPDESC | TYPECACHE_DOMAIN_BASE_INFO));
+
+  auto struct_array = reinterpret_cast<const arrow::StructArray*>(array);
+
+  for (size_t j = 0; j < sub_funcs.size(); ++j) {
+	auto field_array = struct_array->field(j);
+	arrow::Status s = sub_funcs[i](field_array.get(), i, datums + j);
+	if (!s.ok()) {
+		return s;
+	}
+  }
+  auto resultTuple = heap_form_tuple(typentry->tupDesc, datums, nulls);
+  *d = HeapTupleGetDatum(resultTuple);
+  pfree(datums);
+  pfree(nulls);
   return arrow::Status::OK();
 }
 
 ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
 	//LOG(ERROR) << "get boot type " << rel << " " << attr->atttypid;
-  func_ = GetFunction(rel, attr);
-  if (func_ == nullptr) {
+	func_ = GetFunction(rel, attr);
+	if (func_ == nullptr) {
 		LOG(ERROR) << "get boot type eror " << rel << " " << attr->atttypid;
 	} else {
-	//LOG(ERROR) << "get boot type finish" << rel << " " << attr->atttypid;
+		//LOG(ERROR) << "get boot type finish" << rel << " " << attr->atttypid;
 	}
 }
 
-ColumnExchanger::ColumnExchanger(Oid rel, int16_t typid) { func_ = GetFunction(rel, typid); }
+ColumnExchanger::ColumnExchanger(Oid rel, int16_t typid) { 
+	func_ = GetFunction(rel, typid);
+}
 
 #define CASE_RETURN_PUSH_VALUE_FUNC(oid) \
   case oid: {                              \
@@ -438,27 +487,22 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
 
   /* composite type */
   if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
-    // Relation relation;
+    Relation relation;
 	LOG(ERROR) << "get composite function";
-    TupleDesc tupdesc;
     std::vector<GetDatumFunc> sub_funcs;
     std::vector<Oid> sub_types;
 
-    auto relation = relation_open(typrelid, AccessShareLock);
+    relation = relation_open(typrelid, AccessShareLock);
+    TupleDesc tupdesc = RelationGetDescr(relation);
     for (int i = 0; i < tupdesc->natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
-			/*
-      auto sub_data_type = GetFunction(0, attr);
-      if (sub_data_type == nullptr) {
-        return nullptr;
-      }
-	  */
       auto sub_typeid = attr->atttypid;
       auto sub_func = GetFunction(typrelid, attr);
       sub_funcs.push_back(sub_func);
       sub_types.push_back(sub_typeid);
     }
-    return std::bind(GetStruct, sub_funcs, sub_types, std::placeholders::_1,
+	relation_close(relation, AccessShareLock);
+    return std::bind(GetStruct, sub_funcs, typid, sub_types, std::placeholders::_1,
                      std::placeholders::_2, std::placeholders::_3);
   }
 
@@ -481,11 +525,9 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
     CASE_RETURN_PUSH_VALUE_FUNC(TIMETZOID);
     CASE_RETURN_PUSH_VALUE_FUNC(NUMERICOID);
     case NAMEOID:
-	// LOG(ERROR) << "get name function";
+	  // LOG(ERROR) << "get name function";
       assert(typlen == NAMEDATALEN);
-      // fallthrougth
-    //case CHAROID: 
-			return GetGetFixStringToDatumFunc(typlen); 
+	  return GetGetFixStringToDatumFunc(typlen); 
 	default: {
       /* elsewhere, we save the values just bunch of binary data */
       if (typlen > 0) {
@@ -512,7 +554,9 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
          */
       } else if (typlen == -1) {
         return GetDatum<TEXTOID>;
-      }
+      } else if (typlen == -2) {
+        return GetDatum<CSTRINGOID>;
+	  }
       // Elog("PostgreSQL type: '%s' is not supported", typname);
     }
   }

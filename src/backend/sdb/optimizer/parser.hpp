@@ -2,6 +2,7 @@
 #pragma once
 
 #include "backend/sdb/common/pg_export.hpp"
+#include "utils/palloc.h"
 
 namespace sdb {
 
@@ -25,11 +26,11 @@ public:
 
 	List* Parse(const char* query_string) {
 		List* parsetree_list;
-		MemoryContext oldcontext;
 
-		oldcontext = MemoryContextSwitchTo(parse_context_);
+		auto oldcontext = MemoryContextSwitchTo(parse_context_);
 		parsetree_list = raw_parser(query_string);
     elog_node_display(PG_LOG, "parse results:", parsetree_list, true);
+    MemoryContextSwitchTo(oldcontext);
 		return parsetree_list;
 	}
 

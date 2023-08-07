@@ -113,6 +113,7 @@
 #include "sdb/reload_cache.h"
 
 #include "utils/inval.h"
+#include "sdb/postgres_init.h"
 
 /* ----------------
  *		global variables
@@ -6367,8 +6368,6 @@ exec_worker_query(const char *query_string,
 
 	if (sliceTable)
 	{
-		int			i;
-
 		if (!IsA(sliceTable, SliceTable) ||
 			sliceTable->localSlice < 0 ||
 			sliceTable->localSlice >= sliceTable->numSlices)
@@ -6621,7 +6620,6 @@ void prepare_catalog(Oid *oid_arr, int size)
 	bool have_pg_type = false;
 	bool have_pg_class = false;
 	bool have_pg_attri = false;
-	RelFileNodeBackend rnode;
 
 	for (int i = 0; i < size; ++i)
 	{

@@ -56,6 +56,7 @@ typedef struct interconnect_handle_t
 int			TCP_listenerFd;
 int			UDP_listenerFd;
 
+#ifdef SDB_NOUSE
 static interconnect_handle_t *open_interconnect_handles;
 static bool interconnect_resowner_callback_registered;
 
@@ -88,6 +89,7 @@ logChunkParseDetails(MotionConn *conn, uint32 ic_instance_id)
 	elog(LOG, "Interconnect parse details continued: peer: srcpid %d dstpid %d recvslice %d sendslice %d srccontent %d dstcontent %d",
 		 pkt->srcPid, pkt->dstPid, pkt->recvSliceIndex, pkt->sendSliceIndex, pkt->srcContentId, pkt->dstContentId);
 }
+#endif
 /*=========================================================================
  * VISIBLE FUNCTIONS
  */
@@ -125,8 +127,6 @@ SendTupleChunkToAMS(MotionLayerState *mlStates,
 					int16 targetRoute,
 					TupleChunkListItem tcItem)
 {
-	int			i,
-				recount = 0;
 	TupleChunkListItem currItem;
 
 
@@ -169,16 +169,9 @@ SendTupleChunkToAMS(MotionLayerState *mlStates,
 	return true;
 }
 
-extern void
-SetupStream(EState *estate);
-
-extern void
-TeardownStreams(EState *estate);
-
 void
 SetupInterconnect(EState *estate)
 {
-	interconnect_handle_t *h;
 	MemoryContext oldContext;
 
 	if (!estate->es_sliceTable)
@@ -192,7 +185,6 @@ SetupInterconnect(EState *estate)
 	SetupStream(estate);
 
 	MemoryContextSwitchTo(oldContext);
-
 }
 
 /* TeardownInterconnect() function is used to cleanup interconnect resources that
