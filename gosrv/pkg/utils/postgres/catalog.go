@@ -37,3 +37,13 @@ var CatalogNames map[uint32]string = map[uint32]string {
   1249: "pg_attribute",
   1259: "pg_class",
 }
+
+var ReloadCatalogs []uint32 = []uint32 {
+  1247, // pg_type
+  2608, // pg_depend
+  1259, // pg_class
+  1249, // pg_attribute
+  1214, // pg_shdepend
+  7142, // gp_distribution_policy
+  6052, // pg_stat_last_operation
+}

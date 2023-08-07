@@ -5,6 +5,7 @@ extern "C" {
 #include "catalog/indexing.h"
 #include "catalog/index.h"
 #include "catalog/pg_class_d.h"
+#include "storage/bufmgr.h"
 }
 #include <vector>
 #include "../catalog_index/catalog_to_index.hpp"
@@ -79,6 +80,7 @@ ReloadOneCatalogCacheIndex(int rel_oid)
 elog(LOG, "dddtest reload rel:%d - idx:%d", rel_oid, idx_oid);
 		unlink_oid(idx_iter, false);
 		unlink_oid(idx_iter, true);
+		DropOidBuffers(idx_oid);
 		force_reindex_index(idx_oid, rel_oid, true, RELPERSISTENCE_PERMANENT, 0);
 	}
 }

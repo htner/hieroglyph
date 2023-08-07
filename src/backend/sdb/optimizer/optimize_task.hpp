@@ -32,6 +32,7 @@ public:
     kDBS3Region = request_->db_space().detail().region();
     kDBS3Endpoint = request_->db_space().detail().endpoint();
     kDBIsMinio = request_->db_space().detail().is_minio();
+    reply_->set_code(0);
 
     PrepareCatalog();
     StartTransactionCommand();
@@ -64,7 +65,10 @@ public:
 			List* querytree_list = pg_analyze_and_rewrite(parsetree, request_->sql().data(),
 												NULL, 0, NULL);
       if (!querytree_list) {
-        LOG(ERROR) << "analyze and rewrite failed";
+        std::string err_msg("analyze and rewrite failed");
+        reply_->set_code(-1);
+        reply_->set_message(err_msg);
+        LOG(ERROR) << err_msg; 
         return;
       }
 			PlanQueries(querytree_list);

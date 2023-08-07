@@ -60,7 +60,7 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
       return 0, nil
 	  }	
     Q.catalogFiles = append(Q.catalogFiles, relLakeList)
-    // Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
+    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
 	}
 
 	// NewQueryId
@@ -366,6 +366,11 @@ func (Q *QueryHandler) optimize() (error) {
   optimizerResult, err := c.Optimize(ctx, req)
   if err != nil {
     log.Printf("could not optimize: %v", err)
+    return fmt.Errorf("optimizer error")
+  }
+
+  if optimizerResult.Code != 0 {
+    log.Printf("optimize err: %v", optimizerResult.Message)
     return fmt.Errorf("optimizer error")
   }
 
