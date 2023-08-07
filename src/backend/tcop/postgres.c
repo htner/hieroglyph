@@ -6318,7 +6318,10 @@ exec_worker_query(const char *query_string,
 	FrontendProtocol = PG_PROTOCOL_LATEST;
 
 	if (plan->commandType == CMD_UTILITY)
+	{
 		Gp_role = GP_ROLE_DISPATCH;
+		root_work = true;
+	}
 	else
 		Assert(Gp_role == GP_ROLE_EXECUTE);
 	/*
@@ -6448,7 +6451,7 @@ exec_worker_query(const char *query_string,
 		 * destination.
 		 */
 		if (commandType == CMD_UTILITY)
-			commandTag = "MPPEXEC UTILITY";
+			commandTag = CreateCommandTag(plan->utilityStmt);
 		else if (commandType == CMD_SELECT)
 			commandTag = "MPPEXEC SELECT";
 		else if (commandType == CMD_INSERT)
@@ -6549,8 +6552,6 @@ exec_worker_query(const char *query_string,
 		if (Gp_role == GP_ROLE_EXECUTE && Gp_is_writer)
 			pgstat_send_qd_tabstats();
 
-		(*receiver->rDestroy) (receiver);
-
 		PortalDrop(portal, false);
 
 		/*
@@ -6577,7 +6578,9 @@ exec_worker_query(const char *query_string,
 		 * command the client sent, regardless of rewriting. (But a command
 		 * aborted by error will not send an EndCommand report at all.)
 		 */
-		/// EndCommand(completionTag, dest);
+		EndCommand(completionTag, dest);
+
+		(*receiver->rDestroy) (receiver);
 	}							/* end loop over parsetrees */
 
 	/*

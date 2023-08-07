@@ -540,12 +540,13 @@ AtAbort_DispatcherState(void)
 {
 	if (Gp_role != GP_ROLE_DISPATCH)
 		return;
-
+#ifdef SDB_NOUSE
 	if (CurrentGangCreating != NULL)
 	{
 		RecycleGang(CurrentGangCreating, true);
 		CurrentGangCreating = NULL;
 	}
+#endif
 
 	/*
 	 * Cleanup all outbound dispatcher states belong to
@@ -555,12 +556,14 @@ AtAbort_DispatcherState(void)
 
 	Assert(open_dispatcher_handles == NULL);
 
+#ifdef SDB_NOUSE
 	/*
 	 * If primary writer gang is destroyed in current Gxact
 	 * reset session and drop temp files
 	 */
 	if (currentGxactWriterGangLost())
 		ResetAllGangs();
+#endif
 }
 
 void
