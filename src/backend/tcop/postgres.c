@@ -6621,6 +6621,7 @@ void prepare_catalog(Oid *oid_arr, int size)
 	bool have_pg_type = false;
 	bool have_pg_class = false;
 	bool have_pg_attri = false;
+	RelFileNodeBackend rnode;
 
 	for (int i = 0; i < size; ++i)
 	{

@@ -63,11 +63,12 @@ message OptimizeRequest {
 
 // The response message containing the greetings
 message OptimizeReply {
-  string message = 1;
-  bytes planstmt_str = 2;
-  bytes plan_dxl_str = 3; // TODO maybe problem FIXME_SDB
-  bytes plan_params_str = 4;
-  repeated PBPlanSlice slices = 5;
-  repeated uint64 read_rels = 8;
-  repeated uint64 write_rels = 9;
+  int32 code = 1;
+  string message = 2;
+  bytes planstmt_str = 3;
+  bytes plan_dxl_str = 4; // TODO maybe problem FIXME_SDB
+  bytes plan_params_str = 5;
+  repeated PBPlanSlice slices = 6;
+  repeated uint64 read_rels = 7;
+  repeated uint64 write_rels = 8;
 }

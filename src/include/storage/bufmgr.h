@@ -192,6 +192,7 @@ extern void FlushRelationBuffers(Relation rel);
 extern void FlushDatabaseBuffers(Oid dbid);
 extern void DropRelFileNodeBuffers(RelFileNodeBackend rnode,
 								   ForkNumber forkNum, BlockNumber firstDelBlock);
+extern void DropOidBuffers(Oid dbid);
 extern void DropRelFileNodesAllBuffers(RelFileNodeBackend *rnodes, int nnodes);
 extern void DropDatabaseBuffers(Oid dbid);
 

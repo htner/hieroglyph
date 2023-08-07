@@ -4225,7 +4225,6 @@ unlink_oid(Oid rel_id, bool global)
 	rnode.node.relNode = rel_id;
 
 	path = relpath(rnode, MAIN_FORKNUM);
-	elog(LOG, "dddtest remove tableoid = %ld, path:%s", rel_id, path);
 	ret = unlink(path);
 	if (ret < 0 && errno != ENOENT)
 		ereport(WARNING,
