@@ -146,7 +146,7 @@ public:
 
     bool fetch(ItemPointer tid, TupleTableSlot *slot, bool fake) {
 		auto fileid = ItemPointerGetBlockNumberNoCheck(tid);
-		if (reader != nullptr && reader->id() == fileid) {
+		if (reader != nullptr && (size_t)(reader->id()) == (size_t)fileid) {
 			return reader->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);
 		}
 

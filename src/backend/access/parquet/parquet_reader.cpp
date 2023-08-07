@@ -149,7 +149,7 @@ class DefaultParquetReader : public ParquetReader {
      * row_group cannot be less than zero at this point so it is safe to cast
      * it to unsigned int
      */
-    if ((uint)row_group_ >= reader_->num_row_groups()) {
+    if ((size_t)row_group_ >= (size_t)(reader_->num_row_groups())) {
 		LOG(ERROR) << "ReadNextRowgroup 3";
       return false;
     }

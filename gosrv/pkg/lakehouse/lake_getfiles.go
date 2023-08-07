@@ -1,24 +1,24 @@
 package lakehouse
 
 import (
+	"bytes"
 	"crypto/md5"
 	"crypto/sha1"
-  "encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 
-	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
-  log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"github.com/htner/sdb/gosrv/pkg/types"
+	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
 	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+	log "github.com/sirupsen/logrus"
 
 	//"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
@@ -323,6 +323,10 @@ func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelFiles, error)
     io.WriteString(md5h, fmt.Sprintf("%d", file.BaseInfo.FileId))
     io.WriteString(sha1h, fmt.Sprintf("%d", file.BaseInfo.FileId))
   }
-  relLakeList.Version = hex.EncodeToString(md5h.Sum(nil)) + hex.EncodeToString(sha1h.Sum(nil))
+  
+  var buffer bytes.Buffer
+  buffer.Write(md5h.Sum(nil))
+  buffer.Write(sha1h.Sum(nil))
+  relLakeList.Version = buffer.Bytes() 
   return relLakeList, nil
 }

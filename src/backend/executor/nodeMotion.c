@@ -308,7 +308,7 @@ execMotionUnsortedReceiver(MotionState *node)
 	TupleTableSlot *slot;
 	MinimalTuple tuple;
 	Motion	   *motion = (Motion *) node->ps.plan;
-	EState	   *estate = node->ps.state;
+	// EState	   *estate = node->ps.state;
 
 	AssertState(motion->motionType == MOTIONTYPE_GATHER ||
 				motion->motionType == MOTIONTYPE_GATHER_SINGLE ||
@@ -841,7 +841,7 @@ ExecInitMotion(Motion *node, EState *estate, int eflags)
 void
 ExecEndMotion(MotionState *node)
 {
-	Motion	   *motion = (Motion *) node->ps.plan;
+	//Motion	   *motion = (Motion *) node->ps.plan;
 #ifdef MEASURE_MOTION_TIME
 	double		otherTimeSec;
 	double		motionTimeSec;

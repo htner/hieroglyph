@@ -2168,6 +2168,9 @@ PrintCatCacheLeakWarning(HeapTuple tuple, const char *resOwnerName)
 {
 	CatCTup    *ct = (CatCTup *) (((char *) tuple) -
 								  offsetof(CatCTup, tuple));
+	if (ct->ct_magic != CT_MAGIC) {
+
+	}
 
 	/* Safety check to ensure we were handed a cache entry */
 	Assert(ct->ct_magic == CT_MAGIC);

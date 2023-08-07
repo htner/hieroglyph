@@ -96,7 +96,9 @@ static void LockTimeoutHandler(void);
 static void IdleInTransactionSessionTimeoutHandler(void);
 static void IdleGangTimeoutHandler(void);
 static void ClientCheckTimeoutHandler(void);
+#ifdef SDB_NOUSE
 static bool ThereIsAtLeastOneRole(void);
+#endif
 static void process_startup_options(Port *port, bool am_superuser);
 static void process_settings(Oid databaseid, Oid roleid);
 
@@ -619,6 +621,7 @@ BaseInit(void)
 /*
  * Make sure we reserve enough connections for FTS handler.
  */
+#ifdef SDB_NOUSE
 static void check_superuser_connection_limit()
 {
 	if (!am_ftshandler &&
@@ -630,6 +633,7 @@ static void check_superuser_connection_limit()
 									   "at least %d connections reserved for FTS handler)",
 							   RESERVED_FTS_CONNECTIONS)));
 }
+#endif
 
 /* --------------------------------
  * InitPostgres
@@ -1558,6 +1562,7 @@ ClientCheckTimeoutHandler(void)
 /*
  * Returns true if at least one role is defined in this database cluster.
  */
+#ifdef SDB_NOUSE
 static bool
 ThereIsAtLeastOneRole(void)
 {
@@ -1575,3 +1580,4 @@ ThereIsAtLeastOneRole(void)
 
 	return result;
 }
+#endif

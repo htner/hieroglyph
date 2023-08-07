@@ -206,6 +206,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
       sub_fields.push_back(std::make_shared<arrow::Field>(name, sub_data_type,
                                                           !attr->attnotnull));
     }
+	relation_close(relation, AccessShareLock);
     return struct_(sub_fields);
   }
 
@@ -232,6 +233,9 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
     }
     */
     return arrow::dictionary(arrow::int32(), arrow::binary(), true);
+  }
+  if (typlen == -2) {
+    return arrow::binary();
   }
   return GetBaseDataType(typid, typlen, typmod);
 }

@@ -39,17 +39,17 @@ class ParquetS3WriterState {
   Aws::S3::S3Client *s3_client;
   /* foreign table desc */
   TupleDesc tuple_desc;
+
+  /* list attnum of needed modify attributes */
+  std::set<int> target_attrs;
+
   /* parquet reader option */
   bool use_threads;
   bool use_mmap;
-  /* schemaless mode flag */
-  bool schemaless;
   /* foreign table name */
   char *rel_name;
   Oid rel_id;
 
-  /* list attnum of needed modify attributes */
-  std::set<int> target_attrs;
 
  public:
   ParquetS3WriterState(MemoryContext reader_cxt, const char *dirname,

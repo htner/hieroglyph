@@ -349,11 +349,13 @@ SerializeRecordCacheIntoChunks(SerTupInfo *pSerInfo,
 	return;
 }
 
+#ifdef SDB_NOUSE
 static bool
 CandidateForSerializeDirect(int16 targetRoute, struct directTransportBuffer *b)
 {
 	return targetRoute != BROADCAST_SEGIDX && b->pri != NULL && b->prilen > TUPLE_CHUNK_HEADER_SIZE;
 }
+#endif
 
 /*
  *
@@ -370,7 +372,7 @@ int
 SerializeTuple(TupleTableSlot *slot, SerTupInfo *pSerInfo, TupleChunkList tcList, int16 targetRoute)
 {
 	int                natts;
-	int                dataSize = TUPLE_CHUNK_HEADER_SIZE;
+	// int                dataSize = TUPLE_CHUNK_HEADER_SIZE;
 	TupleDesc          tupdesc;
 	TupleChunkListItem tcItem = NULL;
 	MinimalTuple       mintuple;

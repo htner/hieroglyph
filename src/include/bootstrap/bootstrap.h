@@ -45,7 +45,7 @@ extern void InsertOneNull(int i);
 
 extern void index_register(Oid heap, Oid ind, IndexInfo *indexInfo);
 extern void build_indices(void);
-extern void upload_all();
+extern void upload_all(void);
 extern void copy_to_parquet(char* table);
 
 extern void boot_get_type_io_data(Oid typid,

@@ -160,4 +160,11 @@ extern void SendEosToAMS(MotionLayerState *mlStates,
 
 extern char *format_sockaddr(struct sockaddr_storage *sa, char *buf, size_t len);
 
+extern void
+SetupStream(EState *estate);
+
+extern void
+TeardownStreams(EState *estate);
+
+
 #endif   /* ML_IPC_H */

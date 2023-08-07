@@ -8,14 +8,10 @@
 #include <butil/iobuf.h>
 #include <butil/logging.h>
 
-//#include "backend/new_executor/arrow/column_builder.hpp"
-
 #include <arrow/status.h>
 #include <arrow/type_fwd.h>
 
 #include "backend/new_executor/arrow/boot.hpp"
-
-extern bool NeedForwardLookupFromPgType(Oid id);
 
 extern bool NeedForwardLookupFromPgType(Oid id);
 
@@ -151,6 +147,24 @@ arrow::Status PutDatum<TEXTOID>(arrow::ArrayBuilder* builder, Datum datum,
 }
 
 template <>
+arrow::Status PutDatum<CSTRINGOID>(arrow::ArrayBuilder* b, Datum datum,
+                                bool isnull) {
+  auto builder = reinterpret_cast<arrow::FixedSizeBinaryBuilder*>(b);
+  if (isnull) {
+    return builder->AppendNull();
+  }
+  if (DatumGetPointer(datum) == NULL) {	
+	//builder->AppendNull());
+	return builder->Append((char*)NULL);
+  } else {
+	char *cstring = DatumGetPointer(datum);
+	size_t value_len = strlen(cstring);
+    std::string_view str(DatumGetPointer(datum), value_len);
+    return builder->Append(str);
+  }
+}
+
+template <>
 arrow::Status PutDatum<TIMEOID>(arrow::ArrayBuilder* builder, Datum datum,
                                 bool isnull) {
   return PutValue<arrow::Time64Type>(builder, DatumGetTimeADT(datum), isnull);
@@ -201,9 +215,10 @@ arrow::Status PutDatum<NUMERICOID>(arrow::ArrayBuilder* b, Datum datum,
   return st;
 }
 
-arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type, int sublen, 
-						 bool elmbyval, char elmalign,
-                        arrow::ArrayBuilder* b, Datum datum, bool isnull) {
+arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type, 
+					   int sublen, bool elmbyval, char elmalign,
+					   arrow::ArrayBuilder* b,
+					   Datum datum, bool isnull) {
   if (isnull) {
     return b->AppendNull();
   }
@@ -234,19 +249,37 @@ arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type, int sublen,
   return arrow::Status::OK();
 }
 
-arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs,
+arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs, Oid typid,
                         std::vector<Oid> sub_types, arrow::ArrayBuilder* b,
                         Datum d, bool isnull) {
   if (isnull) {
     return b->AppendNull();
   }
+  HeapTupleHeader td = DatumGetHeapTupleHeader(d);
+  HeapTupleData	tuple;
 
-  int vl_len = VARSIZE_ANY_EXHDR(d);
-  char* vl_ptr = VARDATA_ANY(d);
-  std::string str(vl_ptr, vl_len);
+  if (DatumGetPointer(d) == NULL) {
+    return b->AppendNull();
+  }
+  TypeCacheEntry* typentry =
+		lookup_type_cache(typid, (TYPECACHE_TUPDESC | TYPECACHE_DOMAIN_BASE_INFO));
 
-  //auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
-  // return builder->Append(str);
+  tuple.t_len = HeapTupleHeaderGetDatumLength(td);
+  tuple.t_data = td;
+
+  auto builder = reinterpret_cast<arrow::StructBuilder*>(b);
+
+  for (size_t i = 0; i < sub_funcs.size(); ++i) {
+	Datum			  att_value;
+	bool			  att_isnull;
+	//size_t attr_size;
+	arrow::ArrayBuilder* field_builder = builder->field_builder(i);
+	att_value = heap_getattr(&tuple, i+1, typentry->tupDesc, &att_isnull);
+	auto st = sub_funcs[i](field_builder, att_value, att_isnull);
+	if (!st.ok()) {
+		return st;
+	}
+  }
   return arrow::Status::OK();
 }
 
@@ -520,7 +553,9 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
       sub_funcs.push_back(sub_func);
       sub_types.push_back(sub_typeid);
     }
-    return std::bind(PutStruct, sub_funcs, sub_types, std::placeholders::_1,
+	relation_close(relation, AccessShareLock);
+    return std::bind(PutStruct, sub_funcs, typid, 
+					 sub_types, std::placeholders::_1,
                      std::placeholders::_2, std::placeholders::_3);
   }
 
@@ -572,6 +607,8 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
         return GetPutFixedStringFunc(typlen);
       } else if (typlen == -1) {
         return PutDatum<TEXTOID>;
+	  } else if (typlen == -2) {
+        return PutDatum<CSTRINGOID>;
       }
       // Elog("PostgreSQL type: '%s' is not supported", typname);
     }
