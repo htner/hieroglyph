@@ -973,6 +973,8 @@ SetRemoteDestFileInfo(DestReceiver *self, char *dirname, char* filename)
 {
 	self->dirname = dirname;
 	self->filename = filename;
+	elog(LOG, "dddtest result dirname: %s, filename: %s", dirname, filename);
+	CreateObjectStream(self->dirname, self->filename);
 }
 
 /* ----------------
@@ -988,7 +990,6 @@ printtup_object(TupleTableSlot *slot, DestReceiver *self)
 static void
 printtup_startup_object(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
-	CreateObjectStream(self->dirname, self->filename);
 	printtup_startup(self, operation, typeinfo);
 }
 
@@ -1072,6 +1073,7 @@ object_putmessage(char msgtype, const char *s, size_t len)
 		case 'T' :
 		case 'D' :
 		case 'B' :
+		case 'C' :
 			ret = WriteResultToObject(msgtype, s, len);
 			break;
 		default:

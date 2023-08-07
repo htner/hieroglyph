@@ -337,6 +337,7 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
   */
 	reader := bufio.NewReader(&bbuffer)
 
+  // result is  len:type:data
 	buf := make([]byte, 8)
 	n, err := reader.Read(buf)
 	if err != nil && err != io.EOF {
@@ -351,34 +352,54 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 
 	descBuf := make([]byte, descSize)
 	reader.Read(descBuf)
-	var rowDesc pgproto3.RowDescription
-	rowDesc.Decode(descBuf[1:])
-	err = p.backend.Send(&rowDesc)
+  
+  switch descBuf[0] {
+  case 'C':
+    log.Println("dddtest: ", descBuf)
+    var command pgproto3.CommandComplete
+    err = command.Decode(descBuf[1:])
+    if err != nil {
+      return err
+    }
+		err = p.backend.Send(&command)
+    if err != nil {
+      return err
+    }
+  case 'T':
+	  var rowDesc pgproto3.RowDescription
+	  rowDesc.Decode(descBuf[1:])
+	  err = p.backend.Send(&rowDesc)
 
-	for {
-		n, err := reader.Read(buf)
-		if err != nil && err != io.EOF {
-			return err
-		}
+	  for {
+		  n, err := reader.Read(buf)
+		  if err != nil && err != io.EOF {
+			  return err
+		  }
 
-		if n == 0 {
-			break
-		}
+		  if n == 0 {
+			  break
+		  }
 
-		dataSize := binary.BigEndian.Uint64(buf)
-		dataBuf := make([]byte, dataSize)
-		n, err = reader.Read(dataBuf)
+		  dataSize := binary.BigEndian.Uint64(buf)
+		  dataBuf := make([]byte, dataSize)
+		  n, err = reader.Read(dataBuf)
 
-		if err != nil {
-			return nil
-		}
+		  if err != nil {
+			  return err 
+		  }
 
-		var rowData pgproto3.DataRow
-		rowData.Decode(dataBuf[1:])
-		err = p.backend.Send(&rowData)
-	}
+		  var rowData pgproto3.DataRow
+		  rowData.Decode(dataBuf[1:])
+		  err = p.backend.Send(&rowData)
+        if err != nil {
+          return err
+        }
+	  }
+	default:
+		return fmt.Errorf("unknown message type: %c", descBuf[0])
+}
 
-	p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
+	// p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
 	return nil
 }
 
