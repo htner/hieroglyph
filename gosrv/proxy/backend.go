@@ -391,15 +391,14 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 		  var rowData pgproto3.DataRow
 		  rowData.Decode(dataBuf[1:])
 		  err = p.backend.Send(&rowData)
-        if err != nil {
-          return err
-        }
+          if err != nil {
+            return err
+          }
 	  }
+	  p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("END")})
 	default:
 		return fmt.Errorf("unknown message type: %c", descBuf[0])
 }
-
-	// p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")})
 	return nil
 }
 

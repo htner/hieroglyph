@@ -6463,13 +6463,13 @@ exec_worker_query(const char *query_string,
 		else
 			commandTag = "MPPEXEC";
 
+#ifdef SDB_NOUSE
 		set_ps_display(commandTag, false);
-
 		BeginCommand(commandTag, dest);
-
 
 		/* Make sure we are in a transaction command */
 		// start_xact_command();
+#endif
 
 		/*
 		 * OK to analyze, rewrite, and plan this query.
@@ -6578,7 +6578,8 @@ exec_worker_query(const char *query_string,
 		 * command the client sent, regardless of rewriting. (But a command
 		 * aborted by error will not send an EndCommand report at all.)
 		 */
-		EndCommand(completionTag, dest);
+		if (commandType != CMD_SELECT)
+			EndCommand(completionTag, dest);
 
 		(*receiver->rDestroy) (receiver);
 	}							/* end loop over parsetrees */

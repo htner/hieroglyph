@@ -1220,7 +1220,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
 extern "C" void ParquetDmlFinish(Relation rel) {
   auto fmstate = GetModifyState(rel);
-  if (fmstate != NULL) {
+  if (fmstate == NULL) {
     return;
   }
   fmstate->Upload();
@@ -1307,7 +1307,7 @@ extern "C" TM_Result ParquetTupleUpdate(Relation rel, ItemPointer otid,
                                         LockTupleMode *lockmode,
                                         bool *update_indexes) {
   auto fmstate = GetModifyState(rel);
-  if (fmstate != NULL) {
+  if (fmstate == NULL) {
     return TM_Ok;
   }
   fmstate->ExecDelete(otid);
@@ -1322,7 +1322,7 @@ extern "C" TM_Result ParquetTupleDelete(Relation relation, ItemPointer tid,
                                         TM_FailureData *tmfd,
                                         bool changingPart) {
   auto fmstate = GetModifyState(relation);
-  if (fmstate != NULL) {
+  if (fmstate == NULL) {
     return TM_Ok;
   }
   fmstate->ExecDelete(tid);

@@ -1095,6 +1095,7 @@ object_putmessage_noblock(char msgtype, const char *s, size_t len)
 		case 'T' :
 		case 'D' :
 		case 'B' :
+		case 'C' :
 			(void) WriteResultToObject(msgtype, s, len);
 			break;
 		default:

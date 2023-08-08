@@ -1067,7 +1067,7 @@ bool parquet_upload_file_to_s3(const char *dirname,
     //     dirname, local_file, bucket);
     return true;
   } else {
-    elog(ERROR, "parquet_s3_fdw: PutObject: %s, bucket: %s",
+    elog(PANIC, "parquet_s3_fdw: PutObject: %s, bucket: %s",
          outcome.GetError().GetMessage().c_str(), bucket);
     return false;
   }
