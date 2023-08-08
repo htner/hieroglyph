@@ -49,7 +49,10 @@ uint64_t ntohll(uint64_t x)
 class ObjectStream {
 public:
 	ObjectStream(const char *dirname, const char *filename);
-	~ObjectStream() = default;
+	//~ObjectStream() = default;
+	~ObjectStream(){
+		elog(LOG, "dddtest ~ObjectStream");
+	}
 
 	void Init();
 
@@ -120,11 +123,11 @@ bool ObjectStream::Upload() {
   outcome = s3_client_->PutObject(request);
 
   if (outcome.IsSuccess()) {
-    elog(WARNING, "parquet_s3_fdw: added object %s (%s, %s) to bucket %s", filepath,
+    elog(WARNING, "write result to object: added object %s (%s, %s) to bucket %s", filepath,
          dirname_.c_str(), local_file_.c_str(), kResultBucket.data());
     return true;
   } else {
-    elog(ERROR, "parquet_s3_fdw: PutObject: %s",
+    elog(ERROR, "write result to object: %s",
          outcome.GetError().GetMessage().c_str());
     return false;
   }

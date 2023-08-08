@@ -966,6 +966,9 @@ SetCurrentTransactionStopTimestamp(void)
 int
 GetCurrentTransactionNestLevel(void)
 {
+	/* SDB NO USE*/
+	return 0;
+
 	TransactionState s = CurrentTransactionState;
 
 	return s->nestingLevel;
