@@ -2,7 +2,7 @@
 #   make build
 #   make clean
 
-top_builddir=../..
+top_builddir=..
 ifneq "$(wildcard $(top_builddir)/src/Makefile.global)" ""
 include $(top_builddir)/src/Makefile.global
 endif
@@ -34,9 +34,9 @@ build: protogen $(bins)
 
 # git repository must owned by install user
 ifneq "$(wildcard $(top_builddir)/src/Makefile.global)" ""
-install: $(bins)
+install: # $(bins)
 	for file in $(PROGRAMS); do \
-		$(INSTALL_SCRIPT) './bin/'$$file '$(DESTDIR)$(bindir)/'$$file ; \
+		$(INSTALL_SCRIPT) './bin/'$$file '$(DESTDIR)$(bindir)/sdb_'$$file ; \
 	done
 else
 install:
