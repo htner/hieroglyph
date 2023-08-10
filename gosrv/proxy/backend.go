@@ -214,71 +214,18 @@ func (p *Proxy) readClientConn() error{
 
 		switch msg := baseMsg.(type) {
 		case *pgproto3.Query:
-      /*
-<<<<<<< HEAD
-			fmt.Println("Query", msg)
-			scheduleServerName := service.ScheduleName()
-			consul := "consul://127.0.0.1:8500/" + scheduleServerName + "?wait=14s&tag=public"
-			conn, err := grpc.Dial(
-				consul,
-				grpc.WithInsecure(),
-				grpc.WithBlock(),
-				grpc.WithDefaultServiceConfig(grpcServiceConfig),
-				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(128e+6)),
-			)
-			if err != nil {
-				err = p.backend.Send(&pgproto3.ErrorResponse{Code: "58000"})
-				if err != nil {
-					return // fmt.Errorf("error writing query response: %w", err)
-				}
-				return
-			}
-			defer conn.Close()
-			// create a client and call the server
-			client := sdb.NewScheduleClient(conn)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			resp, err := client.Depart(ctx, &sdb.ExecQueryRequest{Sql: msg.String})
-			log.Println("get resp:", resp, err)
-			if err != nil {
-				buf := (&pgproto3.ErrorResponse{Code: "58030"}).Encode(nil)
-				_, err = p.frontendConn.Write(buf)
-				if err != nil {
-					return // fmt.Errorf("error writing query response: %w", err)
-				}
-				return
-			}
-
-			time.Sleep(10 * time.Second)
-			err = p.sendQueryResultToFronted(resp)
-			if err != nil {
-				log.Println("send query result to fronted err ", err)
-				p.backend.Send(&pgproto3.ErrorResponse{Severity: "ERROR",
-								Code : "-1",
-								Message: err.Error()})
-				p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
-				return
-			}
-      */
-			//port, err := strconv.Atoi(resp.Message)
-//=======
-	//port, err := strconv.Atoi(resp.Message)
- //     p.sendQueryToSchedule(msg)
-//>>>>>>> tmp task manager
-//=======
-			//port, err := strconv.Atoi(resp.Message)
 			err = p.processQuery(msg)
       if err != nil {
         return err
       }
-//>>>>>>> task ok
 		case *pgproto3.CancelRequest:
 			p.frontendConn.Close()
 			p.frontendTLSConn.Close()
 			stop = true
+			//log.Println("send query result to fronted err ", err)
+			log.Println("Cancel ", msg)
 			return nil
 		}
-
 	}
   return nil
 }
@@ -402,6 +349,34 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 	return nil
 }
 
+func (p *Proxy) checkCancel() bool {
+  baseMsg, err := p.backend.Receive()
+  fmt.Println(baseMsg, err)
+  fmt.Println("type", reflect.TypeOf(baseMsg))
+  if err != nil {
+    return true
+  }
+  buf, err := json.Marshal(baseMsg)
+  if err != nil {
+    return true 
+  }
+  fmt.Println("basemsg:", string(buf))
+
+  // 自定义 LB，并使用刚才写的 Consul Resolver
+  //lbrr := grpc.RoundRobin(grpcresolver.ForConsul(registry))
+
+  switch msg := baseMsg.(type) {
+  case *pgproto3.CancelRequest:
+    p.frontendConn.Close()
+    p.frontendTLSConn.Close()
+    //log.Println("send query result to fronted err ", err)
+    log.Println("Cancel ", msg)
+    return true
+  }
+  return false;
+}
+
+
 func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
   defer func() {
     err = p.backend.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
@@ -456,6 +431,12 @@ func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
 			p.SendError("58030", fmt.Sprint("get query result error %ld", respResult.Rescode))
       return nil
     }
+    /*
+    if (p.checkCancel()) {
+			p.SendError("58030", fmt.Sprint("Recv Cancel"))
+      return nil
+    }
+    */
 	}
 
 	err = p.sendQueryResultToFronted(respResult)

@@ -167,7 +167,6 @@ func (Q *QueryHandler) prepareSliceTable() error {
 	Q.sliceTable.HasMotions = false
 	// Slice Info
 	Q.sliceTable.Slices = make([]*sdb.PBExecSlice, len(Q.optimizerResult.Slices))
-	segindex := int32(1)
 	for i, planSlice := range Q.optimizerResult.Slices {
 		log.Printf("%d.%s", i, planSlice.String())
 		execSlice := new(sdb.PBExecSlice)
@@ -231,6 +230,7 @@ func (Q *QueryHandler) prepareSliceTable() error {
 			execSlice.PlanNumSegments = numSegments
 		}
 
+	  segindex := int32(1)
 		for k := int32(0); k < execSlice.PlanNumSegments; k++ {
 			execSlice.Segments = append(execSlice.Segments, segindex)
 			log.Printf("init segs %d(%d) %d/%d->%d", execSlice.SliceIndex, planSlice.GangType, k, execSlice.PlanNumSegments, segindex)

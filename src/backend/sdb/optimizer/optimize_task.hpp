@@ -35,7 +35,7 @@ public:
     reply_->set_code(0);
 
     StartTransactionCommand();
-	PrepareCatalog();
+	  PrepareCatalog();
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
     HandleOptimize(parsetree_list);
@@ -55,6 +55,7 @@ public:
     oid_arr = &oids[0];
 	  prepare_catalog(oid_arr, size);
     // skip now
+	  ResetCatalogCaches();
   }
 
 	void HandleOptimize(List* parsetree_list) {
