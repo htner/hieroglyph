@@ -72,6 +72,8 @@ void ExecuteTask::Prepare() {
     std::vector<sdb::RelFiles> user_rel_list(request_.user_rel_list().begin(), request_.user_rel_list().end());
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(user_rel_list);
+
+	ResetCatalogCaches();
 }
 
 void ExecuteTask::PrepareGuc() {
