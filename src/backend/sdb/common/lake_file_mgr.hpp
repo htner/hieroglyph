@@ -39,8 +39,11 @@ public:
 
     std::unordered_map<uint64, sdb::RelFiles>::iterator it = rel_files_.find(rel);
     if (it != rel_files_.end()) {
-      LOG(INFO) << "get rel files from local"; 
+      LOG(INFO) << "get rel files from local " << rel; 
       std::vector<sdb::LakeFile> files(it->second.files().begin(), it->second.files().end());
+      for (size_t i = 0; i < files.size(); ++i) {
+        LOG(INFO) << "file " << rel << " " << files[i].file_id(); 
+      }
       return files;
     }
 
