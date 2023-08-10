@@ -134,12 +134,14 @@ void MotionStream::SendMessage(const char* msg, size_t len) {
 		write_cache_.push_back(std::move(buf));
 		return;
 	}
-	LOG(INFO) << "write chunk to stream" << stream_ << ", len " << len;
+	LOG(INFO) << "write chunk to stream " << stream_ << ", len " << len;
 	CHECK_EQ(0, brpc::StreamWrite(stream_, buf));
 }
 
 void MotionStream::Close() {
+	LOG(INFO) << "motion stream close";
 	brpc::StreamClose(stream_);
+	stream_ = brpc::INVALID_STREAM_ID;
 }
 
 void MotionStream::PushCache() {

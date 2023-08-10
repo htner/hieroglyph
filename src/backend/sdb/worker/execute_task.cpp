@@ -22,7 +22,7 @@ void ExecuteTask::Run() {
 	LOG(INFO) << "MPPEXEC: execute run";
 
 	//kGlobalTask = shared_from_this();
-	Prepare();
+	// Prepare();
 	StartTransactionCommand();
 	PrepareGuc();
 	HandleQuery();
@@ -43,8 +43,11 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 		if (route > 0 &&  motion_streams.size() >= (uint32_t)route) {
 			motion_streams[route - 1]->SetStreamId(id);
 			motion_streams[route - 1]->PushCache();
+			return;
 		}
 	}
+	LOG(ERROR) << "start recv_streams fail " << motion_id
+		<< " | " << route;
 }
 
 void ExecuteTask::Prepare() {
@@ -73,7 +76,8 @@ void ExecuteTask::Prepare() {
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(user_rel_list);
 
-	ResetCatalogCaches();
+	// ResetCatalogCaches();
+	PrepareCatalog();
 }
 
 void ExecuteTask::PrepareGuc() {
@@ -282,6 +286,11 @@ void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
 			auto stream = std::make_shared<MotionStream>(this);
 			streams.push_back(std::move(stream));
 		}
+	} else {
+		for (int32_t i = streams.size(); i < count; ++i) {
+			auto stream = std::make_shared<MotionStream>(this);
+			streams.push_back(std::move(stream));
+		}
 	}
 	LOG(INFO) << "init recv_streams " << motion_id
 		<< " | " << count << "|" << streams.size();
@@ -477,15 +486,24 @@ uint64_t ExecuteTask::GetQueryId() {
 }
 
 MotionStream* ExecuteTask::GetRecvStream(int32_t motion_id, int32_t route) {
-    if (motion_id > 0 && recv_streams_.size() >= (uint32_t)motion_id) {
-      auto &motion_streams = recv_streams_[motion_id - 1];
-      if (route >= 0 && motion_streams.size() > (uint32_t)route) {
-        return motion_streams[route].get();
-      }
-    }
+	if (motion_id > 0 && recv_streams_.size() < (uint32_t)motion_id) {
+		InitRecvStream(motion_id, route);
+	}
+
+	if (motion_id > 0 && recv_streams_.size() >= (uint32_t)motion_id) {
+		auto &motion_streams = recv_streams_[motion_id - 1];
+		if (route > 0 && motion_streams.size() < (uint32_t)route) {
+			// route as size, example route as 2, count as 2 too
+			InitRecvStream(motion_id, route);
+		}
+
+		if (route > 0 && motion_streams.size() >= (uint32_t)route) {
+			return motion_streams[route - 1].get();
+		}
+	}
 	LOG(ERROR) << "get recv_streams fail " << motion_id
 		<< " | " << route;
-    return nullptr;
+	return nullptr;
 }
 
 void ExecuteTask::Lock(int32_t motion_id) {
