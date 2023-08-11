@@ -53,6 +53,7 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	kDBS3Region = FLAGS_region;
 	kDBS3Endpoint = FLAGS_endpoint;
 	kDBIsMinio = FLAGS_isminio;
+	sdb::CatalogInfo catalog_info;
 
 	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
 	Gp_role = GP_ROLE_EXECUTE;
@@ -61,7 +62,7 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	while (true) {
 		auto task = sdb::ExecuteTaskQueueSingleton::GetInstance()->pop_front(); 
 		LOG(ERROR) << "get one task";
-		task->Run();
+		task->Run(catalog_info);
 	}
 	worker_thread.join();	
 }

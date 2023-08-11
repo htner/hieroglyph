@@ -15,6 +15,7 @@
 #include "worker_service.pb.h"
 #include "backend/sdb/common/shared_mutli_queue.hpp"
 #include "backend/sdb/worker/motion_stream.hpp"
+#include "backend/sdb/common/common.hpp"
 
 namespace sdb {
 
@@ -45,7 +46,7 @@ public:
 
   virtual ~ExecuteTask();
 
-	void Run();
+	void Run(CatalogInfo &catalog_info);
 
   const TaskIdentify& GetKey();
 
@@ -56,7 +57,7 @@ public:
 
 	void PrepareGuc();
 
-	void PrepareCatalog();
+	void PrepareCatalog(CatalogInfo& catalog_info);
 
 	void HandleQuery();
 

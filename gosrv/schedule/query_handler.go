@@ -37,7 +37,6 @@ type QueryHandler struct {
 
 	lasterr error
   newQueryId uint64
-  reloadCatalogOid []uint32
 }
 
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
@@ -61,10 +60,6 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	  }	
     Q.catalogFiles = append(Q.catalogFiles, relLakeList)
 	}
-
-  for _, oid := range postgres.ReloadCatalogs {
-    Q.reloadCatalogOid = append(Q.reloadCatalogOid, oid)
-  }
 
 	// NewQueryId
 	newQueryId := uint64(time.Now().UnixMilli())
@@ -259,7 +254,6 @@ func (Q *QueryHandler) prepare() bool {
 			taskid := &sdb.TaskIdentify{QueryId: Q.newQueryId, SliceId: int32(sliceid), SegId: workerSlice.WorkerInfo.Segid}
 			query.TaskIdentify = taskid
 			query.SliceTable.LocalSlice = int32(sliceid)
-      query.ReloadCatalogOid = Q.reloadCatalogOid
 
 			//localSliceTable := sliceTable
 			//addr := fmt.Sprintf("%s:%d", *workIp, *workPort+int(i))
@@ -362,7 +356,6 @@ func (Q *QueryHandler) optimize() (error) {
   req := &sdb.OptimizeRequest{
     Name : "query",
     Sql  : Q.request.Sql,
-    ReloadCatalogOid : Q.reloadCatalogOid,
     DbSpace: conf,
     CatalogList: Q.catalogFiles,
   }

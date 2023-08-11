@@ -13,6 +13,7 @@
 #include "backend/sdb/optimizer/parser.hpp"
 #include "backend/sdb/common/common.hpp"
 #include "backend/sdb/common/lake_file_mgr.hpp"
+#include "backend/sdb/catalog_index/catalog_to_index.hpp"
 // #include "utils/elog.h"
 
 namespace sdb {
@@ -27,7 +28,7 @@ public:
       brpc::ClosureGuard done_guard(done_);
   }
 
-	void Run() {
+	void Run(CatalogInfo &catalog_info) {
     kDBBucket = request_->db_space().base().bucket();
     kDBS3User = request_->db_space().detail().user();
     kDBS3Password = request_->db_space().detail().password();
@@ -37,27 +38,39 @@ public:
     reply_->set_code(0);
 
     StartTransactionCommand();
-	  PrepareCatalog();
+	  PrepareCatalog(catalog_info);
 	  std::unique_ptr<Parser> parser = std::make_unique<Parser>();
     List* parsetree_list = parser->Parse(request_->sql().data());
     HandleOptimize(parsetree_list);
     CommitTransactionCommand();
   }
 
-	void PrepareCatalog() {
+	void PrepareCatalog(CatalogInfo &catalog_info) {
     std::vector<sdb::RelFiles> catalog_list(request_->catalog_list().begin(), request_->catalog_list().end());
     LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
 
     Oid *oid_arr = nullptr;
     std::vector<Oid> oids;
-    int size = request_->reload_catalog_oid().size();
-    for (int i = 0; i < size; ++i) {
-      oids.emplace_back(request_->reload_catalog_oid(i));
+
+    // now, we not support multi-session, so we should not consider reload diffrent version
+    // catalog cunrrent.
+    for (auto& rel_file : catalog_list) {
+      uint64 oid = rel_file.rel();
+      const std::string& rel_version = rel_file.version();
+      if (sdb::reload_catalog_list.find(oid) != sdb::reload_catalog_list.end()) {
+        std::lock_guard<std::mutex> lock(catalog_info.mtx_);
+        std::string& cat_version = catalog_info.catalog_version[oid];
+        if (cat_version != rel_version) {
+          oids.push_back(oid);
+        }
+      }
     }
-    oid_arr = &oids[0];
-	  prepare_catalog(oid_arr, size);
-    // skip now
-	  ResetCatalogCaches();
+
+    if (!oids.empty()) {
+      oid_arr = &oids[0];
+	    prepare_catalog(oid_arr, oids.size());
+	    // ResetCatalogCaches();
+    }
   }
 
 	void HandleOptimize(List* parsetree_list) {

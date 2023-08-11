@@ -6365,7 +6365,6 @@ void FetchRelationOidFromQuery(Query *query, List **read_list,
     return;
   }
 
-  elog_node_display(LOG, "dddtest query", query, false);
   if (query->commandType == CMD_UTILITY) {
     FetchUtilityRelationOid(query, read_list, write_list);
   } else {
@@ -6377,14 +6376,12 @@ void FetchRelationOidFromQuery(Query *query, List **read_list,
       if (rte->rtekind == RTE_RELATION) {
         if (query->commandType == CMD_SELECT)
 		{
-		  elog(LOG, "dddtest select oid: %d", rte->relid);
           *read_list = lappend_oid(*read_list, rte->relid);
 		}
 		else if (query->commandType == CMD_UPDATE ||
                  query->commandType == CMD_INSERT ||
                  query->commandType == CMD_DELETE)
 		{
-		  elog(LOG, "dddtest modify oid: %d", rte->relid);
           *write_list = lappend_oid(*write_list, rte->relid);
 		}
       } else if (rte->rtekind == RTE_SUBQUERY)
