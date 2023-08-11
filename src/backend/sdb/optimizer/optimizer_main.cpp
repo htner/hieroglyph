@@ -55,6 +55,7 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 	kDBS3Region = FLAGS_region;
 	kDBS3Endpoint = FLAGS_endpoint;
 	kDBIsMinio = FLAGS_isminio;
+	sdb::CatalogInfo catalog_info;
 
     //InitMinimizePostgresEnv(argc, argv, "template1", "template1");
 	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
@@ -64,7 +65,7 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 
 	while (true) {
 		auto task = sdb::TaskQueueSingleton::GetInstance()->pop_front(); 
-		task->Run();
+		task->Run(catalog_info);
 	}
 
 	pg_thread.join();	

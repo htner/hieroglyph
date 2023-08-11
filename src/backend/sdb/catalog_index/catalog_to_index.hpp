@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <map>
 #include <vector>
+#include <set>
 
 
 namespace sdb {
@@ -89,4 +90,13 @@ static std::map<uint32_t, std::vector<uint32_t>> catalog_to_index = {
 	{9107, {6110, 6111}} // pg_publication <rel oid, index oid>
 };
 
+static std::set<uint32_t> reload_catalog_list = {
+  1247, // "pg_type",
+  2608, // "pg_depend",
+  1259, // "pg_class",
+  1249, // "pg_attribute",
+  1214, // "pg_shdepend",
+  7142, // "gp_distribution_policy",
+  6052, // "pg_stat_last_operation",
+};
 }  // namespace sdb

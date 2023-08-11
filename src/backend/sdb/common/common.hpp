@@ -3,6 +3,8 @@
 #include "backend/sdb/common/pg_export.hpp"
 #include <stdint.h>
 #include <string>
+#include <unordered_map>
+#include <mutex>
 
 extern Oid MyDatabaseId;
 extern Oid MyDatabaseTableSpace;
@@ -31,3 +33,12 @@ extern uint64_t slice_seg_index;
 
 extern bool not_initdb;
 
+namespace sdb {
+
+struct CatalogInfo {
+  // <catalog rel oid, version>
+  std::unordered_map<uint64_t, std::string> catalog_version;
+  std::mutex mtx_;
+};
+
+} // namespace sdb

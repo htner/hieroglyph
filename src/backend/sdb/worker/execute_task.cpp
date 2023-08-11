@@ -7,6 +7,7 @@
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
 #include "backend/sdb/common/lake_file_mgr.hpp"
+#include "backend/sdb/catalog_index/catalog_to_index.hpp"
 
 namespace sdb {
 
@@ -18,12 +19,13 @@ ExecuteTask::~ExecuteTask() {
 }
 
 
-void ExecuteTask::Run() {
+void ExecuteTask::Run(CatalogInfo& catalog_info) {
 	LOG(INFO) << "MPPEXEC: execute run";
 
 	//kGlobalTask = shared_from_this();
 	// Prepare();
 	StartTransactionCommand();
+    PrepareCatalog(catalog_info);
 	PrepareGuc();
 	HandleQuery();
 	Upload();
@@ -77,26 +79,30 @@ void ExecuteTask::Prepare() {
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(user_rel_list);
 
 	// ResetCatalogCaches();
-	PrepareCatalog();
+	// PrepareCatalog();
 }
 
 void ExecuteTask::PrepareGuc() {
 	// jump now
 }
 
-void ExecuteTask::PrepareCatalog() {
+void ExecuteTask::PrepareCatalog(CatalogInfo& catalog_info) {
     Oid *oid_arr = nullptr;
     std::vector<Oid> oids;
-    int size = request_.reload_catalog_oid().size();
-    for (int i = 0; i < size; ++i) {
-      oids.emplace_back(request_.reload_catalog_oid(i));
-    }
-    oid_arr = &oids[0];
+	for (auto& iter : request_.catalog_list()) {
+      uint64 oid = iter.rel();
+      const std::string& rel_version = iter.version();
+      if (sdb::reload_catalog_list.find(oid) != sdb::reload_catalog_list.end()) {
+        std::lock_guard<std::mutex> lock(catalog_info.mtx_);
+        std::string& cat_version = catalog_info.catalog_version[oid];
+        if (cat_version != rel_version) {
+          oids.push_back(oid);
+        }
+      }
+	}
 
-	StartTransactionCommand();
-	prepare_catalog(oid_arr, size);
-	CommitTransactionCommand();
-	// jump now
+    oid_arr = &oids[0];
+	prepare_catalog(oid_arr, oids.size());
 }
 
 void ExecuteTask::HandleQuery() {
