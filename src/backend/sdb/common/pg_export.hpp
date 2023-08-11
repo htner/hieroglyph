@@ -75,6 +75,7 @@ extern int PostPortNumber;
 
 PlannedStmt *utility_optimizer(Query *query);
 void prepare_catalog(Oid *oid_arr, int size);
+extern "C" void FetchRelationOidFromQuery(Query *query, List **read_list, List **write_list);
 
 }
 

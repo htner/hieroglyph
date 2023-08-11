@@ -6,6 +6,8 @@
 #include <string_view>
 #include <butil/logging.h>
 
+#include "nodes/parsenodes.h"
+#include "nodes/pg_list.h"
 #include "optimizer_service.pb.h"
 
 #include "backend/sdb/optimizer/parser.hpp"
@@ -90,12 +92,20 @@ public:
   void PlanQuery(Query* query) {
     PlannedStmt *plan = NULL;
     char* plan_str = NULL;
+    List* read_rel_list = NULL;
+    List* write_rel_list = NULL;
+
+    FetchRelationOidFromQuery(query, &read_rel_list, &write_rel_list);
+    AddWriteRels(write_rel_list);
+    AddReadRels(read_rel_list);
 
     if (query->commandType == CMD_UTILITY) {
       plan = utility_optimizer(query);
     } else {
         plan = orca_optimizer(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
     }
+
+
 
     if (plan == NULL) {
       reply_->set_message("plan is empty");
@@ -160,6 +170,32 @@ public:
         auto id = lfirst_int(lc);
         dispatch_info->add_segments(id);
       }
+    }
+  }
+
+  void AddWriteRels(List *write_list) {
+    ListCell *lc = nullptr;
+
+    if (write_list == nullptr) {
+      return;
+    }
+
+    foreach(lc, write_list) {
+      uint64 oid = lfirst_oid(lc);
+      reply_->add_write_rels(oid);
+    }
+  }
+
+  void AddReadRels(List *read_list) {
+    ListCell *lc = nullptr;
+
+    if (read_list == nullptr) {
+      return;
+    }
+
+    foreach(lc, read_list) {
+      uint64 oid = lfirst_oid(lc);
+      reply_->add_read_rels(oid);
     }
   }
  
