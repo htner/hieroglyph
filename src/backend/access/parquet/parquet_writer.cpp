@@ -176,10 +176,10 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
 
   std::shared_ptr<arrow::RecordBatch> record_batch;
   if (is_delete_) {
-    record_batch = record_batch_;
+    // record_batch = record_batch_;
+	return;
   } else if (is_insert_) {
     auto result = builder_->Finish();
-
     if (result == nullptr) {
 	  LOG(WARNING) << filename_ << " file has been empty.";
       return;
@@ -238,7 +238,6 @@ bool ParquetWriter::ExecDelete(size_t pos) {
   } catch (const std::exception &e) {
     LOG(ERROR) << "parquet_writer:" << e.what();
   }
-
   return false;
 }
 
@@ -286,8 +285,8 @@ void ParquetWriter::PrepareUpload() {
 		return;
 	}
 	file_handler_ = response.files(0);
-	s3_filename_ = std::to_string(file_handler_.space_id()) + "_" + 
-		std::to_string(file_handler_.file_id()) + ".parque";
+	s3_filename_ = std::to_string(file_handler_.file_id()) + ".parque";
+	file_id_ = file_handler_.file_id();
 }
 
 void ParquetWriter::CommitUpload() {
@@ -321,6 +320,8 @@ void ParquetWriter::CommitUpload() {
 	request.set_sessionid(sessionid);
 	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
+	auto lakefile = request.add_remove_files();
+	lakefile->set_file_id(file_id_);
 
 	sdb::DeleteFilesResponse response;
 	//request.set_message("I'm a RPC to connect stream");
@@ -332,10 +333,8 @@ void ParquetWriter::CommitUpload() {
 	}
 }
 
-void ParquetWriter::SetOldBatch(std::string filename,
-								std::shared_ptr<arrow::RecordBatch> batch) {
+void ParquetWriter::SetOldBatch(std::string filename) {
 	old_filename_ = filename;
-	record_batch_ = batch;
 }
 
 void ParquetWriter::SetRel(char *name, Oid id) { 

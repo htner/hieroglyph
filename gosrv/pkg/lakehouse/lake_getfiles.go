@@ -81,7 +81,7 @@ return nil, nil
   }
 
   data, err := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
-    var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0, Spaceid: 0}
+    var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
 
     sKeyStart, err := kvpair.MarshalRangePerfix(&key)
     if err != nil {
@@ -89,7 +89,6 @@ return nil, nil
       return nil, err
     }
     key.Fileid = math.MaxUint64 
-    key.Spaceid = math.MaxUint64 
     sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
     if err != nil {
       log.Printf("marshal ranage perfix %v", err)

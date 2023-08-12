@@ -84,7 +84,7 @@ func (s *LakeServer) PrepareInsertFiles(ctx context.Context, request *sdb.Prepar
 }
 
 func (s *LakeServer) DeleteFiles(ctx context.Context, request *sdb.DeleteFilesRequest) (*sdb.DeleteFilesResponse, error) {
-	log.Println("update files", request)
+	log.Println("delete files", request)
 	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(request.Dbid),
 		types.SessionId(request.Sessionid),
 		types.TransactionId(request.CommitXid))
@@ -102,7 +102,7 @@ func (s *LakeServer) DeleteFiles(ctx context.Context, request *sdb.DeleteFilesRe
 
 	err := lakeop.DeleteFiles(types.RelId(request.Rel), request.RemoveFiles)
 	if err != nil {
-    log.Printf("change files error: %s", err.Error())
+    log.Printf("delete files error: %s", err.Error())
 		return nil, fmt.Errorf("insert files error")
 	}
   /*

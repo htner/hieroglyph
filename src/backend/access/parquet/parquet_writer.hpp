@@ -68,9 +68,21 @@ class ParquetWriter {
   void ParquetWriteFile(const char *dirname, Aws::S3::S3Client *s3_client,
                         const arrow::Table &table);
 
-  void SetOldBatch(std::string filename, std::shared_ptr<arrow::RecordBatch> batch);
+  void SetOldBatch(std::string filename);
 
   void SetRel(char *name, Oid id);
+
+  uint64_t FileId() {
+    return file_id_;
+  }
+
+  void SetFileId(uint64 file_id) {
+    file_id_ = file_id;
+  }
+
+  const std::unordered_set<size_t> Deletes() {
+    return deletes_;
+  }
 
  private:
   /* column num */
@@ -81,6 +93,7 @@ class ParquetWriter {
   bool is_insert_ = false;
   bool is_delete_ = false;
 
+  uint64_t file_id_ = 0;
   std::string rel_name;
   Oid rel_id;
   std::string old_filename_;
@@ -88,7 +101,7 @@ class ParquetWriter {
   sdb::LakeFile file_handler_;
   std::string s3_filename_;
   std::vector<std::string> column_names_;
-  std::set<size_t> deletes_;
+  std::unordered_set<size_t> deletes_;
   /* schema of target file */
   std::shared_ptr<arrow::RecordBatch> record_batch_;
   std::shared_ptr<pdb::RecordBatchBuilder> builder_;

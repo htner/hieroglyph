@@ -26,7 +26,7 @@ extern "C" {
 }
 
 class ParquetS3WriterState {
- private:
+private:
   /* list parquet reader of target files */
   std::shared_ptr<ParquetWriter> inserter_;
   std::map<uint64_t, std::shared_ptr<ParquetWriter>> updates;
@@ -50,7 +50,6 @@ class ParquetS3WriterState {
   char *rel_name;
   Oid rel_id;
 
-
  public:
   ParquetS3WriterState(MemoryContext reader_cxt, const char *dirname,
                        Aws::S3::S3Client *s3_client, TupleDesc tuple_desc,
@@ -61,8 +60,9 @@ class ParquetS3WriterState {
   /* create reader for `filename` and add to list file */
   //void AddFile(uint64_t blockid, const char *filename);
   /* create new file and its temporary cache data */
-  std::shared_ptr<ParquetWriter> NewInserter(const char *filename,
-                                              TupleTableSlot *slot);
+  std::shared_ptr<ParquetWriter> NewInserter(const char *filename);
+
+  // void AddUpdateFile(uint64_t fileid, const char *filename);
   /* execute insert `*slot` to cache data */
   bool ExecInsert(TupleTableSlot *slot);
   /* execute update */
@@ -72,7 +72,6 @@ class ParquetS3WriterState {
   /* upload modified parquet file to storage system (local/S3) */
   void Upload();
   void CommitUpload();
-  //void CommitUpload(std::list<lake::LakeFile> add_files,
   //                 std::list<lake::LakeFile> delete_files);
   /* true if s3_client is set */
   bool HasS3Client();
@@ -81,6 +80,11 @@ class ParquetS3WriterState {
   std::shared_ptr<arrow::Schema> CreateNewFileSchema();
 
   void SetRel(char *name, Oid id);
+
+  // FIXME
+  std::map<uint64_t, std::shared_ptr<ParquetWriter>>& Updates() {
+    return updates;
+  }
 };
 
 ParquetS3WriterState *create_parquet_modify_state(
