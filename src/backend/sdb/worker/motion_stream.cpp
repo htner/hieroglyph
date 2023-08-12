@@ -8,21 +8,20 @@
 
 namespace sdb {
 
-MotionStream::MotionStream(ExecuteTask* t) : task_(t) {
+MotionStream::MotionStream(ExecuteTask* t, int32_t motion_id) : task_(t) ,
+	motion_id_(motion_id) {
 }
 
 void MotionStream::SetTask(ExecuteTask* t) {
 	task_ = t;
 }
 
-void MotionStream::SetInfo(int32_t motion_id, 
-               int32_t from_slice,
+void MotionStream::SetInfo(int32_t from_slice,
                int32_t to_slice,
                int32_t from_segindex,
                int32_t to_segindex,
                int32_t from_route,
                int32_t to_route) {
-	motion_id_ = motion_id;
 	from_slice_ = from_slice;
 	to_slice_ = to_slice;
 	from_segindex_ = from_segindex;
@@ -123,6 +122,7 @@ bool MotionStream::Start(const sdb::TaskIdentify& key, const std::string& server
 		stream_ = brpc::INVALID_STREAM_ID;
 		LOG(ERROR) << "Fail to connect stream";
 	}
+	PushCache();
 	return response.succ();
 }
 

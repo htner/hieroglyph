@@ -12,12 +12,11 @@ class ExecuteTask;
 
 class MotionStream: public brpc::StreamInputHandler {
 public:
-  explicit MotionStream(ExecuteTask* t);
+  explicit MotionStream(ExecuteTask* t, int32_t motion_id);
 
   void SetTask(ExecuteTask*);
 
-  void SetInfo(int32_t motion_id, 
-               int32_t from_slice,
+  void SetInfo(int32_t from_slice,
                int32_t to_slice,
                int32_t from_segindex,
                int32_t to_segindex,

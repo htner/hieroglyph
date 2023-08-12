@@ -148,21 +148,26 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 
 
 func (Q *QueryHandler) prepareSliceTable() error {
-	var workerMgr schedule.WorkerMgr
+  workerMgr := schedule.NewWorkerMgr()
 	log.Printf("slices: %v", Q.optimizerResult.Slices)
 	slices := Q.optimizerResult.Slices
-  var err error
-	Q.workers, Q.workerSlices, err = workerMgr.GetServerSliceList(slices)
-	if err != nil {
-		log.Printf("get server list error: %v", err)
-		return err
-	}
+	// Q.workers, Q.workerSlices, err = workerMgr.GetServerSliceList(slices)
 	// prepare segments
 	Q.sliceTable.InstrumentOptions = 0
 	Q.sliceTable.HasMotions = false
 	// Slice Info
 	Q.sliceTable.Slices = make([]*sdb.PBExecSlice, len(Q.optimizerResult.Slices))
-	for i, planSlice := range Q.optimizerResult.Slices {
+
+  if len(slices) == 0 {
+    var err error
+	  Q.workers, Q.workerSlices, err = workerMgr.GetServerList(1, 0)
+    if err != nil {
+      log.Printf("get server list error: %v", err)
+      return err
+    }
+  }
+
+	for i, planSlice := range slices {
 		log.Printf("%d.%s", i, planSlice.String())
 		execSlice := new(sdb.PBExecSlice)
 		execSlice.SliceIndex = planSlice.SliceIndex
@@ -201,14 +206,23 @@ func (Q *QueryHandler) prepareSliceTable() error {
 		execSlice.RootIndex = rootIndex
 		execSlice.GangType = planSlice.GangType
 
+    /*
+  GANGTYPE_UNALLOCATED = 0
+  GANGTYPE_ENTRYDB_READER = 1
+  GANGTYPE_SINGLETON_READER = 2
+  GANGTYPE_PRIMARY_READER = 3
+  GANGTYPE_PRIMARY_WRITER = 4
+*/
+
+
 		numSegments := planSlice.NumSegments
 		// dispatchInfo := planSlice.DirectDispatchInfo
 		switch planSlice.GangType {
-		case 0:
+		case schedule.GANGTYPE_UNALLOCATED:
 			execSlice.PlanNumSegments = 1
-		case 1:
-			fallthrough
-		case 2:
+		case schedule.GANGTYPE_ENTRYDB_READER:
+			execSlice.PlanNumSegments = 1
+		case schedule.GANGTYPE_SINGLETON_READER:
 			execSlice.PlanNumSegments = 1
 		//execSlice.Segments = dispatchInfo.Segments
 		/*
@@ -217,20 +231,48 @@ func (Q *QueryHandler) prepareSliceTable() error {
 			execSlice.Segments = dispatchInfo.Segments
 			}
 		*/
-		case 3:
-			fallthrough
-		case 4:
-			fallthrough
-		default:
+		case schedule.GANGTYPE_PRIMARY_READER:
 			execSlice.PlanNumSegments = numSegments
+		case schedule.GANGTYPE_PRIMARY_WRITER:
+    // FIXME
+			execSlice.PlanNumSegments = 1
+		default:
+			execSlice.PlanNumSegments = 1
+			//execSlice.PlanNumSegments = numSegments
 		}
 
+    /*
 	  segindex := int32(1)
 		for k := int32(0); k < execSlice.PlanNumSegments; k++ {
-			execSlice.Segments = append(execSlice.Segments, segindex)
-			log.Printf("init segs %d(%d) %d/%d->%d", execSlice.SliceIndex, planSlice.GangType, k, execSlice.PlanNumSegments, segindex)
 			segindex++
 		}
+    */
+    workers, workerSlices, err := workerMgr.GetServerList(execSlice.PlanNumSegments, execSlice.SliceIndex)
+    if err != nil {
+      log.Printf("get server list error: %v", err)
+      return err
+    }
+
+    for _, worker := range workers {
+			execSlice.Segments = append(execSlice.Segments, worker.Segid)
+			log.Printf("init segs %d(%d) %d->%d", execSlice.SliceIndex, execSlice.PlanNumSegments, worker.Segid, worker.Id)
+
+      found := false
+      for _, w := range Q.workers {
+        if w.Id == worker.Id {
+          found = true
+          break
+        } 
+      }
+      if !found {
+        Q.workers = append(Q.workers, worker)
+      }
+    }
+    //
+	  // workers, workerSlices, err = workerMgr.GetServerSliceList(slices)
+    Q.workerSlices = append(Q.workerSlices, workerSlices...)
+
+
 		Q.sliceTable.Slices[i] = execSlice
 	}
 	log.Println(Q.sliceTable.String())
