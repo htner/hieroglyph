@@ -65,7 +65,7 @@ public:
 
   void InitRecvStream(int32_t motion_id, int32_t count);
 
-  void InitSendStream(int32_t count);
+  void InitSendStream(int32_t motion_id, int32_t count);
 
 
   void SetupRecvStream(int32_t motion_id,
@@ -106,6 +106,7 @@ public:
 
 private:
   sdb::PrepareTaskRequest request_;
+  // FIXME_SDB using map?
   std::vector<std::vector<std::shared_ptr<MotionStream>>> recv_streams_;
   std::vector<std::shared_ptr<MotionStream>> send_streams_;
   WorkerService* service_;

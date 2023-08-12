@@ -42,9 +42,9 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 	// send_streams_.push_back(std::move(stream));
 	if (motion_id > 0 && recv_streams_.size() >= (uint32_t)motion_id) {
 		auto &motion_streams = recv_streams_[motion_id - 1];
-		if (route > 0 &&  motion_streams.size() >= (uint32_t)route) {
-			motion_streams[route - 1]->SetStreamId(id);
-			motion_streams[route - 1]->PushCache();
+		if (route >= 0 &&  motion_streams.size() > (uint32_t)route) {
+			motion_streams[route]->SetStreamId(id);
+			// motion_streams[route - 1]->PushCache();
 			return;
 		}
 	}
@@ -289,12 +289,12 @@ void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
 	auto& streams = recv_streams_[motion_id - 1];
 	if (streams.empty()) {
 		for (int32_t i = 0; i < count; ++i) {
-			auto stream = std::make_shared<MotionStream>(this);
+			auto stream = std::make_shared<MotionStream>(this, motion_id);
 			streams.push_back(std::move(stream));
 		}
 	} else {
 		for (int32_t i = streams.size(); i < count; ++i) {
-			auto stream = std::make_shared<MotionStream>(this);
+			auto stream = std::make_shared<MotionStream>(this, motion_id);
 			streams.push_back(std::move(stream));
 		}
 	}
@@ -303,11 +303,11 @@ void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
 	// buffers_.Reset(count);
 }
 
-void ExecuteTask::InitSendStream(int32_t count) {
+void ExecuteTask::InitSendStream(int32_t motion_id, int32_t count) {
 	if (send_streams_.empty()) {
 		LOG(INFO) << " set send stream count to " << count;
 		for (int32_t i = 0; i < count; ++i) {
-			auto stream = std::make_shared<MotionStream>(this);
+			auto stream = std::make_shared<MotionStream>(this, motion_id);
 			send_streams_.push_back(std::move(stream));
 		}
 	}
@@ -331,7 +331,7 @@ void ExecuteTask::SetupRecvStream(int32_t motion_id,
 		return;
 	}
 
-	recv_streams_[motion_id - 1][from_route]->SetInfo(motion_id,
+	recv_streams_[motion_id - 1][from_route]->SetInfo(
 												  from_slice,
 												  to_slice,
 												  from_segidex,
@@ -351,7 +351,7 @@ void ExecuteTask::SetupSendStream(int32_t motion_id,
 		LOG(INFO) << " route must < size (" << send_streams_.size() << " < " << to_route << ")";
 		return;
 	}
-	send_streams_[to_route]->SetInfo(motion_id,
+	send_streams_[to_route]->SetInfo(
 								  from_slice,
 								  to_slice,
 								  from_segidex,
@@ -493,18 +493,18 @@ uint64_t ExecuteTask::GetQueryId() {
 
 MotionStream* ExecuteTask::GetRecvStream(int32_t motion_id, int32_t route) {
 	if (motion_id > 0 && recv_streams_.size() < (uint32_t)motion_id) {
-		InitRecvStream(motion_id, route);
+		InitRecvStream(motion_id, route + 1);
 	}
 
 	if (motion_id > 0 && recv_streams_.size() >= (uint32_t)motion_id) {
 		auto &motion_streams = recv_streams_[motion_id - 1];
-		if (route > 0 && motion_streams.size() < (uint32_t)route) {
+		if (route >= 0 && motion_streams.size() <= (uint32_t)route) {
 			// route as size, example route as 2, count as 2 too
-			InitRecvStream(motion_id, route);
+			InitRecvStream(motion_id, route + 1);
 		}
 
-		if (route > 0 && motion_streams.size() >= (uint32_t)route) {
-			return motion_streams[route - 1].get();
+		if (route >= 0 && motion_streams.size() > (uint32_t)route) {
+			return motion_streams[route].get();
 		}
 	}
 	LOG(ERROR) << "get recv_streams fail " << motion_id
@@ -553,7 +553,7 @@ int32_t to_route) {
 
 void SDBInitSendStream(void* t, int32 motion_id, int32 num_segs) {
 	sdb::ExecuteTask* task = static_cast<sdb::ExecuteTask*>(t);
-	task->InitSendStream(num_segs);
+	task->InitSendStream(motion_id, num_segs);
 }
 
 void SDBSetupSendStream(void* t,
