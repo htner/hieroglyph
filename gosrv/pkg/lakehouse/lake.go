@@ -64,11 +64,9 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, count uint64) (files []*
         key.Database = L.T.Database 
         key.Relation = rel  
         key.Fileid = fileid 
-        key.Spaceid = 1
 
         file.BaseInfo = new(sdb.LakeFile)
         file.BaseInfo.FileId = fileid
-        file.BaseInfo.SpaceId = 1
 
 				file.Dbid = uint64(L.T.Database)
 				file.Rel = uint64(rel)
@@ -128,7 +126,6 @@ func (L *LakeRelOperator) DeleteFiles(rel types.RelId, deleteFiles []*sdb.LakeFi
         key.Database = L.T.Database
         key.Relation = rel
         key.Fileid = file.FileId
-        key.Spaceid = file.SpaceId
 
         var file sdb.LakeFileDetail
 				err = kvOp.ReadPB(&key, &file)

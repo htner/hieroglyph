@@ -379,7 +379,7 @@ static bool parquet_s3_column_is_existed(
  *      fdw_private.
  */
 List *extract_rowgroups_list(const char *filename, const char *bucket,
-                             Aws::S3::S3Client *s3_client, TupleDesc tupleDesc,
+                             Aws::S3::S3Client *s3_client, TupleDesc tuple_desc,
                              std::list<RowGroupFilter> &filters,
                              uint64 *matched_rows, uint64 *total_rows,
                              bool schemaless) noexcept {
@@ -449,7 +449,7 @@ List *extract_rowgroups_list(const char *filename, const char *bucket,
           }
         } else {
           attnum = filter.attnum - 1;
-          tolowercase(NameStr(TupleDescAttr(tupleDesc, attnum)->attname),
+          tolowercase(NameStr(TupleDescAttr(tuple_desc, attnum)->attname),
                       pg_colname);
         }
 
@@ -831,8 +831,8 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 
 	s3client = ParquetGetConnectionByRelation(relation);
 
-	TupleDesc tupleDesc = RelationGetDescr(relation);
-	std::vector<bool> fetched_col(tupleDesc->natts, false);
+	TupleDesc tuple_desc = RelationGetDescr(relation);
+	std::vector<bool> fetched_col(tuple_desc->natts, false);
 
 	ExtractFetchedColumns(targetlist, qual, fetched_col);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
@@ -842,13 +842,11 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	try {
 		state = create_parquet_execution_state(
 			reader_type, reader_cxt, kDBBucket.data(), s3client,
-			relation->rd_id, tupleDesc, fetched_col,
+			relation->rd_id, tuple_desc, fetched_col,
 			use_threads, use_mmap, max_open_files);
 
 		for (size_t i = 0; i < lake_files.size(); ++i) {
-
-			auto filename = std::to_string(lake_files[i].space_id()) + "_" + 
-				std::to_string(lake_files[i].file_id()) + ".parque";
+			auto filename = std::to_string(lake_files[i].file_id()) + ".parque";
 			state->add_file(lake_files[i].file_id(), filename.c_str(), NULL);
 		}
 	} catch (std::exception &e) {
@@ -1160,7 +1158,7 @@ extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
 
 extern "C" void ParquetDmlInit(Relation rel) {
   // Oid    foreignTableId = InvalidOid;
-  TupleDesc tupleDesc;
+  TupleDesc tuple_desc;
   std::string error;
   arrow::Status status;
   std::set<std::string> sorted_cols;
@@ -1171,12 +1169,12 @@ extern "C" void ParquetDmlInit(Relation rel) {
   // ListCell lc;
 
   // Oid tableId = RelationGetRelid(rel);
-  tupleDesc = RelationGetDescr(rel);
+  tuple_desc = RelationGetDescr(rel);
 
   std::vector<std::string> filenames;
 
   // TODO
-  for (int i = 0; i < tupleDesc->natts; ++i) {
+  for (int i = 0; i < tuple_desc->natts; ++i) {
     target_attrs.insert(i);
   }
 
@@ -1188,7 +1186,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
     auto fmstate = CreateParquetModifyState(rel, kDBBucket.data(), s3client,
-                                            tupleDesc, use_threads);
+                                            tuple_desc, use_threads);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
     LOG(WARNING)  << "set rel: " <<  RelationGetRelationName(rel) << " " <<  RelationGetRelid(rel);
@@ -1218,18 +1216,88 @@ extern "C" void ParquetDmlInit(Relation rel) {
   // MemoryContextRegisterResetCallback(estate->es_query_cxt, callback);
 }
 
-extern "C" void ParquetDmlFinish(Relation rel) {
-  auto fmstate = GetModifyState(rel);
-  if (fmstate == NULL) {
-    return;
-  }
-  fmstate->Upload();
-  // ParquetS3FdwModifyState *fmstate = NULL;
+extern "C" void ParquetDmlFinish(Relation relation) {
+	auto fmstate = GetModifyState(relation);
+	if (fmstate == NULL) {
+		return;
+	}
 
-  // Oid                     foreignTableId = InvalidOid;
-  // foreignTableId = RelationGetRelid(rel);
+	TupleTableSlot* slot = MakeSingleTupleTableSlot(RelationGetDescr(relation),
+									&TTSOpsVirtual);
+
+	std::unordered_set<uint64_t> lake_files_ids;
+	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
+	for (size_t i = 0; i < lake_files.size(); ++i) {
+		lake_files_ids.insert(lake_files[i].file_id()); // <<  " -> " << lake_files[i].file_name();
+		LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
+		//filenames.push_back(lake_files[i].file_name());
+	}
+	// ParquetS3ReaderState *state;
+	std::vector<int> rowgroups;
+	bool use_mmap = false;
+	bool use_threads = false;
+	Aws::S3::S3Client *s3client = NULL;
+	// ReaderType reader_type = RT_MULTI;
+	// int max_open_files = 10;
+
+	// MemoryContextCallback *callback;
+	// MemoryContext reader_cxt;
+
+	std::string error;
+
+	//GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
+
+	s3client = ParquetGetConnectionByRelation(relation);
+
+	TupleDesc tuple_desc = RelationGetDescr(relation);
+	std::vector<bool> fetched_col(tuple_desc->natts, true);
+
+	// ExtractFetchedColumns(targetlist, qual, fetched_col);
+	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
+
+	// reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
+	// ALLOCSET_DEFAULT_SIZES);
+	try {
+		/*
+		state = create_parquet_execution_state(
+			reader_type, reader_cxt, kDBBucket.data(), s3client,
+			relation->rd_id, tuple_desc, fetched_col,
+			use_threads, use_mmap, max_open_files);
+
+		*/
+		auto updates = fmstate->Updates();
+		for (auto it = updates.begin(); it != updates.end(); ++it) {
+			if (lake_files_ids.find(it->second->FileId()) == lake_files_ids.end()) {
+				LOG(ERROR) << "delete out of file";
+				return;
+			}
+			auto s3_filename = std::to_string(it->second->FileId()) + ".parque";
+			auto deletes = it->second->Deletes();
+			auto reader  = CreateParquetReader(relation->rd_id, it->second->FileId(),
+									  s3_filename.data(), tuple_desc, fetched_col);
+			reader->SetRowgroupsList(rowgroups);
+			reader->SetOptions(use_threads, use_mmap);
+			if (s3client)
+				reader->Open(kDBBucket.c_str(), s3client);
+			while(true) {
+				reader->Next(slot);
+				if (slot == nullptr) {
+					LOG(ERROR) << "parquet get next slot nullptr";
+					break;
+				}
+				// uint64_t block_id = ItemPointerGetBlockNumber(tid);
+				if (deletes.find(slot->tts_tid.ip_posid) != deletes.end()) {
+					continue;
+					} else {
+					fmstate->ExecInsert(slot);
+				}
+			}
+		}
+	} catch (std::exception &e) {
+		error = e.what();
+	}
+	fmstate->Upload();
 }
-
 
 /*
  * sdb: it is uesd by heap_insert function
@@ -1310,9 +1378,10 @@ extern "C" TM_Result ParquetTupleUpdate(Relation rel, ItemPointer otid,
   if (fmstate == NULL) {
     return TM_Ok;
   }
-  fmstate->ExecDelete(otid);
+  if (!fmstate->ExecDelete(otid)) {
+	return TM_Deleted;
+  }
   fmstate->ExecInsert(slot);
-
   return TM_Ok;
 }
 
@@ -1325,7 +1394,9 @@ extern "C" TM_Result ParquetTupleDelete(Relation relation, ItemPointer tid,
   if (fmstate == NULL) {
     return TM_Ok;
   }
-  fmstate->ExecDelete(tid);
+  if (!fmstate->ExecDelete(tid)) {
+	return TM_Deleted;
+  }
   return TM_Ok;
 }
 
@@ -1447,22 +1518,21 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	/* aoscan->aofetch is initialized lazily on first fetch */
 	auto s3client = ParquetGetConnectionByRelation(relation);
 
-	TupleDesc tupleDesc = RelationGetDescr(relation);
+	TupleDesc tuple_desc = RelationGetDescr(relation);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-	std::vector<bool> fetched_col(tupleDesc->natts, true);
+	std::vector<bool> fetched_col(tuple_desc->natts, true);
 
 	auto reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, kDBBucket.data(), s3client, relation->rd_id, tupleDesc,
+			reader_type, reader_cxt, kDBBucket.data(), s3client, relation->rd_id, tuple_desc,
 			fetched_col, use_threads, use_mmap, max_open_files);
 
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
 
 		for (size_t i = 0; i < lake_files.size(); i++) {
-			auto filename = std::to_string(lake_files[i].space_id()) + "_" + 
-				std::to_string(lake_files[i].file_id()) + ".parque";
+			auto filename = std::to_string(lake_files[i].file_id()) + ".parque";
 			// FIXME_SDB add space id future
 			state->add_file(lake_files[i].file_id(), filename.data(), NULL);
 		}

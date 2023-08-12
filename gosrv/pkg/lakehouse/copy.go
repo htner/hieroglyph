@@ -172,7 +172,6 @@ func (L *LakeRelCopyOperator) Copy() error {
         fileNew := proto.Clone(file).(*sdb.LakeFileDetail)
     
         //fileNew.BaseInfo.FileName = fmt.Sprintf("%d-%d.parquet", L.sourceDb, fileid)
-        fileNew.BaseInfo.SpaceId = 1// fmt.Sprintf("%d-%d.parquet", L.sourceDb, fileid)
         fileNew.BaseInfo.FileId = fileid
 				fileNew.Dbid = uint64(L.sourceDb)
 				fileNew.Rel = uint64(L.sourceRel)
@@ -214,7 +213,7 @@ func (L *LakeRelCopyOperator) Copy() error {
     _, err := s3Client.CopyObject(context.TODO(), &s3.CopyObjectInput{
       Bucket:     aws.String(L.destSpace.Base.Bucket),
       CopySource: aws.String(fmt.Sprintf("%v/%v", L.sourceSpace.Base.Bucket, source)),
-      Key:        aws.String(fmt.Sprintf("%d-%d.parquet", source.SpaceId, source.FileId)),
+      Key:        aws.String(fmt.Sprintf("%d.parquet", source.FileId)),
       })
     if err != nil {
         log.Printf("Unable to copy item from bucket %q to bucket %q, %v", L.sourceSpace.Base.Bucket, L.sourceSpace.Base.Bucket, err)

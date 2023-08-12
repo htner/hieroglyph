@@ -93,7 +93,7 @@ ParquetS3WriterState::~ParquetS3WriterState() {
  * @return ParquetWriter* reader to new file
  */
 std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
-    const char *filename, TupleTableSlot *slot) {
+    const char *filename) {
   //auto old_cxt = MemoryContextSwitchTo(ctx);
   auto auto_switch = AutoSwitch(cxt);
   auto reader = CreateParquetWriter(rel_id, filename, tuple_desc);
@@ -210,7 +210,7 @@ bool ParquetS3WriterState::ExecInsert(TupleTableSlot *slot) {
     uint64_t worker_uuid =
 	   std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
     sprintf(uuid, "%s_%d_%lu_%u.parquet", rel_name, rel_id, worker_uuid, local_index++);
-    inserter_ = NewInserter(uuid, slot);
+    inserter_ = NewInserter(uuid);
   }
   if (inserter_ != nullptr) {
     return inserter_->ExecInsert(slot);
@@ -232,6 +232,12 @@ bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
   auto it = updates.find(block_id);
   if (it != updates.end()) {
     return it->second->ExecDelete(tid->ip_posid);
+  } else {
+	auto w = CreateParquetWriter(rel_id, "", tuple_desc);
+	w->SetRel(rel_name, rel_id);
+	w->SetFileId(block_id);
+	updates[block_id] = w;
+    return w->ExecDelete(tid->ip_posid);
   }
   return false;
 }
