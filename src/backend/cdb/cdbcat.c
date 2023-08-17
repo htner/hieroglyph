@@ -121,6 +121,21 @@ createRandomPartitionedPolicy(int numsegments)
 	return makeGpPolicy(POLICYTYPE_PARTITIONED, 0, numsegments);
 }
 
+GpPolicy *
+createSDBGpPolicy(Oid accessMethodId)
+{
+	GpPolicy *policySupport = NULL; 
+	switch (accessMethodId) {
+		case PARQUET_TABLE_AM_OID:
+			policySupport = createRandomPartitionedPolicy(getgpsegmentCount());
+			break;
+		default:
+			ereport(PANIC,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("SDB not support AM %u", accessMethodId)));
+	}
+	return policySupport;
+}
 /*
  * createHashPartitionedPolicy-- Create a policy with data
  * partitioned by keys 
@@ -1055,4 +1070,23 @@ errdetails_index_policy(char *attname,
 	}
 
 	return 0;
+}
+
+const char *
+GpPolicyTypeName(GpPolicy *policy)
+{
+	switch (policy->ptype)
+	{
+		case POLICYTYPE_ENTRY:
+			return "entry policy";
+		case POLICYTYPE_PARTITIONED:
+			if (policy->nattrs <= 0)
+				return "random policy";
+			else
+				return "hash policy";
+		default:
+			ereport(PANIC, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+							errmsg("unknown policy")));
+	}
+	return "unnown policy";
 }

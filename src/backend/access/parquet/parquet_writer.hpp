@@ -10,22 +10,18 @@
  *
  *-------------------------------------------------------------------------
  */
+#ifndef PARQUET_WRITER_HPP__AAA
+#define PARQUET_WRITER_HPP__AAA
 #pragma once
+
+#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
+#include "backend/new_executor/arrow/recordbatch_builder.hpp"
+#include "backend/access/parquet/common.hpp"
 
 #include <arrow/api.h>
 #include <aws/core/Aws.h>
 #include <aws/s3/S3Client.h>
 #include <parquet/arrow/reader.h>
-
-#include "backend/access/parquet/common.hpp"
-#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
-#include "backend/new_executor/arrow/recordbatch_builder.hpp"
-
-extern "C" {
-#include "access/tupdesc.h"
-#include "executor/tuptable.h"
-#include "postgres.h"
-}
 
 #include "kvpair.pb.h"
 
@@ -68,7 +64,11 @@ class ParquetWriter {
   void ParquetWriteFile(const char *dirname, Aws::S3::S3Client *s3_client,
                         const arrow::Table &table);
 
-  void SetOldBatch(std::string filename);
+  void SetOldFilename(std::string filename);
+
+  const std::string GetOldFilename() {
+    return s3_filename_;
+  }
 
   void SetRel(char *name, Oid id);
 
@@ -111,3 +111,5 @@ class ParquetWriter {
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
     Oid rel, const char *filename, TupleDesc tuple_desc);
+
+#endif

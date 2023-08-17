@@ -55,25 +55,14 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 	if err != nil {
 		return nil, err
 	}
-	var mgr LockMgr
-	var fdblock Lock
-
-	fdblock.Database = L.T.Database
-	fdblock.Relation = rel
-	fdblock.LockType = ReadLock
-  fdblock.Sid = L.T.Sid
 
   var session *kvpair.Session
 
-  _, err = mgr.DoWithAutoLock(db, &fdblock,
-    func(tr fdb.Transaction) (interface{}, error) {
+	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
       t := L.T
       session, err = t.CheckReadAble(tr)
       return nil, err
-      /*
-return nil, nil
-*/
-    }, 3)
+  })
 
   if err != nil {
     log.Printf("check read able error %v", err)
@@ -218,8 +207,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segInde
 */
 
 func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) ([]*sdb.LakeFileDetail, error) {
-  return files, nil
-
+ // return files, nil
 	statifiesFiles := make([]*sdb.LakeFileDetail, 0)
   db, err := fdb.OpenDefault()
 	if err != nil {
@@ -227,7 +215,9 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
 	}
   _, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
     for _, file := range files {
-      if uint64(currTid) == file.Xmax {
+      log.Println("tid ", currTid, "file xmin:", file.Xmin)
+      if file.Xmax != 0 && uint64(currTid) == file.Xmax {
+        log.Println("error tid == file.Xmax:", currTid)
         continue
       }
 
@@ -240,18 +230,23 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
       } else {
         state, err := L.T.State(kvReader, types.TransactionId(file.Xmin))
         if err != nil {
+          log.Println("not found min state:", file.Xmin, file)
           return nil, err
         }
         xminState = uint32(state)
       }
+      log.Println("xmin:", xminState, " xmax:", xmaxState)
 
       if file.Xmax != uint64(InvaildTranscaton) {
         state, err := L.T.State(kvReader, types.TransactionId(file.Xmax))
         if err != nil {
+          log.Println("not found max state:", file.Xmax)
           return nil, errors.New("read error")
         }
         xmaxState = uint32(state)
       }
+
+      log.Println("xmin:", xminState, " xmax:", xmaxState)
 
       if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {
         statifiesFiles = append(statifiesFiles, file)
@@ -261,8 +256,9 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
         statifiesFiles = append(statifiesFiles, file)
         continue
       }
+      log.Println("statifiesFiles error, can not append xmin:", xminState, " xmax:", xmaxState)
     }
-    return nil, nil
+    return statifiesFiles, nil
   })
   if e != nil {
     log.Printf("error %s", e.Error())

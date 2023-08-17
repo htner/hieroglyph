@@ -102,7 +102,8 @@ public:
   void Lock(int32_t motion_id);
   void UnlockAndNotify(int32_t motion_id);
 
-  void ReportResult(const std::string& result_dir, const std::string& result_file);
+  void ReportResult(CmdType cmd_type, uint64_t process_rows, 
+                    const std::string& result_dir, const std::string& result_file);
 
 private:
   sdb::PrepareTaskRequest request_;

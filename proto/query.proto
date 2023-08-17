@@ -17,8 +17,9 @@ enum QueryStates {
   QueryOptimizer = 2;
   QueryExecStart = 3;
   QueryCancel = 4;
-  QuerySuccess = 5;
-  QueryError = 6;
+  QueryPartitionSuccess = 5;
+  QuerySuccess = 6;
+  QueryError = 7;
 }
 
 message QueryRequestInfo {
@@ -57,7 +58,12 @@ message QueryResult {
   uint32 state = 1;
   string message = 2;
   string detail = 3;
-  WorkerResultData result = 4;
-  int64 finish_timestamp = 5;
+  uint32 root_workers = 4;
+
+  // uint32 cmd_type = 5;
+  // uint64 process_rows = 6;
+
+  repeated WorkerResultData result = 7;
+  int64 finish_timestamp = 8;
 }
 

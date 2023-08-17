@@ -12,40 +12,21 @@
  *-------------------------------------------------------------------------
  */
 #include "backend/access/parquet/parquet_reader.hpp"
+#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
+#include "backend/access/parquet/common.hpp"
+#include "backend/new_executor/arrow/recordbatch_exchanger.hpp"
 
 #include <list>
 
 #include "arrow/api.h"
 #include "arrow/array.h"
 #include "arrow/io/api.h"
-#include "backend/access/parquet/common.hpp"
-#include "backend/new_executor/arrow/recordbatch_exchanger.hpp"
 #include "parquet/arrow/reader.h"
 #include "parquet/arrow/schema.h"
 #include "parquet/exception.h"
 #include "parquet/file_reader.h"
 #include "parquet/statistics.h"
 
-extern "C" {
-#include "access/sysattr.h"
-#include "catalog/pg_collation_d.h"
-#include "parser/parse_coerce.h"
-#include "postgres.h"
-#include "utils/array.h"
-#include "utils/builtins.h"
-#include "utils/date.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/timestamp.h"
-
-#if PG_VERSION_NUM < 110000
-#include "catalog/pg_type.h"
-#else
-#include "catalog/pg_type_d.h"
-#endif
-}
-
-#include "backend/sdb/common/pg_export.hpp"
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
@@ -97,48 +78,53 @@ class DefaultParquetReader : public ParquetReader {
       : ParquetReader(), row_group_(-1), num_rows_(0) {
     exchanger_ =
 	 	std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc, fetched_col);
-    reader_entry_ = NULL;
     filename_ = filename;
     fileid_ = fileid;
     initialized_ = false;
   }
 
   ~DefaultParquetReader() {
-    if (reader_entry_ && reader_entry_->file_reader && reader_)
-      reader_entry_->file_reader->reader = std::move(reader_);
+	/*
+    if (reader_)
+		reader_
+		*/
   }
 
-  void Open(const char *dirname, Aws::S3::S3Client *s3_client) {
+	arrow::Status Open(const char *dirname, Aws::S3::S3Client *s3_client) {
     // elog(WARNING, "parquet reader: open Parquet file on S3. %s%s", dname, fname);
     arrow::Status status;
-    char *dname;
-    char *fname;
+	std::string dname;
+	std::string fname;
     parquetSplitS3Path(dirname, filename_.c_str(), &dname, &fname);
-    reader_entry_ = parquetGetFileReader(s3_client, dname, fname);
-    //LOG(WARNING) <<  "parquet reader: open Parquet file on S3.  bucket: %s file:%s", dname, fname);
-    pfree(dname);
-    pfree(fname);
-
-    reader_ = std::move(reader_entry_->file_reader->reader);
+    reader_ = parquetGetFileReader(s3_client, dname.c_str(), fname.c_str());
+	if (reader_ == NULL) {
+		LOG(WARNING) <<  "parquet reader: open Parquet file on S3.  bucket:" << 
+				dname << " file:" << fname;
+		return arrow::Status::UnknownError("reader empty");
+	}
 
     /* Enable parallel columns decoding/decompression if needed */
     reader_->set_use_threads(use_threads_ && parquet_fdw_use_threads);
+	return arrow::Status::OK();
   }
 
-  void Open() {
+  arrow::Status Open() {
     arrow::Status status;
     std::unique_ptr<parquet::arrow::FileReader> reader;
 
     status = parquet::arrow::FileReader::Make(
         arrow::default_memory_pool(),
         parquet::ParquetFileReader::OpenFile(filename_, use_mmap_), &reader);
-    if (!status.ok())
-      throw Error("parquet reader: failed to open Parquet file %s",
-                  status.message().c_str());
+    if (!status.ok()) {
+      //throw Error("parquet reader: failed to open Parquet file %s",
+		//           status.message().c_str());
+	  return status;
+	}
     reader_ = std::move(reader);
 
     /* Enable parallel columns decoding/decompression if needed */
     reader_->set_use_threads(use_threads_ && parquet_fdw_use_threads);
+	return status;
   }
 
   bool ReadNextRowgroup() {
@@ -162,21 +148,30 @@ class DefaultParquetReader : public ParquetReader {
 
     if (!status.ok()) {
 		LOG(ERROR) << "ReadNextRowgroup 4";
+			/*
       throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
                   status.message().c_str());
+				  */
+		return false;
 	}
 
     if (!table_) {
 		LOG(ERROR) << "ReadNextRowgroup 5";
+			return false;
+			/*
 		throw std::runtime_error("parquet reader: got empty table");
+		*/
 		}
 
     auto recordbatch = table_->CombineChunksToBatch();
 
     if (!recordbatch.status().ok()) {
 		LOG(ERROR) << "ReadNextRowgroup 5";
+			return false;
+			/*
       throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
                   status.message().c_str());
+				  */
 	}
     LOG(ERROR) << "parquet reader size." << table_->num_rows() << ", "  << (*recordbatch)->num_rows();
     exchanger_->SetRecordBatch(*recordbatch);
@@ -234,8 +229,11 @@ class DefaultParquetReader : public ParquetReader {
 		status = reader_->RowGroup(rowgroup)->ReadTable(&table_);
 
 		if (!status.ok()) {
+			/*
 			throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
 			   status.message().c_str());
+			*/
+			return false;
 		}
 
 		if (!table_) {
@@ -245,8 +243,11 @@ class DefaultParquetReader : public ParquetReader {
 		auto recordbatch = table_->CombineChunksToBatch();
 
 		if (!recordbatch.status().ok()) {
+			/*
 			throw Error("parquet reader: failed to read rowgroup #%i: %s", rowgroup,
 			   status.message().c_str());
+			*/
+			return false;
 		}
 		LOG(ERROR) << "parquet reader fetch, size" << table_->num_rows() << ", "  << (*recordbatch)->num_rows();
 		LOG(ERROR) << "parquet reader fetch, fileid " << fileid_ << ", "  << index;

@@ -11,32 +11,20 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef PARQUET_FDW_READER_HPP
-#define PARQUET_FDW_READER_HPP
+#ifndef PARQUET_READER__SDFES
+#define PARQUET_READER__SDFES
+#pragma once
+
+#include "backend/sdb/common/pg_export.hpp"
 
 #include <math.h>
-
 #include <memory>
 #include <mutex>
 #include <set>
 #include <vector>
 
-#include "arrow/api.h"
-#include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
-#include "parquet/arrow/reader.h"
-
-extern "C" {
-#include "access/tupdesc.h"
-#include "executor/tuptable.h"
-#include "fmgr.h"
-#include "nodes/pg_list.h"
-#include "parser/parse_oper.h"
-#include "postgres.h"
-#include "storage/spin.h"
-#include "utils/jsonb.h"
-#include "utils/sortsupport.h"
-}
-
+#include <arrow/api.h>
+#include <parquet/arrow/reader.h>
 #include <aws/core/Aws.h>
 #include <aws/s3/S3Client.h>
 #include <parquet/arrow/reader.h>
@@ -59,8 +47,6 @@ class ParquetReader {
    */
   std::vector<int> rowgroups_;
 
-  ReaderCacheEntry *reader_entry_;
-
   /*
    * libparquet options
    */
@@ -76,8 +62,8 @@ class ParquetReader {
   virtual ReadStatus Next(TupleTableSlot *slot, bool fake = false) = 0;
   virtual bool Fetch(uint32_t index, TupleTableSlot *slot) = 0;
   virtual void Rescan() = 0;
-  virtual void Open() = 0;
-  virtual void Open(const char *dirname, Aws::S3::S3Client *s3_client) = 0;
+  virtual arrow::Status Open() = 0;
+  virtual arrow::Status Open(const char *dirname, Aws::S3::S3Client *s3_client) = 0;
   // virtual void Close() = 0;
 
   void SetRowgroupsList(const std::vector<int> &rowgroups);
@@ -89,5 +75,6 @@ class ParquetReader {
 ParquetReader *CreateParquetReader(Oid rel_id, uint64_t fileid,
 							const char *filename, TupleDesc tuple_desc,
 							const std::vector<bool> &fetched_col);
+
 
 #endif

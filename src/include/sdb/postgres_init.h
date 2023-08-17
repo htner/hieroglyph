@@ -1,9 +1,6 @@
-#ifndef __POSTGETS_INIT_H
-#define __POSTGETS_INIT_H
+#ifndef __POSTGETS_INIT_H_SEFEWF
+#define __POSTGETS_INIT_H_SEFEWF 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 void
 InitMinimizePostgresEnv(const char* proc, const char* dir,
 			 const char *dbname,
@@ -20,13 +17,11 @@ exec_worker_query(const char *query_string,
 				  SliceTable *sliceTable,
 				  const char *result_dir,
 				  const char *result_file,
+				  uint64_t* process_rows,
 				  void* task);
 
 void prepare_catalog(Oid *oid_arr, int size);
 
 PlannedStmt *utility_optimizer(Query *query);
-#ifdef __cplusplus
-}
-#endif
 
 #endif

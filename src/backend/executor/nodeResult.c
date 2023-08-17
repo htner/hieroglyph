@@ -199,11 +199,12 @@ TupleMatchesHashFilter(ResultState *node, TupleTableSlot *resultSlot)
 		}
 
 		int targetSeg = cdbhashreduce(node->hashFilter);
+		elog(WARNING, "TupleMatchesHashFilter %d %d", targetSeg, GpIdentity.segindex);
 
 		res = (targetSeg == GpIdentity.segindex);
 	}
 
-	return true;
+	return res;
 }
 
 /* ----------------------------------------------------------------

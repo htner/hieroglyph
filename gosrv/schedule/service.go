@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
 	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/proto/sdb"
+	log "github.com/sirupsen/logrus"
 	//"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -33,7 +35,15 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 
   log.Println(in)
   if in.TaskId.SliceId == 0 {
-    mgr.WriteQueryResult(in.TaskId.QueryId, uint32(in.Result.Rescode), in.Result.Message, "", in.Result)
+    isFinish, err := mgr.WriteQueryResult(in.TaskId.QueryId, in.Result)
+    if err != nil {
+      return nil, err
+    }
+    log.Println("wirte query result ", in)
+    if isFinish {
+      tr := lakehouse.NewTranscationWithXid(types.DatabaseId(in.Dbid), types.TransactionId(in.CommitXid), types.SessionId(in.Sessionid))
+      tr.TryAutoCommit()
+    }
   }
 	return out, err
 }
@@ -49,14 +59,25 @@ func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQuer
     reply.Rescode = 20000
     reply.Resmsg = "wait"
     err = nil
-  } else if result.State != 0 {
-    reply.Rescode = int32(result.State)
-    reply.Resmsg = result.Detail 
+  } else if result.State < uint32(sdb.QueryStates_QuerySuccess) {
+    // reply.Rescode = int32(result.State)
+    // reply.Resmsg = result.Detail 
+    reply.Rescode = 20000
+    reply.Resmsg = "wait"
     err = nil
   } else {
-    reply.Result = result.Result
+    if (len(result.Result) == 0) {
+      return nil, errors.New("not root slice?")
+    }
+    reply.Result = result.Result[0]
+    //reply.Result.State = result.State
+    for i := 1; i < len(result.Result); i++ {
+      result_sub := result.Result[i]
+      reply.Result.ProcessRows += result_sub.ProcessRows 
+      reply.Result.DataFiles = append(reply.Result.DataFiles , result_sub.DataFiles...)
+    }
   }
-	return reply, err
+  return reply, err
 }
 
 func (s *ScheduleServer) Depart(ctx context.Context, query *sdb.ExecQueryRequest) (*sdb.ExecQueryReply, error) {

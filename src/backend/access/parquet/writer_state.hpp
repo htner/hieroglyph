@@ -10,20 +10,14 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef PARQUET_FDW_MODIFY_STATE_HPP
-#define PARQUET_FDW_MODIFY_STATE_HPP
+#pragma once
 
 #include <list>
 #include <set>
 #include <vector>
 
+#include "backend/sdb/common/pg_export.hpp"
 #include "backend/access/parquet/parquet_writer.hpp"
-
-extern "C" {
-#include "access/tupdesc.h"
-#include "executor/tuptable.h"
-#include "postgres.h"
-}
 
 class ParquetS3WriterState {
 private:
@@ -92,4 +86,3 @@ ParquetS3WriterState *create_parquet_modify_state(
     TupleDesc tuple_desc, std::set<int> target_attrs, bool use_threads,
     bool use_mmap);
 
-#endif

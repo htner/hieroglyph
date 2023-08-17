@@ -839,7 +839,7 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 	if (log_parser_stats)
 		ResetUsage();
 
-	PG_TRY();
+//	PG_TRY();
 	{
 		query = parse_analyze(parsetree, query_string, paramTypes, numParams,
 						  queryEnv);
@@ -852,6 +852,7 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 		*/
 		querytree_list = pg_rewrite_query(query);
 	}
+	/*
 	PG_CATCH();
 	{
 		ErrorData *errdata;
@@ -862,6 +863,7 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 		querytree_list = NULL;
 	}
 	PG_END_TRY();
+	*/
 
 	TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 
@@ -5992,7 +5994,7 @@ void InitMinimizePostgresEnv(const char *proc, const char *dir,
 void exec_worker_query(const char *query_string, PlannedStmt *plan,
                        SerializedParams *paramInfo, SliceTable *sliceTable,
                        const char *result_dir, const char *result_file,
-                       void *task) {
+                       uint64* process_rows, void *task) {
   CommandDest dest = DestRemote;
   MemoryContext oldcontext;
   QueryDispatchDesc *ddesc = NULL;
@@ -6212,6 +6214,10 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
     (void)PortalRun(portal, FETCH_ALL, true, /* Effectively always top level. */
                     portal->run_once, receiver, receiver, completionTag);
 
+
+	if (portal->queryDesc != NULL) {
+		*process_rows = portal->queryDesc->es_processed;
+	}
     /*
      * If writer QE, sent current pgstat for tables to QD.
      */
@@ -6243,6 +6249,7 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
      * command the client sent, regardless of rewriting. (But a command
      * aborted by error will not send an EndCommand report at all.)
      */
+	
     if (commandType != CMD_SELECT)
       EndCommand(completionTag, dest);
 

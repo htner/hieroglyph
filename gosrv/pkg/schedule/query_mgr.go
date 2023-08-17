@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"errors"
 	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -129,7 +130,7 @@ func (mgr *QueryMgr) WriterWorkerResult(req *sdb.PushWorkerResultRequest) error 
 	return e
 }
 
-func (mgr *QueryMgr) WriteQueryResult(queryId uint64, state uint32, msg, detail string, result *sdb.WorkerResultData) error {
+func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers uint32) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -140,17 +141,57 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, state uint32, msg, detail 
 
 		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
 		value := new(sdb.QueryResult)
-		value.Result = result
-    value.Message = detail
-    value.State = state
-		err = kvOp.WritePB(key, value)
+
+		err = kvOp.ReadPB(key, value)
 		if err != nil {
-			return nil, err
+      if err != fdbkv.EmptyDataErr {
+			  return nil, err
+      }
+      if value.State >= state {
+        return nil, errors.New("state rollback?")
+      }
 		}
 
-		return nil, nil
+    value.State = state
+    value.Message = "" 
+    value.Detail = "" 
+    value.RootWorkers = root_workers 
+     
+		return nil, kvOp.WritePB(key, value)
 	})
 	return e
+}
+
+func (mgr *QueryMgr) WriteQueryResult(queryId uint64, result *sdb.WorkerResultData, ) (bool, error) {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return false, err
+	}
+	isFinish, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+
+		kvOp := fdbkv.NewKvOperator(tr)
+
+		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
+		value := new(sdb.QueryResult)
+
+		err = kvOp.ReadPB(key, value)
+		if err != nil {
+      return false, err
+		}
+
+    value.State = uint32(sdb.QueryStates_QueryPartitionSuccess) 
+		value.Result = append(value.Result, result)
+
+    isFinish := false
+    if len(value.Result) >= int(value.RootWorkers) {
+      value.State = uint32(sdb.QueryStates_QuerySuccess)
+      isFinish = true
+    }
+
+		err = kvOp.WritePB(key, value)
+    return isFinish, err
+	})
+	return isFinish.(bool), err
 }
 
 func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.QueryResult, error) {

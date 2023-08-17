@@ -66,6 +66,15 @@ cleanDemo(){
     cmd="configure tenant_mode=disabled; writemode on; begin; clearrange \"\" \\xFF;  commit;"
     fdbcli --exec "$cmd" || true
 
+    bucket_name="sdb1"
+    which mc
+    if (( $? != 0)); then
+        echo "mc command not found"
+        return 2
+    fi
+    mc alias set demo-cluster/ http://127.0.0.1:9000 minioadmin minioadmin
+    mc mb --ignore-existing --region=us-east-1 demo-cluster/${bucket_name}
+
     ( source ${GPHOME}/greenplum_path.sh;)
 
     ##

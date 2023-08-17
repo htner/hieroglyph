@@ -37,7 +37,7 @@ func (L *LakeRelOperator) PrepareFiles(rel types.RelId, count uint64) (files []*
 	_, e := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			t := L.T
-			_, err := t.CheckVaild(tr)
+			_, err := t.CheckWriteAble(tr)
 			if err != nil {
 				return nil, err
 			}

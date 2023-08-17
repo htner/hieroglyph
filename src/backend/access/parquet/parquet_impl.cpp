@@ -99,7 +99,7 @@ extern "C" {
 #include "backend/access/parquet/parquet_reader.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include "backend/access/parquet/parquet_writer.hpp"
-#include "backend/access/parquet/slvars.hpp"
+//#include "backend/access/parquet/slvars.hpp"
 #include "backend/sdb/common/lake_file_mgr.hpp"
 #include "parquet/arrow/reader.h"
 #include "parquet/arrow/schema.h"
@@ -125,7 +125,6 @@ extern bool enable_multifile_merge;
 
 extern void parquet_s3_init();
 
-static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2);
 static void destroy_parquet_state(void *arg);
 MemoryContext parquet_am_cxt = NULL;
 /*
@@ -191,484 +190,12 @@ ParquetS3WriterState *CreateParquetModifyState(Relation rel,
   return fmstate;
 }
 
-static Const *convert_const(Const *c, Oid dst_oid) {
-  Oid funcid;
-  CoercionPathType ct;
-
-  ct = find_coercion_pathway(dst_oid, c->consttype, COERCION_EXPLICIT, &funcid);
-  switch (ct) {
-    case COERCION_PATH_FUNC: {
-      FmgrInfo finfo;
-      Const *newc;
-      int16 typlen;
-      bool typbyval;
-
-      get_typlenbyval(dst_oid, &typlen, &typbyval);
-
-      newc = makeConst(dst_oid, 0, c->constcollid, typlen, 0, c->constisnull,
-                       typbyval);
-      fmgr_info(funcid, &finfo);
-      newc->constvalue = FunctionCall1(&finfo, c->constvalue);
-
-      return newc;
-    }
-    case COERCION_PATH_RELABELTYPE:
-      /* Cast is not needed */
-      break;
-    case COERCION_PATH_COERCEVIAIO: {
-      /*
-       * In this type of cast we need to output the value to a string
-       * and then feed this string to the input function of the
-       * target type.
-       */
-      Const *newc;
-      int16 typlen;
-      bool typbyval;
-      Oid input_fn, output_fn;
-      Oid input_param;
-      bool isvarlena;
-      // char   *str; FIXME
-
-      /* Construct a new Const node */
-      get_typlenbyval(dst_oid, &typlen, &typbyval);
-      newc = makeConst(dst_oid, 0, c->constcollid, typlen, 0, c->constisnull,
-                       typbyval);
-
-      /* Get IO functions */
-      getTypeOutputInfo(c->consttype, &output_fn, &isvarlena);
-      getTypeInputInfo(dst_oid, &input_fn, &input_param);
-
-      /* FIXME
-str = DatumGetCString(OidOutputFunctionCall(output_fn,
-                                  c->constvalue));
-newc->constvalue = OidInputFunctionCall(input_fn, str,
-                              input_param, 0);
-                                                                                      */
-
-      return newc;
-    }
-    default:
-     LOG(ERROR) << "parquet_s3_fdw: cast function to " << format_type_be(dst_oid)
-				<<" is not found";
-  }
-  return c;
-}
-
-/*
- * row_group_matches_filter
- *      Check if min/max values of the column of the row group match filter.
- */
-static bool row_group_matches_filter(parquet::Statistics *stats,
-                                     const arrow::DataType *arrow_type,
-                                     RowGroupFilter *filter) {
-  FmgrInfo finfo;
-  Datum val;
-  int collid = filter->value->constcollid;
-  int strategy = filter->strategy;
-
-  if (arrow_type->id() == arrow::Type::MAP && filter->is_key) {
-    /*
-     * Special case for jsonb `?` (exists) operator. As key is always
-     * of text type we need first convert it to the target type (if needed
-     * of course).
-     */
-
-    /*
-     * Extract the key type (we don't check correctness here as we've
-     * already done this in `extract_rowgroups_list()`)
-     */
-    auto strct = arrow_type->fields()[0];
-    auto key = strct->type()->fields()[0];
-    arrow_type = key->type().get();
-
-    /* Do conversion */
-    filter->value =
-        convert_const(filter->value, to_postgres_type(arrow_type->id()));
-  }
-  val = filter->value->constvalue;
-
-  find_cmp_func(&finfo, filter->value->consttype,
-                to_postgres_type(arrow_type->id()));
-
-  switch (filter->strategy) {
-    case BTLessStrategyNumber:
-    case BTLessEqualStrategyNumber: {
-      Datum lower;
-      int cmpres;
-      bool satisfies;
-      std::string min = std::move(stats->EncodeMin());
-
-      lower = bytes_to_postgres_type(min.c_str(), min.length(), arrow_type);
-      cmpres = FunctionCall2Coll(&finfo, collid, val, lower);
-
-      satisfies = (strategy == BTLessStrategyNumber && cmpres > 0) ||
-                  (strategy == BTLessEqualStrategyNumber && cmpres >= 0);
-
-      if (!satisfies) return false;
-      break;
-    }
-
-    case BTGreaterStrategyNumber:
-    case BTGreaterEqualStrategyNumber: {
-      Datum upper;
-      int cmpres;
-      bool satisfies;
-      std::string max = std::move(stats->EncodeMax());
-
-      upper = bytes_to_postgres_type(max.c_str(), max.length(), arrow_type);
-      cmpres = FunctionCall2Coll(&finfo, collid, val, upper);
-
-      satisfies = (strategy == BTGreaterStrategyNumber && cmpres < 0) ||
-                  (strategy == BTGreaterEqualStrategyNumber && cmpres <= 0);
-
-      if (!satisfies) return false;
-      break;
-    }
-
-    case BTEqualStrategyNumber:
-    case JsonbExistsStrategyNumber: {
-      Datum lower, upper;
-      std::string min = std::move(stats->EncodeMin());
-      std::string max = std::move(stats->EncodeMax());
-
-      lower = bytes_to_postgres_type(min.c_str(), min.length(), arrow_type);
-      upper = bytes_to_postgres_type(max.c_str(), max.length(), arrow_type);
-
-      int l = FunctionCall2Coll(&finfo, collid, val, lower);
-      int u = FunctionCall2Coll(&finfo, collid, val, upper);
-
-      if (l < 0 || u > 0) return false;
-      break;
-    }
-
-    default:
-      /* should not happen */
-      Assert(false);
-  }
-
-  return true;
-}
-
 typedef enum { PS_START = 0, PS_IDENT, PS_QUOTE } ParserState;
-
-static bool parquet_s3_column_is_existed(
-    parquet::arrow::SchemaManifest manifest, char *column_name) {
-  for (auto &schema_field : manifest.schema_fields) {
-    auto &field = schema_field.field;
-    char arrow_colname[NAMEDATALEN];
-
-    if (field->name().length() > NAMEDATALEN - 1) {
-      throw Error("parquet column name '%s' is too long (max: %d)",
-                  field->name().c_str(), NAMEDATALEN - 1);
-    }
-    tolowercase(field->name().c_str(), arrow_colname);
-
-    if (strcmp(column_name, arrow_colname) == 0) {
-      return true; /* Found!!! */
-    }
-  }
-
-  /* Can not found column from parquet file */
-  return false;
-}
-
-/*
- * extract_rowgroups_list
- *      Analyze query predicates and using min/max statistics determine which
- *      row groups satisfy clauses. Store resulting row group list to
- *      fdw_private.
- */
-List *extract_rowgroups_list(const char *filename, const char *bucket,
-                             Aws::S3::S3Client *s3_client, TupleDesc tuple_desc,
-                             std::list<RowGroupFilter> &filters,
-                             uint64 *matched_rows, uint64 *total_rows,
-                             bool schemaless) noexcept {
-  std::unique_ptr<parquet::arrow::FileReader> reader;
-  arrow::Status status;
-  List *rowgroups = (List*)NULL;
-  ReaderCacheEntry *reader_entry = NULL;
-  std::string error;
-
-  /* Open parquet file to read meta information */
-  try {
-    if (s3_client) {
-      char *dname;
-      char *fname;
-      parquetSplitS3Path(bucket, filename, &dname, &fname);
-      reader_entry = parquetGetFileReader(s3_client, dname, fname);
-      reader = std::move(reader_entry->file_reader->reader);
-      pfree(dname);
-      pfree(fname);
-    } else {
-      status = parquet::arrow::FileReader::Make(
-          arrow::default_memory_pool(),
-          parquet::ParquetFileReader::OpenFile(filename, false), &reader);
-    }
-
-    if (!status.ok())
-      throw Error(
-          "parquet_impl extract_rowgroups_list: failed to open Parquet file %s",
-          status.message().c_str());
-
-    auto meta = reader->parquet_reader()->metadata();
-    parquet::ArrowReaderProperties props;
-    parquet::arrow::SchemaManifest manifest;
-
-    status = parquet::arrow::SchemaManifest::Make(meta->schema(), nullptr,
-                                                  props, &manifest);
-    if (!status.ok())
-      throw Error("parquet_s3_fdw: error creating arrow schema");
-
-    /* Check each row group whether it matches the filters */
-    for (int r = 0; r < reader->num_row_groups(); r++) {
-      bool match = true;
-      auto rowgroup = meta->RowGroup(r);
-
-      /* Skip empty rowgroups */
-      if (!rowgroup->num_rows()) continue;
-
-      for (auto &filter : filters) {
-        AttrNumber attnum;
-        char pg_colname[NAMEDATALEN];
-
-        if (schemaless) {
-          /* In schemaless mode, attname has already existed  */
-          tolowercase(filter.attname, pg_colname);
-
-          if (filter.is_column == true) {
-            /*
-             * Check column existed for condition: v ? column
-             * If column is not existed, exclude current file from file list.
-             */
-            if ((match = parquet_s3_column_is_existed(manifest, pg_colname)) ==
-                false) {
-              LOG(INFO) << "parquet_s3_fdw: skip file " << filename;
-              return NULL;
-            }
-            continue;
-          }
-        } else {
-          attnum = filter.attnum - 1;
-          tolowercase(NameStr(TupleDescAttr(tuple_desc, attnum)->attname),
-                      pg_colname);
-        }
-
-        /*
-         * Search for the column with the same name as filtered attribute
-         */
-        for (auto &schema_field : manifest.schema_fields) {
-          //MemoryContext ccxt = CurrentMemoryContext;
-          bool error = false;
-          char errstr[ERROR_STR_LEN];
-          char arrow_colname[NAMEDATALEN];
-          auto &field = schema_field.field;
-          int column_index;
-
-          /* Skip complex objects (lists, structs except maps) */
-          if (schema_field.column_index == -1 &&
-              field->type()->id() != arrow::Type::MAP)
-            continue;
-
-          if (field->name().length() > NAMEDATALEN - 1)
-            throw Error("parquet column name '%s' is too long (max: %d)",
-                        field->name().c_str(), NAMEDATALEN - 1);
-          tolowercase(field->name().c_str(), arrow_colname);
-
-          if (strcmp(pg_colname, arrow_colname) != 0) continue;
-
-          /* in schemaless mode, skip filter if parquet column type is not match
-           * with actual column (explicit cast) type */
-          if (schemaless) {
-            int arrow_type = field->type().get()->id();
-
-            if (!(filter.atttype == to_postgres_type(arrow_type) ||
-                  (filter.atttype == JSONBOID &&
-                   arrow_type == arrow::Type::MAP)))
-              continue;
-          }
-
-          if (field->type()->id() == arrow::Type::MAP) {
-            /*
-             * Extract `key` column of the map.
-             * See `create_column_mapping()` for some details on
-             * map structure.
-             */
-            Assert(schema_field.children.size() == 1);
-            auto &strct = schema_field.children[0];
-
-            Assert(strct.children.size() == 2);
-            auto &key = strct.children[0];
-            column_index = key.column_index;
-          } else
-            column_index = schema_field.column_index;
-
-          /* Found it! */
-          std::shared_ptr<parquet::Statistics> stats;
-          auto column = rowgroup->ColumnChunk(column_index);
-          stats = column->statistics();
-
-          PG_TRY();
-          {
-            /*
-             * If at least one filter doesn't match rowgroup exclude
-             * the current row group and proceed with the next one.
-             */
-            if (stats && !row_group_matches_filter(
-                             stats.get(), field->type().get(), &filter)) {
-              match = false;
-              LOG(INFO) << "parquet_s3_fdw: skip rowgroup " <<  r + 1;
-            }
-          }
-          PG_CATCH();
-          {
-            ErrorData *errdata;
-
-            //MemoryContextSwitchTo(ccxt);
-            error = true;
-            errdata = CopyErrorData();
-            FlushErrorState();
-
-            strncpy(errstr, errdata->message, ERROR_STR_LEN - 1);
-            FreeErrorData(errdata);
-          }
-          PG_END_TRY();
-          if (error)
-            throw Error("parquet_s3_fdw: row group filter match failed: %s",
-                        errstr);
-          break;
-        } /* loop over columns */
-
-        if (!match) break;
-
-      } /* loop over filters */
-
-      /* All the filters match this rowgroup */
-      if (match) {
-        /* TODO: PG_TRY */
-        rowgroups = lappend_int(rowgroups, r);
-        *matched_rows += rowgroup->num_rows();
-      }
-      *total_rows += rowgroup->num_rows();
-    } /* loop over rowgroups */
-  } catch (const std::exception &e) {
-    error = e.what();
-  }
-  if (!error.empty()) {
-    if (reader_entry) reader_entry->file_reader->reader = std::move(reader);
-    LOG(ERROR) << "parquet_s3_fdw: failed to exctract row groups from Parquet file:" << error.c_str();
-  }
-
-  return rowgroups;
-}
 
 struct FieldInfo {
   char name[NAMEDATALEN];
   Oid oid;
 };
-
-/*
- * extract_parquet_fields
- *      Read parquet file and return a list of its fields
- */
-List *extract_parquet_fields(const char *path, const char *bucket,
-                             Aws::S3::S3Client *s3_client) noexcept {
-  List *res = NULL;
-  std::string error;
-
-  try {
-    std::unique_ptr<parquet::arrow::FileReader> reader;
-    parquet::ArrowReaderProperties props;
-    parquet::arrow::SchemaManifest manifest;
-    arrow::Status status;
-    FieldInfo *fields;
-
-    if (s3_client) {
-      arrow::MemoryPool *pool = arrow::default_memory_pool();
-      char *dname;
-      char *fname;
-      parquetSplitS3Path(bucket, path, &dname, &fname);
-      std::shared_ptr<arrow::io::RandomAccessFile> input(
-          new S3RandomAccessFile(s3_client, dname, fname));
-      status = parquet::arrow::OpenFile(input, pool, &reader);
-      pfree(dname);
-      pfree(fname);
-    } else {
-      status = parquet::arrow::FileReader::Make(
-          arrow::default_memory_pool(),
-          parquet::ParquetFileReader::OpenFile(path, false), &reader);
-    }
-    if (!status.ok())
-      throw Error(
-          "parquet_impl extract_parquet_fields: failed to open Parquet file %s",
-          status.message().c_str());
-
-    auto p_schema = reader->parquet_reader()->metadata()->schema();
-    if (!parquet::arrow::SchemaManifest::Make(p_schema, nullptr, props,
-                                              &manifest)
-             .ok())
-      throw std::runtime_error("parquet_s3_fdw: error creating arrow schema");
-
-    fields = (FieldInfo *)exc_palloc(sizeof(FieldInfo) *
-                                     manifest.schema_fields.size());
-
-    for (auto &schema_field : manifest.schema_fields) {
-      auto &field = schema_field.field;
-      auto &type = field->type();
-      Oid pg_type;
-
-      switch (type->id()) {
-        case arrow::Type::LIST: {
-          arrow::Type::type subtype_id;
-          Oid pg_subtype;
-          bool error = false;
-
-          if (type->num_fields() != 1)
-            throw std::runtime_error("lists of structs are not supported");
-
-          subtype_id = get_arrow_list_elem_type(type.get());
-          pg_subtype = to_postgres_type(subtype_id);
-
-          /* This sucks I know... */
-          PG_TRY();
-          { pg_type = get_array_type(pg_subtype); }
-          PG_CATCH();
-          { error = true; }
-          PG_END_TRY();
-
-          if (error)
-            throw std::runtime_error(
-                "failed to get the type of array elements");
-          break;
-        }
-        case arrow::Type::MAP:
-          pg_type = JSONBOID;
-          break;
-        default:
-          pg_type = to_postgres_type(type->id());
-      }
-
-      if (pg_type != InvalidOid) {
-        if (field->name().length() > 63)
-          throw Error("parquet_s3_fdw: field name '%s' in '%s' is too long",
-                      field->name().c_str(), path);
-
-        memcpy(fields->name, field->name().c_str(), field->name().length() + 1);
-        fields->oid = pg_type;
-        res = lappend(res, fields++);
-      } else {
-        throw Error(
-            "parquet_s3_fdw: cannot convert field '%s' of type '%s' in %s",
-            field->name().c_str(), type->name().c_str(), path);
-      }
-    }
-  } catch (std::exception &e) {
-    error = e.what();
-  }
-  if (!error.empty()) 
-		LOG(ERROR) <<  "parquet_s3_fdw: " << error.c_str();
-
-  return res;
-}
 
 static void destroy_parquet_state(void *arg) {
   ParquetS3ReaderState *festate = (ParquetS3ReaderState *)arg;
@@ -686,7 +213,7 @@ static void destroy_parquet_modify_state(void *arg) {
      * cached one, so, disable connection imediately after modify to reload this
      * infomation.
      */
-    parquet_disconnect_s3_server();
+    //parquet_disconnect_s3_server();
     delete fmstate;
   }
 }
@@ -846,7 +373,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 			use_threads, use_mmap, max_open_files);
 
 		for (size_t i = 0; i < lake_files.size(); ++i) {
-			auto filename = std::to_string(lake_files[i].file_id()) + ".parque";
+			auto filename = std::to_string(lake_files[i].file_id()) + ".parquet";
 			state->add_file(lake_files[i].file_id(), filename.c_str(), NULL);
 		}
 	} catch (std::exception &e) {
@@ -1130,22 +657,6 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 
 extern "C" void ParquetEndScan(TableScanDesc scan) {}
 
-/*
- * find_cmp_func
- *      Find comparison function for two given types.
- */
-static void find_cmp_func(FmgrInfo *finfo, Oid type1, Oid type2) {
-  Oid cmp_proc_oid;
-  TypeCacheEntry *tce_1, *tce_2;
-
-  tce_1 = lookup_type_cache(type1, TYPECACHE_BTREE_OPFAMILY);
-  tce_2 = lookup_type_cache(type2, TYPECACHE_BTREE_OPFAMILY);
-
-  cmp_proc_oid = get_opfamily_proc(tce_1->btree_opf, tce_1->btree_opintype,
-                                   tce_2->btree_opintype, BTORDER_PROC);
-  fmgr_info(cmp_proc_oid, finfo);
-}
-
 extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
                               bool allow_strat, bool allow_sync,
                               bool allow_pagemode) {
@@ -1267,28 +778,36 @@ extern "C" void ParquetDmlFinish(Relation relation) {
 		*/
 		auto updates = fmstate->Updates();
 		for (auto it = updates.begin(); it != updates.end(); ++it) {
+			LOG(ERROR) << "update file " << it->second->FileId();
 			if (lake_files_ids.find(it->second->FileId()) == lake_files_ids.end()) {
 				LOG(ERROR) << "delete out of file";
 				return;
 			}
-			auto s3_filename = std::to_string(it->second->FileId()) + ".parque";
+			auto s3_filename = std::to_string(it->second->FileId()) + ".parquet";
 			auto deletes = it->second->Deletes();
 			auto reader  = CreateParquetReader(relation->rd_id, it->second->FileId(),
 									  s3_filename.data(), tuple_desc, fetched_col);
 			reader->SetRowgroupsList(rowgroups);
 			reader->SetOptions(use_threads, use_mmap);
-			if (s3client)
-				reader->Open(kDBBucket.c_str(), s3client);
+			if (s3client) {
+				auto status = reader->Open(kDBBucket.c_str(), s3client);
+				if (!status.ok()) {
+					LOG(ERROR) << "open failure";
+					break;
+				}
+			}
+			ReadStatus  res;
 			while(true) {
-				reader->Next(slot);
-				if (slot == nullptr) {
+				res = reader->Next(slot);
+				if (res != RS_SUCCESS) {
 					LOG(ERROR) << "parquet get next slot nullptr";
 					break;
 				}
-				// uint64_t block_id = ItemPointerGetBlockNumber(tid);
+				LOG(ERROR) << "get from old file, pos" << slot->tts_tid.ip_posid;
 				if (deletes.find(slot->tts_tid.ip_posid) != deletes.end()) {
 					continue;
-					} else {
+				} else {
+					LOG(ERROR) << "insert back to new file, pos" << slot->tts_tid.ip_posid;
 					fmstate->ExecInsert(slot);
 				}
 			}
@@ -1532,7 +1051,7 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
 
 		for (size_t i = 0; i < lake_files.size(); i++) {
-			auto filename = std::to_string(lake_files[i].file_id()) + ".parque";
+			auto filename = std::to_string(lake_files[i].file_id()) + ".parquet";
 			// FIXME_SDB add space id future
 			state->add_file(lake_files[i].file_id(), filename.data(), NULL);
 		}

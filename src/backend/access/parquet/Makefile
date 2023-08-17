@@ -13,7 +13,7 @@ override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS) -I$(top_builddir)/proto -I$(t
 
 OBJS = common.o  reader_state.o  \
 	   parquet_writer.o  writer_state.o \
-	   parquet_impl.o  parquet_reader.o  slvars.o \
+	   parquet_impl.o  parquet_reader.o \
 	   parquet_am.o
 
 SUBDIRS = parquet_s3

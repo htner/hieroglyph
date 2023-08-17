@@ -5,9 +5,9 @@ package sdb;
 option cc_generic_services = true;
 
 option go_package="./sdb";
-
-import  "kvpair.proto";
 import  "task.proto";
+import  "kvpair.proto";
+// import  "worker_service.proto";
 
 // The greeting service definition.
 // Sends a greeting
@@ -38,7 +38,11 @@ message ExecQueryReply {
 
 message PushWorkerResultRequest {
   TaskIdentify task_id  = 1;
-  WorkerResultData result = 2;
+  uint64 sessionid = 2;
+  uint64 dbid = 3;
+  uint64 commit_xid = 4;
+ 
+  WorkerResultData result = 5;
 }
 
 message PushWorkerResultReply {

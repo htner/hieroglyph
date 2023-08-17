@@ -231,6 +231,10 @@ arrow::Status PutArray(PutDatumFunc sub_func, Oid sub_type,
 
   deconstruct_array(array, sub_type, sublen, elmbyval, elmalign, &datums, &nulls, &count);
 
+  if (count == 0) {
+    return b->AppendNull();
+  }
+
   auto builder = reinterpret_cast<arrow::ListBuilder*>(b);
   auto status = builder->Append();
   if (!status.ok()) {

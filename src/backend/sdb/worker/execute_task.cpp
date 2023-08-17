@@ -4,6 +4,7 @@
 #include "backend/sdb/worker/motion_stream.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
 #include "backend/sdb/common/common.hpp"
+#include "cdb/cdbvars.h"
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
 #include "backend/sdb/common/lake_file_mgr.hpp"
@@ -73,6 +74,8 @@ void ExecuteTask::Prepare() {
 	kResultS3Endpoint = request_.result_space().detail().endpoint();
 	kResultIsMinio = request_.result_space().detail().is_minio();
 
+	GpIdentity.dbid = dbid;
+
     std::vector<sdb::RelFiles> catalog_list(request_.catalog_list().begin(), request_.catalog_list().end());
     std::vector<sdb::RelFiles> user_rel_list(request_.user_rel_list().begin(), request_.user_rel_list().end());
 	LakeFileMgrSingleton::GetInstance()->SetRelLakeLists(catalog_list);
@@ -131,6 +134,10 @@ void ExecuteTask::HandleQuery() {
 		stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
 
 		sdb::PushWorkerResultRequest request;
+		request.set_dbid(request_.dbid());
+		request.set_sessionid(request_.sessionid());
+		request.set_commit_xid(request_.commit_xid());
+
 		auto task_id = request.mutable_task_id();
 		*task_id = request_.task_identify();
 		auto result = request.mutable_result();
@@ -138,6 +145,7 @@ void ExecuteTask::HandleQuery() {
 		result->set_query_id(request_.task_identify().query_id());
 		result->set_rescode(50000);
 		result->set_message("invalid planned statement");
+		result->set_cmd_type(plan->commandType);
 		//result->set_result_dir(result_dir);
 		//result->set_meta_file("");
 		//result->add_data_files(result_file);
@@ -164,6 +172,7 @@ void ExecuteTask::HandleQuery() {
 
 	if (plan->commandType != CMD_UTILITY) {
 		slice_table = BuildSliceTable();
+		GpIdentity.segindex = slice_seg_index;
 	}
 
 	std::string result_file = std::to_string(request_.task_identify().query_id()) + "_"
@@ -171,13 +180,16 @@ void ExecuteTask::HandleQuery() {
 								+ std::to_string(request_.dbid()) + ".queryres";
 
 	set_worker_param(request_.sessionid(), request_.worker_id());
+
+	uint64_t process_rows = 0;
 	exec_worker_query(request_.sql().data(), plan, params, slice_table,
-					  request_.result_dir().data(), result_file.data(),
-					  (void*)this);
-	ReportResult(request_.result_dir(), result_file);
+					  request_.result_dir().data(), result_file.data(), 
+					  &process_rows, (void*)this);
+	ReportResult(plan->commandType, process_rows, request_.result_dir(), result_file);
 }
 
-void ExecuteTask::ReportResult(const std::string& result_dir, const std::string& result_file) {
+void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
+	const std::string& result_dir, const std::string& result_file) {
 	std::unique_ptr<brpc::Channel> channel;
 	std::unique_ptr<sdb::Schedule_Stub> stub;//(&channel);
 	brpc::Controller cntl;
@@ -196,6 +208,10 @@ void ExecuteTask::ReportResult(const std::string& result_dir, const std::string&
 	stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
 
 	sdb::PushWorkerResultRequest request;
+	request.set_dbid(request_.dbid());
+	request.set_sessionid(request_.sessionid());
+	request.set_commit_xid(request_.commit_xid());
+
 	auto task_id = request.mutable_task_id();
 	*task_id = request_.task_identify();
 	auto result = request.mutable_result();
@@ -204,6 +220,9 @@ void ExecuteTask::ReportResult(const std::string& result_dir, const std::string&
 	result->set_rescode(0);
 	result->set_message("");
 	result->set_result_dir(result_dir);
+
+	result->set_cmd_type(cmdtype);
+
 	result->set_meta_file("");
 	result->add_data_files(result_file);
 
@@ -384,6 +403,8 @@ void ExecuteTask::SendChunk(int32_t motion_id, int32 target_route, std::string_v
 	LOG(INFO) << "route must < size";
 	LOG(ERROR) << "route" << target_route << " must not larger than "
 	<< send_streams_.size();
+	int* k= nullptr;
+	*k = 1;
 }
 
 void ExecuteTask::BroadcastChunk(int32_t motion_id, std::string_view& message) {
@@ -651,6 +672,5 @@ void SDBSendEndOfStream(void *t,
 	// FIXME
 	task->SendEos(motion_id, -1, msg);
 }
-
 
 }
