@@ -10,7 +10,6 @@
  *
  *-------------------------------------------------------------------------
  */
-
 #include "backend/access/parquet/parquet_writer.hpp"
 
 #include <arrow/api.h>
@@ -24,28 +23,10 @@
 #include <parquet/file_reader.h>
 #include <parquet/statistics.h>
 
-#include "backend/access/parquet/common.hpp"
-
-extern "C" {
-#include "access/sysattr.h"
-#include "catalog/pg_type_d.h"
-#include "parser/parse_coerce.h"
-#include "pgstat.h"
-#include "postgres.h"
-#include "utils/array.h"
-#include "utils/builtins.h"
-#include "utils/date.h"
-#include "utils/datum.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/timestamp.h"
-}
-
-#include "backend/sdb/common/pg_export.hpp"
+#include <butil/logging.h>
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
-#include <butil/logging.h>
 
 #include "lake_service.pb.h"
 
@@ -285,7 +266,7 @@ void ParquetWriter::PrepareUpload() {
 		return;
 	}
 	file_handler_ = response.files(0);
-	s3_filename_ = std::to_string(file_handler_.file_id()) + ".parque";
+	s3_filename_ = std::to_string(file_handler_.file_id()) + ".parquet";
 	file_id_ = file_handler_.file_id();
 }
 
@@ -333,7 +314,7 @@ void ParquetWriter::CommitUpload() {
 	}
 }
 
-void ParquetWriter::SetOldBatch(std::string filename) {
+void ParquetWriter::SetOldFilename(std::string filename) {
 	old_filename_ = filename;
 }
 

@@ -23,7 +23,7 @@ func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest
 	log.Println("prepare start transaction ", req)
 
   var session kvpair.Session
-  session.Uid = 1
+  session.Uid = req.Uid 
   session.Id = types.SessionId(req.Sessionid)
   session.DbId = types.DatabaseId(req.Dbid)
   session.State = kvpair.SessionTransactionIdle
@@ -37,6 +37,7 @@ func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest
   return new(sdb.StartTransactionResponse), nil
 }
 func (s *LakeServer) Commit(ctx context.Context, req *sdb.CommitRequest) (*sdb.CommitResponse, error) {
+  log.Println("commit ", req)
   tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sessionid)) 
   tr.Commit()
   return new(sdb.CommitResponse), nil

@@ -15,6 +15,7 @@
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/HeadObjectRequest.h>
 #include <fstream>
+#include <butil/logging.h>
 
 using namespace std;
 
@@ -129,6 +130,7 @@ CopyToLocalFile(Aws::S3::S3Client *s3_client,
 	if (!get_object_outcome.IsSuccess()) {
         auto err = get_object_outcome.GetError();
         Aws::String msg = "GetObject failed. " + err.GetExceptionName() + ": " + err.GetMessage();
+		LOG(ERROR) << msg.c_str();
 		return arrow::Status(arrow::StatusCode::IOError, msg.c_str());
 	}
 

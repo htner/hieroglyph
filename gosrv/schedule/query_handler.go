@@ -158,6 +158,8 @@ func (Q *QueryHandler) prepareSliceTable() error {
 	// Slice Info
 	Q.sliceTable.Slices = make([]*sdb.PBExecSlice, len(Q.optimizerResult.Slices))
 
+  root_slice_count := 0
+
   if len(slices) == 0 {
     var err error
 	  Q.workers, Q.workerSlices, err = workerMgr.GetServerList(1, 0)
@@ -165,6 +167,8 @@ func (Q *QueryHandler) prepareSliceTable() error {
       log.Printf("get server list error: %v", err)
       return err
     }
+    root_slice_count = 1
+    
   }
 
 	for i, planSlice := range slices {
@@ -235,12 +239,15 @@ func (Q *QueryHandler) prepareSliceTable() error {
 			execSlice.PlanNumSegments = numSegments
 		case schedule.GANGTYPE_PRIMARY_WRITER:
     // FIXME
-			execSlice.PlanNumSegments = 1
+			execSlice.PlanNumSegments = numSegments 
 		default:
 			execSlice.PlanNumSegments = 1
 			//execSlice.PlanNumSegments = numSegments
 		}
 
+    if execSlice.SliceIndex == 0 {
+      root_slice_count = int(execSlice.PlanNumSegments)
+    }
     /*
 	  segindex := int32(1)
 		for k := int32(0); k < execSlice.PlanNumSegments; k++ {
@@ -271,11 +278,18 @@ func (Q *QueryHandler) prepareSliceTable() error {
     //
 	  // workers, workerSlices, err = workerMgr.GetServerSliceList(slices)
     Q.workerSlices = append(Q.workerSlices, workerSlices...)
-
-
 		Q.sliceTable.Slices[i] = execSlice
 	}
-	log.Println(Q.sliceTable.String())
+
+	log.Printf("init root count %d->%d", Q.newQueryId, root_slice_count)
+  mgr := schedule.NewQueryMgr(types.DatabaseId(Q.request.Dbid))
+  err := mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryInit), uint32(root_slice_count))
+  if err != nil {
+	  log.Printf("InitQueryResult errro %v", err);
+    return err
+  }
+
+  log.Println(Q.sliceTable.String())
   return nil
 }
 

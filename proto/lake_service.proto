@@ -22,6 +22,7 @@ service Lake {
 message StartTransactionRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
+    uint64 uid = 3;
 }
 
 message StartTransactionResponse {

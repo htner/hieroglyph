@@ -18,6 +18,7 @@ extern "C" {
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <butil/logging.h>
 
 extern std::string kResultBucket;
 extern std::string kResultS3User;
@@ -51,7 +52,7 @@ public:
 	ObjectStream(const char *dirname, const char *filename);
 	//~ObjectStream() = default;
 	~ObjectStream(){
-		elog(LOG, "dddtest ~ObjectStream");
+		LOG(DEBUG) << "dddtest ~ObjectStream";
 	}
 
 	void Init();
@@ -123,12 +124,11 @@ bool ObjectStream::Upload() {
   outcome = s3_client_->PutObject(request);
 
   if (outcome.IsSuccess()) {
-    elog(WARNING, "write result to object: added object %s (%s, %s) to bucket %s", filepath,
-         dirname_.c_str(), local_file_.c_str(), kResultBucket.data());
+    LOG(WARNING) <<  "write result to object: added object " << filepath << " ("<< dirname_ << ", "
+			<< local_file_ << ") to bucket " << kResultBucket ;
     return true;
   } else {
-    elog(ERROR, "write result to object: %s",
-         outcome.GetError().GetMessage().c_str());
+    LOG(ERROR) << "write result to object: " << outcome.GetError().GetMessage();
     return false;
   }
 }
@@ -146,9 +146,9 @@ int ObjectStream::WriteResultToFile(char msgtype, const char *buf, int size) {
 	}
 
 	if (!file_stream_->is_open()) {
-		elog(PANIC, "open file failed reason %d, %d",
-						file_stream_->rdstate(),
-						file_stream_->exceptions());
+		LOG(ERROR) << "open file failed reason"
+						<< file_stream_->rdstate() << ","
+						<< file_stream_->exceptions();
 		return -1;
 	}
 
@@ -162,7 +162,7 @@ int ObjectStream::WriteResultToFile(char msgtype, const char *buf, int size) {
 }
 
 void ObjectStream::Flush() {
-	Assert(file_stream_ != nullptr);
+	assert(file_stream_ != nullptr);
 	file_stream_->flush();
 }
 
@@ -180,7 +180,7 @@ static ObjectStream *object_stream = nullptr;
 void
 CreateObjectStream(const char* dirname, const char *filename)
 {
-	Assert(object_stream == nulltpr);
+	assert(object_stream == nullptr);
 	object_stream = new ObjectStream(dirname, filename);
 	object_stream->Init();
 }
@@ -188,7 +188,7 @@ CreateObjectStream(const char* dirname, const char *filename)
 int
 WriteResultToObject(char msgtype, const char *buf, int size)
 {
-	Assert(object_stream != nullptr);
+	assert(object_stream != nullptr);
 	return object_stream->WriteResultToFile(msgtype, buf, size);
 }
 
@@ -205,6 +205,6 @@ WriteResultEnd()
 void
 WriteResultFlush()
 {
-	Assert(object_stream != nullptr);
+	assert(object_stream != nullptr);
 	object_stream->Flush();
 }

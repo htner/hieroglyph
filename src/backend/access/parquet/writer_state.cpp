@@ -11,7 +11,6 @@
  *-------------------------------------------------------------------------
  */
 
-#include "backend/access/parquet/writer_state.hpp"
 
 #include <sys/time.h>
 
@@ -19,18 +18,22 @@
 #include <list>
 
 extern "C" {
-#include "executor/executor.h"
-#include "utils/lsyscache.h"
-#include "utils/timestamp.h"
+//#include "executor/executor.h"
+//#include "utils/lsyscache.h"
+//#include "utils/timestamp.h"
 }
 
-#include "backend/sdb/common/pg_export.hpp"
+#include "backend/access/parquet/writer_state.hpp"
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
 #include "lake_service.pb.h"
 #include "auto_mem.hpp"
+
+extern uint64_t commit_xid;
+extern uint64_t dbid;
+extern uint64_t sessionid;
 
 /**
  * @brief Create a parquet modify state object
@@ -128,9 +131,7 @@ void ParquetS3WriterState::Upload() {
   auto auto_switch = AutoSwitch(cxt);
   for (auto update : updates) {
     update.second->Upload(dirname.c_str(), s3_client);
-    uploads_.push_back(update.second);
   }
-  updates.clear();
 
   if (inserter_ != nullptr) {
     inserter_->Upload(dirname.c_str(), s3_client);
@@ -138,17 +139,20 @@ void ParquetS3WriterState::Upload() {
     inserter_ = nullptr;
   }
 
-  //CommitUpload();
-  for (auto upload : uploads_) {
-    upload->CommitUpload();
-  }
+  CommitUpload();
+  updates.clear();
   uploads_.clear();
 }
 
 void ParquetS3WriterState::CommitUpload() {
 	auto auto_switch = AutoSwitch(cxt);
-	std::list<sdb::LakeFile> add_files;
 	std::list<sdb::LakeFile> delete_files;
+
+	for (auto update : updates) {
+		sdb::LakeFile file;
+		file.set_file_id(update.second->FileId());
+		delete_files.push_back(file);
+	}
 
 	std::unique_ptr<brpc::Channel> channel;
 	std::unique_ptr<sdb::Lake_Stub> stub;//(&channel);
@@ -158,10 +162,10 @@ void ParquetS3WriterState::CommitUpload() {
 	// Initialize the channel, NULL means using default options. 
 	brpc::ChannelOptions options;
 	options.protocol = "h2:grpc";
-	options.connection_type = "pooled";
+	// options.connection_type = "pooled";
 	options.timeout_ms = 10000/*milliseconds*/;
 	options.max_retry = 5;
-	if (channel->Init("127.0.0.1:10001", NULL) != 0) {
+	if (channel->Init("127.0.0.1", 10001, &options) != 0) {
 		LOG(ERROR) << "Fail to initialize channel";
 		return;
 	}
@@ -169,10 +173,16 @@ void ParquetS3WriterState::CommitUpload() {
 
 
 	sdb::DeleteFilesRequest request;
+    request.set_dbid(dbid);
+    request.set_sessionid(sessionid);
+    request.set_commit_xid(commit_xid);
+    // request->set_commandid();
+    request.set_rel(rel_id);
 
 	for (auto it = delete_files.begin(); it != delete_files.end(); ++it) {
 		auto f = request.add_remove_files();
 		*f = *it;
+		LOG(ERROR) << "delete  " << f->file_id();
 	}
 	//auto add_file  = prepare_request->add_add_files();
 	//add_file->set_file_name(file_name_);
@@ -181,9 +191,10 @@ void ParquetS3WriterState::CommitUpload() {
 	//request.set_message("I'm a RPC to connect stream");
 	stub->DeleteFiles(&cntl, &request, &response, NULL);
 	if (cntl.Failed()) {
-		LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+		LOG(ERROR) << "Fail to delete files, " << cntl.ErrorText();
 		return;
 	}
+	LOG(ERROR) << "send deletes";
 }
 
 /**
@@ -235,7 +246,10 @@ bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
   } else {
 	auto w = CreateParquetWriter(rel_id, "", tuple_desc);
 	w->SetRel(rel_name, rel_id);
+
+	auto filename = std::to_string(block_id) + ".parquet";
 	w->SetFileId(block_id);
+	w->SetOldFilename(filename);
 	updates[block_id] = w;
     return w->ExecDelete(tid->ip_posid);
   }

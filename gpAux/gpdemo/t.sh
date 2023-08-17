@@ -54,6 +54,15 @@ cd datadirs/worker5/global/
 ls | grep -E "^[0-9]{4,}" | xargs rm -r
 cd ../../..
 
+rm datadirs/worker6 -rf
+cp -r datadirs/initdb0 datadirs/worker6
+rm -rf datadirs/worker6/base/1/*
+cd datadirs/worker6/global/
+ls | grep -E "^[0-9]{4,}" | xargs rm -r
+cd ../../..
+
+
+
 # postgres --optimizer=1 -D datadirs/optimizer0 --port=40000 
 nohup postgres --optimizer=1 --dir=datadirs/optimizer0/ --port=8999 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/optimizer0/optimizer0.log 2>&1 &
 nohup postgres --worker=1 --dir=datadirs/worker1/ --port=9101 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/worker1/worker1.log 2>&1 &
@@ -61,3 +70,4 @@ nohup postgres --worker=1 --dir=datadirs/worker2/ --port=9102 --database=templat
 nohup postgres --worker=1 --dir=datadirs/worker3/ --port=9103 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/worker3/worker3.log 2>&1 &
 nohup postgres --worker=1 --dir=datadirs/worker4/ --port=9104 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/worker4/worker4.log 2>&1 &
 nohup postgres --worker=1 --dir=datadirs/worker5/ --port=9105 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/worker5/worker5.log 2>&1 &
+nohup postgres --worker=1 --dir=datadirs/worker6/ --port=9106 --database=template1 --dbid=1 --endpoint=127.0.0.1:9000 --s3user=minioadmin --s3passwd=minioadmin --isminio=true --bucket=sdb1 --region=ap1 > datadirs/worker6/worker6.log 2>&1 &

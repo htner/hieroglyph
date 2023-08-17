@@ -24,7 +24,9 @@
 #include "utils/snapshot.h"
 
 
-#define DEFAULT_TABLE_ACCESS_METHOD	"heap"
+#define PARQUET_TABLE_ACCESS_METHOD "parquet"
+
+#define DEFAULT_TABLE_ACCESS_METHOD	PARQUET_TABLE_ACCESS_METHOD
 
 /* GUCs */
 extern char *default_table_access_method;

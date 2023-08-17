@@ -101,8 +101,12 @@ message WorkerResultData {
   int32 rescode = 3;
   string message = 4;
   string result_dir = 5;
-  string meta_file = 6;
-  repeated string data_files = 7;
+
+  uint32 cmd_type = 6;
+  uint64 process_rows = 7;
+
+  string meta_file = 8;
+  repeated string data_files = 9;
 }
 
 message RelFiles {

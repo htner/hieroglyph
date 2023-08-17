@@ -125,6 +125,7 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 	var checkLock Lock
 	checkLock.Database = lock.Database
 	checkLock.Relation = lock.Relation
+  checkLock.Sid = lock.Sid
 	conflictsTypes := GetConflictsLocks(lock.LockType)
 
 	for _, conflictsType := range conflictsTypes {

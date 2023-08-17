@@ -251,6 +251,7 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type,
 	datums = (Datum*)palloc(size * sizeof(Datum));
 	nulls = (bool*)palloc(size * sizeof(bool));
   }
+  LOG(ERROR) << "get array size " << size; 
   for (int i = 0; i < size; ++i) {
     if (array->IsNull(i)) {
       nulls[i] = true;
@@ -459,7 +460,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
                                           Oid typrelid) {
   /* array type */
   if (typelem != 0 && typlen == -1) {
-//	LOG(ERROR) << "get array function";
+	LOG(ERROR) << "get array function";
     auto sub_func = GetFunction(rel, typelem);
     if (sub_func == nullptr) {
 	

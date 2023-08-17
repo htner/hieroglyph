@@ -1,13 +1,14 @@
+#ifndef PG_EXPORT_HPP_sfawefew
+#define PG_EXPORT_HPP_sfawefew
 #pragma once
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wregister"
 
 extern "C" {
 
 #include "pg_config.h"
-
 #include "c.h"
-
 #include "postgres.h"
 #include "nodes/pg_list.h"
 #include "nodes/print.h"
@@ -19,8 +20,19 @@ extern "C" {
 #include "cdb/cdbsrlz.h"
 #include "executor/execdesc.h"
 
+#include "access/tupdesc.h"
+#include "executor/tuptable.h"
+#include "commands/variable.h"
+#include "utils/syscache.h"
+#include "utils/rel.h"
+#include "utils/date.h"
+#include "utils/timestamp.h"
+#include "utils/numeric.h"
+#include "utils/fmgrprotos.h"
+
 #include "parser/parser.h"
 #include "optimizer/orca.h"
+#include "sdb/postgres_init.h"
 
 // TODO FIXME
 // sp c / c++
@@ -46,21 +58,21 @@ extern "C" {
 #undef Abs
 #undef NIL
 
-#define PG_LOG			15
+#define PG_LOG	15
 #define PG_INFO 17
 #define ELOG_INFO 17
 #define ELOG_ERROR 20 
 
-extern Bitmapset *
+Bitmapset *
 getExecParamsToDispatch(PlannedStmt *stmt, ParamExecData *intPrm,
 						List **paramExecTypes);
 
 
-extern SerializedParams *serializeParamsForDispatch(ParamListInfo externParams,
+SerializedParams *serializeParamsForDispatch(ParamListInfo externParams,
                                                     ParamExecData *execParams,
                                                     List *paramExecTypes,
                                                     Bitmapset *sendParams);
-
+/*
 void set_worker_param(int64_t sessionid, int64_t identifier);
 
 void exec_worker_query(const char *query_string,
@@ -70,16 +82,17 @@ void exec_worker_query(const char *query_string,
 					   const char *result_dir,
 					   const char *result_file,
                        void* task);
+*/
 
 extern int PostPortNumber;
 
 PlannedStmt *utility_optimizer(Query *query);
 void prepare_catalog(Oid *oid_arr, int size);
-extern "C" void FetchRelationOidFromQuery(Query *query, List **read_list, List **write_list);
+
+void FetchRelationOidFromQuery(Query *query, List **read_list, List **write_list);
 
 }
 
 #pragma GCC diagnostic pop
 
-
-
+#endif
