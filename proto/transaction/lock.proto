@@ -1,0 +1,34 @@
+syntax = "proto3";
+package transaction;
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./proto";
+
+
+/* enums for type of operation represented by a Query or PlanTree */
+enum LockTagType {
+	LOCKTAG_RELATION = 0; 		/* whole relation */
+	LOCKTAG_RELATION_EXTEND = 1;	/* the right to extend a relation */
+	LOCKTAG_TRANSACTION = 2;		/* transaction (for waiting for xact done) */
+}
+
+message LockTag {
+	uint64		locktag_field1 = 1; /* a 32-bit ID field */
+	uint64		locktag_field2 = 2; /* a 32-bit ID field */
+	uint64		locktag_field3 = 3; /* a 32-bit ID field */
+	uint32		locktag_type = 4;	/* see enum LockTagType */
+}
+
+message LockRequest {
+}
+
+message LockResponse {
+}
+
+message UnockRequest {
+}
+
+message UnlockResponse {
+}

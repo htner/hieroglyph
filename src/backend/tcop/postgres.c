@@ -6095,3 +6095,170 @@ disable_statement_timeout(void)
 	}
 }
 
+void
+InitMinimizePostgresEnv(int argc, char *argv[],
+			 const char *dbname,
+			 const char *username) 
+{
+	main_tid = pthread_self();
+
+	/* Initialize startup process environment if necessary. */
+	InitStandaloneProcess(argv[0]);
+
+	PostmasterPriority = getpriority(PRIO_PROCESS, 0);
+
+	set_ps_display("startup", false);
+
+	SetProcessingMode(InitProcessing);
+
+	/*
+	 * Set default values for command-line options.
+	 */
+	EchoQuery = false;
+
+	InitializeGUCOptions();
+
+	/*
+	 * Parse command-line options.
+	 */
+	process_postgres_switches(argc, argv, PGC_POSTMASTER, &dbname);
+
+	/* Must have gotten a database name, or have a default (the username) */
+	if (dbname == NULL)
+	{
+		dbname = username;
+		if (dbname == NULL)
+			ereport(FATAL,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("%s: no database nor user name specified",
+							progname)));
+	}
+
+	/* Acquire configuration parameters, unless inherited from postmaster */
+    if (!SelectConfigFiles(userDoption, progname))
+        proc_exit(1);
+
+    /*
+        * Remember stand-alone backend startup time.
+        * CDB: Moved this up from below for use in error message headers.
+        */
+    PgStartTime = GetCurrentTimestamp();
+
+
+	/*
+	 * Set up signal handlers and masks.
+	 *
+	 * Note that postmaster blocked all signals before forking child process,
+	 * so there is no race condition whereby we might receive a signal before
+	 * we have set up the handler.
+	 *
+	 * Also note: it's best not to use any signals that are SIG_IGNored in the
+	 * postmaster.  If such a signal arrives before we are able to change the
+	 * handler to non-SIG_IGN, it'll get dropped.  Instead, make a dummy
+	 * handler in the postmaster to reserve the signal. (Of course, this isn't
+	 * an issue for signals that are locally generated, such as SIGALRM and
+	 * SIGPIPE.)
+     * FIXME_WK wal 不在需要
+	 */
+    /*
+        * Validate we have been given a reasonable-looking DataDir (if under
+        * postmaster, assume postmaster did this already).
+        */
+    checkDataDir();
+
+    /* Change into DataDir (if under postmaster, was done already) */
+    ChangeToDataDir();
+
+    /*
+        * Create lockfile for data directory.
+        */
+    CreateDataDirLockFile(false);
+
+    /* read control file (error checking and contains config ) */
+    LocalProcessControlFile(false);
+
+    /* Initialize MaxBackends (if under postmaster, was done already) */
+    InitializeMaxBackends();
+
+	/* Early initialization */
+	BaseInit();
+
+	/*
+	 * Create a per-backend PGPROC struct in shared memory, except in the
+	 * EXEC_BACKEND case where this was done in SubPostmasterMain. We must do
+	 * this before we can use LWLocks (and in the EXEC_BACKEND case we already
+	 * had to do some stuff with LWLocks).
+	 */
+	InitProcess();
+
+	/* We need to allow SIGINT, etc during the initial transaction */
+	PG_SETMASK(&UnBlockSig);
+
+	/*
+	 * General initialization.
+	 *
+	 * NOTE: if you are tempted to add code in this vicinity, consider putting
+	 * it inside InitPostgres() instead.  In particular, anything that
+	 * involves database access should be there, not here.
+	 */
+	InitPostgres(dbname, InvalidOid, username, InvalidOid, NULL, false);
+
+	/*
+	 * If the PostmasterContext is still around, recycle the space; we don't
+	 * need it anymore after InitPostgres completes.  Note this does not trash
+	 * *MyProcPort, because ConnCreate() allocated that space with malloc()
+	 * ... else we'd need to copy the Port data first.  Also, subsidiary data
+	 * such as the username isn't lost either; see ProcessStartupPacket().
+	 */
+	if (PostmasterContext)
+	{
+		MemoryContextDelete(PostmasterContext);
+		PostmasterContext = NULL;
+	}
+
+	SetProcessingMode(NormalProcessing);
+
+	/*
+	 * Now all GUC states are fully set up.  Report them to client if
+	 * appropriate.
+	 */
+	BeginReportingGUCOptions();
+
+	/*
+	 * Also set up handler to log session end; we have to wait till now to be
+	 * sure Log_disconnections has its final value.
+	 */
+	//if (IsUnderPostmaster && Log_disconnections)
+	//	on_proc_exit(log_disconnections, 0);
+
+
+	/*
+	 * process any libraries that should be preloaded at backend start (this
+	 * likewise can't be done until GUC settings are complete)
+	 */
+	process_session_preload_libraries();
+
+	/*
+	 * Create the memory context we will use in the main loop.
+	 *
+	 * MessageContext is reset once per iteration of the main loop, ie, upon
+	 * completion of processing of each command message from the client.
+	 */
+	//MessageContext = AllocSetContextCreate(TopMemoryContext,
+//										   "MessageContext",
+//										   ALLOCSET_DEFAULT_SIZES);
+
+	/*
+	 * Create memory context and buffer used for RowDescription messages. As
+	 * SendRowDescriptionMessage(), via exec_describe_statement_message(), is
+	 * frequently executed for ever single statement, we don't want to
+	 * allocate a separate buffer every time.
+	 */
+	row_description_context = AllocSetContextCreate(TopMemoryContext,
+													"RowDescriptionContext",
+													ALLOCSET_DEFAULT_SIZES);
+	MemoryContextSwitchTo(row_description_context);
+	initStringInfo(&row_description_buf);
+	MemoryContextSwitchTo(TopMemoryContext);
+}
+

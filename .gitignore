@@ -72,3 +72,8 @@ lib*.pc
 /CMakeLists.txt
 /compile_commands.json
 /tmp_install/
+
+gosrv/*/proto/*.go
+gosrv/bin
+proto/*/*.h
+proto/*/*.cc
