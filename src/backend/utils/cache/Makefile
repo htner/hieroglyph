@@ -12,8 +12,8 @@ subdir = src/backend/utils/cache
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
-OBJS = attoptcache.o catcache.o evtcache.o inval.o lsyscache.o \
+OBJS = attoptcache.o evtcache.o inval.o lsyscache.o \
 	partcache.o plancache.o relcache.o relmapper.o relfilenodemap.o \
-	spccache.o syscache.o ts_cache.o typcache.o
+	spccache.o  ts_cache.o typcache.o cache_common.o
 
 include $(top_srcdir)/src/backend/common.mk

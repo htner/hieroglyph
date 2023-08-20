@@ -50,10 +50,7 @@ uint64_t ntohll(uint64_t x)
 class ObjectStream {
 public:
 	ObjectStream(const char *dirname, const char *filename);
-	//~ObjectStream() = default;
-	~ObjectStream(){
-		LOG(DEBUG) << "dddtest ~ObjectStream";
-	}
+	~ObjectStream() = default;
 
 	void Init();
 
