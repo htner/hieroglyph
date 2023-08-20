@@ -7,8 +7,6 @@
 #include <butil/logging.h>
 #include "lake_service.pb.h"
 
-extern uint64_t commit_xid;
-
 extern "C"
 bool SDB_StartTransaction(uint64 dbid, uint64 sid) {
 	std::unique_ptr<brpc::Channel> channel;
@@ -143,6 +141,7 @@ bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* re
 		LOG(ERROR) << "Fail to AllocateXid, " << cntl.ErrorText();
 		return false;
 	}
+	/*
 	if (read_xid != nullptr) {
 		*read_xid = response.read_xid();
 	}
@@ -150,5 +149,6 @@ bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* re
 		*write_xid = response.write_xid();
 	}
 	commit_xid = response.write_xid();
+	*/
 	return true;
 }

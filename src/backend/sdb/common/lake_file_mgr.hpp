@@ -8,7 +8,9 @@
 #include "backend/sdb/common/singleton.hpp"
 #include "kvpair.pb.h"
 #include "lake_service.pb.h"
+#include "backend/sdb/common/common.hpp"
 
+/*
 extern uint64_t read_xid;
 extern uint64_t commit_xid;
 extern uint64_t dbid;
@@ -16,6 +18,7 @@ extern uint64_t sessionid;
 extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
+*/
 
 namespace sdb {
 
@@ -69,8 +72,6 @@ public:
     sdb::GetFilesRequest request;
     request.set_dbid(dbid);
     request.set_sessionid(sessionid);
-    request.set_read_xid(read_xid);
-    request.set_commit_xid(commit_xid);
     request.set_commandid(query_id);
     request.set_rel(rel);
     request.set_slice_count(slice_count);

@@ -1,15 +1,13 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type ThirdClassObjectMaxKey struct {
-	Dbid   types.DatabaseId
-	RelId  types.RelId
+	Dbid   uint64
+	RelId  uint64
 	MaxTag uint16
 }
 

@@ -6,20 +6,19 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
 type QueryMgr struct {
-	Database types.DatabaseId
+	Database uint64
 }
 
-func NewQueryMgr(dbid types.DatabaseId) *QueryMgr {
+func NewQueryMgr(dbid uint64) *QueryMgr {
 	return &QueryMgr{Database: dbid}
 }
-func (mgr *QueryMgr) NewQuery() *kvpair.QueryKey {
-	var key kvpair.QueryKey
+func (mgr *QueryMgr) NewQuery() *keys.QueryKey {
+	var key keys.QueryKey
 	key.Dbid = uint64(mgr.Database)
 	//key.Commandid = cid
 	//key.QueryTag = tag
@@ -28,7 +27,7 @@ func (mgr *QueryMgr) NewQuery() *kvpair.QueryKey {
 
 /*
 func (mgr *QueryMgr) NewQueryKey(cid uint64, tag uint16) *QueryKey {
-	var key kvpair.QueryKey
+	var key keys.QueryKey
 	key.Dbid = uint64(mgr.Database)
 	key.Commandid = cid
 	key.QueryTag = tag
@@ -45,7 +44,7 @@ func (mgr *QueryMgr) WriterQueryDetail(req *sdb.ExecQueryRequest, queryId uint64
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryRequestTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryRequestTag)
 		value := new(sdb.QueryRequestInfo)
 		value.QueryRequest = req
 		value.CreateTimestamp = time.Now().UnixMicro()
@@ -68,7 +67,7 @@ func (mgr *QueryMgr) WriterOptimizerResult(req *sdb.OptimizeReply, queryId uint6
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryOptimizerResultTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryOptimizerResultTag)
 		value := new(sdb.QueryOptimizerResult)
 		value.OptimizerResult = req
 		err = kvOp.WritePB(key, value)
@@ -90,7 +89,7 @@ func (mgr *QueryMgr) WriterWorkerInfo(req *sdb.PrepareTaskRequest) error {
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), req.TaskIdentify.QueryId, kvpair.QueryWorkerRequestTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), req.TaskIdentify.QueryId, keys.QueryWorkerRequestTag)
 		value := new(sdb.QueryWorkerInfo)
 		value.PrepareTaskInfo = req
 		err = kvOp.WritePB(key, value)
@@ -111,7 +110,7 @@ func (mgr *QueryMgr) WriterWorkerResult(req *sdb.PushWorkerResultRequest) error 
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := &kvpair.WorkerTaskKey{
+		key := &keys.WorkerTaskKey{
 			Dbid:    uint64(mgr.Database),
 			QueryId: req.TaskId.QueryId,
 			SliceId: req.TaskId.SliceId,
@@ -139,7 +138,7 @@ func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers 
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
 		value := new(sdb.QueryResult)
 
 		err = kvOp.ReadPB(key, value)
@@ -171,7 +170,7 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, result *sdb.WorkerResultDa
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
 		value := new(sdb.QueryResult)
 
 		err = kvOp.ReadPB(key, value)
@@ -203,7 +202,7 @@ func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.QueryResult, error) {
 
 		kvOp := fdbkv.NewKvReader(tr)
 
-		key := kvpair.NewQueryKey(uint64(mgr.Database), queryId, kvpair.QueryResultTag)
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
 		value := new(sdb.QueryResult)
 		err = kvOp.ReadPB(key, value)
 		if err != nil {

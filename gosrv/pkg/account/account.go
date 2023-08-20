@@ -9,7 +9,7 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
@@ -65,14 +65,14 @@ func GetSdbAccount(account, passwd string) (*sdb.SdbAccount, error) {
 	sdbAccount, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 		kvReader := fdbkv.NewKvReader(rtr)
 
-		key := &kvpair.SDBAccountLoginNameKey{LoginName: account}
+		key := &keys.SDBAccountLoginNameKey{LoginName: account}
 		idPointer := new(sdb.IdPointer)
 		err := kvReader.ReadPB(key, idPointer)
 		if err != nil {
 			return nil, err
 		}
 
-		keySdbAccount := &kvpair.SDBAccountKey{Id: idPointer.Id}
+		keySdbAccount := &keys.SDBAccountKey{Id: idPointer.Id}
 		sdbAccount := new(sdb.SdbAccount)
 		err = kvReader.ReadPB(keySdbAccount, sdbAccount)
 		if err != nil {
@@ -109,14 +109,14 @@ func CreateSdbAccount(account, passwd, organizationName string) (*sdb.SdbAccount
 	acc, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		idKey := kvpair.FirstClassObjectMaxKey{MaxTag: kvpair.FCAccountMaxIDTag}
+		idKey := keys.FirstClassObjectMaxKey{MaxTag: keys.FCAccountMaxIDTag}
 		idOp := utils.NewMaxIdOperator(tr, &idKey)
 		id, err := idOp.GetNext()
 		if err != nil {
 			return nil, err
 		}
 
-		key := &kvpair.SDBAccountLoginNameKey{LoginName: account}
+		key := &keys.SDBAccountLoginNameKey{LoginName: account}
 		idPointer := &sdb.IdPointer{Id: id}
 
 		err = kvOp.ReadPB(key, idPointer)
@@ -132,7 +132,7 @@ func CreateSdbAccount(account, passwd, organizationName string) (*sdb.SdbAccount
 			return nil, err
 		}
 
-		keySdbAccount := &kvpair.SDBAccountKey{Id: id}
+		keySdbAccount := &keys.SDBAccountKey{Id: id}
 		sdbAccount := new(sdb.SdbAccount)
 		sdbAccount.Id = id
 		sdbAccount.Username = account
@@ -142,14 +142,14 @@ func CreateSdbAccount(account, passwd, organizationName string) (*sdb.SdbAccount
 			return nil, err
 		}
 
-		idKey.MaxTag = kvpair.FCOrganizatoinMaxIDTag
+		idKey.MaxTag = keys.FCOrganizatoinMaxIDTag
 		idOpOrgan := utils.NewMaxIdOperator(tr, &idKey)
 		id, err = idOpOrgan.GetNext()
 		if err != nil {
 			return nil, err
 		}
 
-		keyOrganName := &kvpair.OrganizationNameKey{Name: organizationName}
+		keyOrganName := &keys.OrganizationNameKey{Name: organizationName}
 		idPointerOrgan := &sdb.IdPointer{Id: id}
 
 		err = kvOp.ReadPB(keyOrganName, idPointerOrgan)
@@ -164,7 +164,7 @@ func CreateSdbAccount(account, passwd, organizationName string) (*sdb.SdbAccount
 			return nil, err
 		}
 
-		keyOrgan := &kvpair.OrganizationKey{Id: id}
+		keyOrgan := &keys.OrganizationKey{Id: id}
 		organ := new(sdb.Organization)
 		organ.Creator = idPointer.Id
 		err = kvOp.WritePB(keyOrgan, organ)
