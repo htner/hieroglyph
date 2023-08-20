@@ -1055,6 +1055,8 @@ static const struct cachedesc cacheinfo[] = {
 	}
 };
 
+#ifdef SDB_NOUSE
+
 static CatCache *SysCache[SysCacheSize];
 
 static bool CacheInitialized = false;
@@ -1632,3 +1634,4 @@ oid_compare(const void *a, const void *b)
 		return 0;
 	return (oa > ob) ? 1 : -1;
 }
+#endif

@@ -781,8 +781,9 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * would try to touch these hashtables.
 	 */
 	RelationCacheInitialize();
+#ifdef SDB_NOUSE
 	InitCatalogCache();
-
+#endif
 
 	InitPlanCache();
 
@@ -1184,7 +1185,6 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * least the minimum set of "nailed-in" cache entries.
 	 */
 	RelationCacheInitializePhase3();
-	
 
 
 

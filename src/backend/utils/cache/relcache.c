@@ -4134,6 +4134,7 @@ RelationCacheInitializePhase3(void)
 
 	MemoryContextSwitchTo(oldcxt);
 
+	InitCatalogCache();
 	/* In bootstrap mode, the faked-up formrdesc info is all we'll have */
 	if (IsBootstrapProcessingMode())
 		return;

@@ -1509,6 +1509,11 @@ retry:
 	}
 
 	/*
+	 * for sdb, this buffer is only used for catalog relation, but we write
+	 * catalog changed to parquet directly.
+	 */
+#ifdef SDB_NOUSE
+	/*
 	 * We assume the only reason for it to be pinned is that someone else is
 	 * flushing the page out.  Wait for them to finish.  (This could be an
 	 * infinite loop if the refcount is messed up... it would be nice to time
@@ -1527,6 +1532,7 @@ retry:
 		WaitIO(buf);
 		goto retry;
 	}
+#endif
 
 	/*
 	 * Clear out the buffer's tag and flags.  We must do this to ensure that

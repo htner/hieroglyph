@@ -6322,21 +6322,21 @@ void prepare_catalog(Oid *oid_arr, int size) {
 
   // 4.1 we must reload pg_type first
   if (have_pg_type) {
-    CatalogCacheFlushCatalogAndIndex(TypeRelationId);
+    CatalogCacheInvalidRelCatalog(TypeRelationId);
     ReloadOneCatalogCacheIndex(TypeRelationId);
     kInitIndex = IIState_PG_TYPE;
   }
 
   // 4.2 then we should reload pg_class
   if (have_pg_class) {
-    CatalogCacheFlushCatalogAndIndex(RelationRelationId);
+    CatalogCacheInvalidRelCatalog(RelationRelationId);
     ReloadOneCatalogCacheIndex(RelationRelationId);
     kInitIndex = IIState_PG_CLASS;
   }
 
   // 4.3 finaly, we should reload pg_attri
   if (have_pg_attri) {
-    CatalogCacheFlushCatalogAndIndex(AttributeRelationId);
+    CatalogCacheInvalidRelCatalog(AttributeRelationId);
     ReloadOneCatalogCacheIndex(AttributeRelationId);
   }
 
@@ -6351,7 +6351,7 @@ void prepare_catalog(Oid *oid_arr, int size) {
     else if (oid_arr[i] == AttributeRelationId)
       continue;
 
-    CatalogCacheFlushCatalogAndIndex(oid_arr[i]);
+    CatalogCacheInvalidRelCatalog(oid_arr[i]);
     // 4. recreate one relation catalog cache
     ReloadOneCatalogCacheIndex(oid_arr[i]);
   }
