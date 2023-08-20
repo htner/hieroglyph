@@ -21,6 +21,10 @@ const (
 
 const InvaildTranscaton uint64 = 0
 
+var (
+  ErrTransactionStarted = errors.New("transcation started")
+)
+
 type Transaction struct {
 	Database uint64
 	Sid      uint64
@@ -36,7 +40,7 @@ func (t *Transaction) GetSession() *sdb.Session {
 	return t.session
 }
 
-// 使用 fdb 的原则， 启动一个事务
+// 使用 fdb 的原则， 启动一个事
 func (t *Transaction) Start(autoCommit bool) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
@@ -44,10 +48,18 @@ func (t *Transaction) Start(autoCommit bool) error {
 	}
 	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		sessOp := NewSessionOperator(tr, t.Sid)
-		t.session, err = sessOp.CheckAndGet(keys.SessionTransactionIdle)
+		t.session, err = sessOp.Get()
 		if err != nil {
 			return nil, err
 		}
+
+    if t.session.State == keys.SessionTransactionStart {
+      return nil, ErrTransactionStarted
+    }
+
+    if t.session.State != keys.SessionTransactionIdle {
+      return nil, ErrStateMismatch
+    }
 
 		t.session.AutoCommit = autoCommit
 		t.session.State = keys.SessionTransactionStart
@@ -189,6 +201,10 @@ func (t *Transaction) Commit() error {
 				return nil, nil
 			}
 
+      if t.clog.Status != XS_START {
+        return nil, errors.New("session transaction no start")
+      }
+
 			t.clog.Status = XS_COMMIT
 			kvOp := NewKvOperator(tr)
 			err = kvOp.Write(t.clog, t.clog)
@@ -277,7 +293,7 @@ func (t *Transaction) TryAutoCommit() error {
 	if err != nil {
 		return err
 	}
-	isAutoCommit, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+	data, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		sessOp := NewSessionOperator(tr, t.Sid)
 		t.session, err = sessOp.CheckAndGet(keys.SessionTransactionIdle)
 		if err != nil {
@@ -290,9 +306,57 @@ func (t *Transaction) TryAutoCommit() error {
 		return err
 	}
 
-	if isAutoCommit.(bool) {
+  isAutoCommit, ok := data.(bool)
+	log.Println("auto commit")
+	if ok && isAutoCommit {
 		log.Printf("auto commit")
 		return t.Commit()
 	}
 	return nil
+}
+
+func (t *Transaction) Rollback() error {
+	// 更新事务状态
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, err = db.Transact(
+		func(tr fdb.Transaction) (interface{}, error) {
+			sessOp := NewSessionOperator(tr, t.Sid)
+			err := t.CheckVaild(tr)
+			if err != nil {
+				return nil, err
+			}
+
+			if t.clog == nil {
+				return nil, nil
+			}
+
+      if t.clog.Status != XS_START {
+        return nil, errors.New("session transaction no start")
+      }
+
+			t.clog.Status = XS_ABORT
+			kvOp := NewKvOperator(tr)
+			err = kvOp.Write(t.clog, t.clog)
+			if err != nil {
+				return nil, err
+			}
+
+			t.session.AutoCommit = false
+			t.session.ReadTransactionId = InvaildTranscaton
+			t.session.WriteTransactionId = InvaildTranscaton
+			t.session.State = keys.SessionTransactionIdle
+
+			log.Printf("reset session")
+			err = sessOp.Write(t.session)
+			if err != nil {
+				return nil, err
+			}
+
+			var mgr LockMgr
+			return nil, mgr.UnlockAll(tr, t.Database, t.session.Id)
+		})
+	return err
 }

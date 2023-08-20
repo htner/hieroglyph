@@ -11,6 +11,10 @@ import (
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
+var (
+  ErrStateMismatch = errors.New("session mismatch")
+)
+
 type SessionOperator struct {
 	dbid uint64
 	Sid  uint64
@@ -45,6 +49,18 @@ func NewSessionOperator(t fdb.Transaction, sid uint64) *SessionOperator {
 	return &SessionOperator{Sid: sid, tr: t}
 }
 
+func (s *SessionOperator) Get() (*sdb.Session, error) {
+	kvOp := NewKvOperator(s.tr)
+	key := &keys.SessionKey{Id: s.Sid}
+	var sess sdb.Session
+	err := kvOp.ReadPB(key, &sess)
+	if err != nil {
+		log.Println("not found session", s.Sid)
+		return nil, err
+	}
+	return &sess, nil
+}
+
 func (s *SessionOperator) CheckAndGet(state int32) (*sdb.Session, error) {
 	kvOp := NewKvOperator(s.tr)
 	key := &keys.SessionKey{Id: s.Sid}
@@ -56,7 +72,7 @@ func (s *SessionOperator) CheckAndGet(state int32) (*sdb.Session, error) {
 	}
 	if sess.State != state {
 		log.Println("session states mismatch")
-		return nil, errors.New("session mismatch") //fmt.Errorf("session mismatch %v %v", sess, state)
+		return &sess, ErrStateMismatch//fmt.Errorf("session mismatch %v %v", sess, stat)
 	}
 	return &sess, nil
 }
