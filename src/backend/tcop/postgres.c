@@ -839,7 +839,7 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 	if (log_parser_stats)
 		ResetUsage();
 
-//	PG_TRY();
+	PG_TRY();
 	{
 		query = parse_analyze(parsetree, query_string, paramTypes, numParams,
 						  queryEnv);
@@ -852,7 +852,6 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 		*/
 		querytree_list = pg_rewrite_query(query);
 	}
-	/*
 	PG_CATCH();
 	{
 		ErrorData *errdata;
@@ -863,7 +862,6 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 		querytree_list = NULL;
 	}
 	PG_END_TRY();
-	*/
 
 	TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 
@@ -6364,16 +6362,19 @@ void prepare_catalog(Oid *oid_arr, int size) {
 }
 
 static void FetchUtilityRelationOid(Query *query, List **read_list,
-                                    List **write_list) {}
+                               List **insert_list, List **update_list,
+							   List **delete_list) {
+}
 
 void FetchRelationOidFromQuery(Query *query, List **read_list,
-                               List **write_list) {
+                               List **insert_list, List **update_list,
+							   List **delete_list) {
   if (query == NULL) {
     return;
   }
 
   if (query->commandType == CMD_UTILITY) {
-    FetchUtilityRelationOid(query, read_list, write_list);
+    FetchUtilityRelationOid(query, read_list, insert_list, update_list, delete_list);
   } else {
 
     List *rtable = query->rtable;
@@ -6385,14 +6386,20 @@ void FetchRelationOidFromQuery(Query *query, List **read_list,
 		{
           *read_list = lappend_oid(*read_list, rte->relid);
 		}
-		else if (query->commandType == CMD_UPDATE ||
-                 query->commandType == CMD_INSERT ||
-                 query->commandType == CMD_DELETE)
+		else if (query->commandType == CMD_UPDATE) 
 		{
-          *write_list = lappend_oid(*write_list, rte->relid);
+          *update_list = lappend_oid(*update_list, rte->relid);
+		}
+		else if (query->commandType == CMD_INSERT) 
+		{
+          *insert_list = lappend_oid(*insert_list, rte->relid);
+		}
+		else if (query->commandType == CMD_DELETE)
+		{
+          *delete_list = lappend_oid(*delete_list, rte->relid);
 		}
       } else if (rte->rtekind == RTE_SUBQUERY)
-        FetchRelationOidFromQuery(rte->subquery, read_list, write_list);
+        FetchRelationOidFromQuery(rte->subquery, read_list, insert_list, update_list ,delete_list);
     }
   }
   return;

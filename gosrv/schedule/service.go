@@ -29,7 +29,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 
 func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorkerResultRequest) (*sdb.PushWorkerResultReply, error) {
 	out := new(sdb.PushWorkerResultReply)
-	mgr := schedule.NewQueryMgr(uint64(in.Result.Dbid))
+	mgr := schedule.NewQueryMgr(in.Result.Dbid)
 	err := mgr.WriterWorkerResult(in)
 
 	log.Println(in)
@@ -50,7 +50,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQueryResultRequest) (*sdb.CheckQueryResultReply, error) {
 	//out := new(sdb.QueryResultReply)
 	log.Println(in)
-	mgr := schedule.NewQueryMgr(uint64(in.Dbid))
+	mgr := schedule.NewQueryMgr(in.Dbid)
 	result, err := mgr.ReadQueryResult(in.QueryId)
 	reply := new(sdb.CheckQueryResultReply)
 	if err == fdbkv.ErrEmptyData {

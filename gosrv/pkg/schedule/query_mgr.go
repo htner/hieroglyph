@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -129,7 +130,7 @@ func (mgr *QueryMgr) WriterWorkerResult(req *sdb.PushWorkerResultRequest) error 
 	return e
 }
 
-func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers uint32) error {
+func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers uint32, msg string) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -152,7 +153,7 @@ func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers 
 		}
 
 		value.State = state
-		value.Message = ""
+		value.Message = msg
 		value.Detail = ""
 		value.RootWorkers = root_workers
 
@@ -170,7 +171,7 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, result *sdb.WorkerResultDa
 
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
+		key := keys.NewQueryKey(mgr.Database, queryId, keys.QueryResultTag)
 		value := new(sdb.QueryResult)
 
 		err = kvOp.ReadPB(key, value)
@@ -187,6 +188,7 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, result *sdb.WorkerResultDa
 			isFinish = true
 		}
 
+    log.Println(key, value)
 		err = kvOp.WritePB(key, value)
 		return isFinish, err
 	})

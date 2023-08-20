@@ -78,14 +78,17 @@ func (K *Lock) RangePerfix(buf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+  if K.Relation == 0 {
+    return nil
+  }
 	err = binary.Write(buf, binary.LittleEndian, K.Relation)
 	if err != nil {
 		return err
 	}
-	if K.LockType != ALLLock {
-		return binary.Write(buf, binary.LittleEndian, K.LockType)
-	}
-	return nil
+	if K.LockType == ALLLock {
+    return nil
+  }
+	return binary.Write(buf, binary.LittleEndian, K.LockType)
 }
 
 func (K *Lock) DecFdbKey(buf *bytes.Reader) error {

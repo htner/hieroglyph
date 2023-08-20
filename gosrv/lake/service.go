@@ -30,26 +30,26 @@ func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest
 	session.WriteTransactionId = lakehouse.InvaildTranscaton
 	lakehouse.WriteSession(&session)
 
-	tr := lakehouse.NewTranscation(uint64(req.Dbid), uint64(req.Sessionid))
+	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
 	tr.Start(true)
 
 	return new(sdb.StartTransactionResponse), nil
 }
 func (s *LakeServer) Commit(ctx context.Context, req *sdb.CommitRequest) (*sdb.CommitResponse, error) {
 	log.Println("commit ", req)
-	tr := lakehouse.NewTranscation(uint64(req.Dbid), uint64(req.Sessionid))
+	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
 	tr.Commit()
 	return new(sdb.CommitResponse), nil
 }
 
 func (s *LakeServer) Abort(ctx context.Context, req *sdb.AbortRequest) (*sdb.AbortResponse, error) {
-	tr := lakehouse.NewTranscation(uint64(req.Dbid), uint64(req.Sessionid))
+	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
 	tr.Commit()
 	return new(sdb.AbortResponse), nil
 }
 
 func (s *LakeServer) AllocateXid(ctx context.Context, req *sdb.AllocateXidRequest) (*sdb.AllocateXidResponse, error) {
-	tr := lakehouse.NewTranscation(uint64(req.Dbid), uint64(req.Sessionid))
+	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
 	tr.Commit()
 	err := tr.ReadAble()
 	if err != nil {

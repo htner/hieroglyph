@@ -106,10 +106,14 @@ public:
     PlannedStmt *plan = NULL;
     char* plan_str = NULL;
     List* read_rel_list = NULL;
-    List* write_rel_list = NULL;
+    List* insert_rel_list = NULL;
+    List* update_rel_list = NULL;
+    List* delete_rel_list = NULL;
 
-    FetchRelationOidFromQuery(query, &read_rel_list, &write_rel_list);
-    AddWriteRels(write_rel_list);
+    FetchRelationOidFromQuery(query, &read_rel_list, &insert_rel_list, &update_rel_list, &delete_rel_list);
+    AddInsertRels(insert_rel_list);
+    AddUpdateRels(update_rel_list);
+    AddDeleteRels(delete_rel_list);
     AddReadRels(read_rel_list);
 
     if (query->commandType == CMD_UTILITY) {
@@ -186,16 +190,42 @@ public:
     }
   }
 
-  void AddWriteRels(List *write_list) {
+  void AddInsertRels(List *insert_list) {
     ListCell *lc = nullptr;
 
-    if (write_list == nullptr) {
+    if (insert_list == nullptr) {
       return;
     }
 
-    foreach(lc, write_list) {
+    foreach(lc, insert_list) {
       uint64 oid = lfirst_oid(lc);
-      reply_->add_write_rels(oid);
+      reply_->add_insert_rels(oid);
+    }
+  }
+
+  void AddUpdateRels(List *update_list) {
+    ListCell *lc = nullptr;
+
+    if (update_list == nullptr) {
+      return;
+    }
+
+    foreach(lc, update_list) {
+      uint64 oid = lfirst_oid(lc);
+      reply_->add_update_rels(oid);
+    }
+  }
+
+  void AddDeleteRels(List *delete_list) {
+    ListCell *lc = nullptr;
+
+    if (delete_list == nullptr) {
+      return;
+    }
+
+    foreach(lc, delete_list) {
+      uint64 oid = lfirst_oid(lc);
+      reply_->add_delete_rels(oid);
     }
   }
 
