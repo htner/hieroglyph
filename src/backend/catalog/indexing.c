@@ -239,7 +239,13 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 	indstate = CatalogOpenIndexes(heapRel);
 
 	simple_heap_insert(heapRel, tup);
+	// simple_parquet_upload(heapRel);
+	return;
 
+	/*
+	 * sdb: we not use local index, so we should get catalog and reindex it when exec
+	 * another query
+	 */
 	CatalogIndexInsert(indstate, tup);
 	CatalogCloseIndexes(indstate);
 }

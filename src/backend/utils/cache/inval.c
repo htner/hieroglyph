@@ -1585,3 +1585,8 @@ CallSyscacheCallbacks(int cacheid, uint32 hashvalue)
 		i = ccitem->link - 1;
 	}
 }
+
+void ClearInvalidMessage()
+{
+	transInvalInfo = NULL;
+}

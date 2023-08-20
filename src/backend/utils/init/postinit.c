@@ -35,6 +35,7 @@
 #include "catalog/pg_db_role_setting.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/indexing.h"
+#include "catalog/index.h"
 #include "catalog/storage_tablespace.h"
 #include "commands/tablespace.h"
 
@@ -95,7 +96,9 @@ static void LockTimeoutHandler(void);
 static void IdleInTransactionSessionTimeoutHandler(void);
 static void IdleGangTimeoutHandler(void);
 static void ClientCheckTimeoutHandler(void);
+#ifdef SDB_NOUSE
 static bool ThereIsAtLeastOneRole(void);
+#endif
 static void process_startup_options(Port *port, bool am_superuser);
 static void process_settings(Oid databaseid, Oid roleid);
 
@@ -618,6 +621,7 @@ BaseInit(void)
 /*
  * Make sure we reserve enough connections for FTS handler.
  */
+#ifdef SDB_NOUSE
 static void check_superuser_connection_limit()
 {
 	if (!am_ftshandler &&
@@ -629,6 +633,7 @@ static void check_superuser_connection_limit()
 									   "at least %d connections reserved for FTS handler)",
 							   RESERVED_FTS_CONNECTIONS)));
 }
+#endif
 
 /* --------------------------------
  * InitPostgres
@@ -694,15 +699,21 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 *
 	 * Sets up MyBackendId, a unique backend identifier.
 	 */
+	MyBackendId = 1;
+
+#ifdef SDB_NOUSE
 	MyBackendId = InvalidBackendId;
 
 	SharedInvalBackendInit(false);
+#endif
 
 	if (MyBackendId > MaxBackends || MyBackendId <= 0)
 		elog(FATAL, "bad backend ID: %d", MyBackendId);
 
 	/* Now that we have a BackendId, we can participate in ProcSignal */
+#ifdef SDB_NOUSE
 	ProcSignalInit(MyBackendId);
+#endif
 
 	/*
 	 * Also set up timeout handlers needed for backend operation.  We need
@@ -735,7 +746,9 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		 * This is handled by calling RecoveryInProgress and ignoring the
 		 * result.
 		 */
+#ifdef SDB_NOUSE
 		(void) RecoveryInProgress();
+#endif
 	}
 	else
 	{
@@ -750,6 +763,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		 */
 		CreateAuxProcessResourceOwner();
 
+#ifdef SDB_NOUSE
 		StartupXLOG();
 		/* Release (and warn about) any buffer pins leaked in StartupXLOG */
 		ReleaseAuxProcessResources(true);
@@ -757,6 +771,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 		CurrentResourceOwner = NULL;
 
 		on_shmem_exit(ShutdownXLOG, 0);
+#endif
 	}
 
 	/*
@@ -767,6 +782,8 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 */
 	RelationCacheInitialize();
 	InitCatalogCache();
+
+
 	InitPlanCache();
 
 	/* Initialize portal manager */
@@ -781,6 +798,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * at least entries for pg_database and catalogs used for authentication.
 	 */
 	RelationCacheInitializePhase2();
+
 
 	/*
 	 * Set up process-exit callback to do pre-shutdown cleanup.  This is the
@@ -847,12 +865,14 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	{
 		InitializeSessionUserIdStandalone();
 		am_superuser = true;
+		/*
 		if (!ThereIsAtLeastOneRole())
 			ereport(WARNING,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("no roles are defined in this database system"),
 					 errhint("You should immediately run CREATE USER \"%s\" SUPERUSER;.",
 							 username != NULL ? username : "postgres")));
+							 */
 	}
 	else if (IsBackgroundWorker)
 	{
@@ -936,8 +956,10 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 				(errcode(ERRCODE_TOO_MANY_CONNECTIONS),
 				 errmsg("remaining connection slots are reserved for non-replication superuser connections")));
 
+	#ifdef SDB_NOUSE
 	if (am_superuser)
 		check_superuser_connection_limit();
+	#endif
 
 	/* Check replication permissions needed for walsender processes. */
 	if (am_walsender)
@@ -1006,17 +1028,21 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	}
 	else if (in_dbname != NULL)
 	{
+		MyDatabaseId = TemplateDbOid;
+		MyDatabaseTableSpace = DEFAULTTABLESPACE_OID;
+		/*
 		HeapTuple	tuple;
 		Form_pg_database dbform;
 
 		tuple = GetDatabaseTuple(in_dbname);
 		if (!HeapTupleIsValid(tuple))
-			ereport(FATAL,
+			ereport(PANIC,
 					(errcode(ERRCODE_UNDEFINED_DATABASE),
 					 errmsg("database \"%s\" does not exist", in_dbname)));
 		dbform = (Form_pg_database) GETSTRUCT(tuple);
 		MyDatabaseId = dbform->oid;
 		MyDatabaseTableSpace = dbform->dattablespace;
+		*/
 		/* take database name from the caller, just for paranoia */
 		strlcpy(dbname, in_dbname, sizeof(dbname));
 	}
@@ -1158,6 +1184,10 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * least the minimum set of "nailed-in" cache entries.
 	 */
 	RelationCacheInitializePhase3();
+	
+
+
+
 
 	/* set up ACL framework (so CheckMyDatabase can check permissions) */
 	initialize_acl();
@@ -1532,6 +1562,7 @@ ClientCheckTimeoutHandler(void)
 /*
  * Returns true if at least one role is defined in this database cluster.
  */
+#ifdef SDB_NOUSE
 static bool
 ThereIsAtLeastOneRole(void)
 {
@@ -1549,3 +1580,4 @@ ThereIsAtLeastOneRole(void)
 
 	return result;
 }
+#endif

@@ -2,7 +2,7 @@
 #   make build
 #   make clean
 
-top_builddir=../..
+top_builddir=..
 ifneq "$(wildcard $(top_builddir)/src/Makefile.global)" ""
 include $(top_builddir)/src/Makefile.global
 endif
@@ -16,13 +16,15 @@ ifeq ($(UNAME), Linux)
 XARGS += -r
 endif
 XARGS += rm -r
-PROGRAMS = schedule transaction
+PROGRAMS = proxy schedule lake account stool
 
 bins=$(patsubst %,bin/%,$(PROGRAMS) )
 
-all: build
+all: clean build
 
 .PHONY: build
+
+proto: protogen
 
 protogen:
 	make -C ../proto go
@@ -34,7 +36,7 @@ build: protogen $(bins)
 ifneq "$(wildcard $(top_builddir)/src/Makefile.global)" ""
 install: $(bins)
 	for file in $(PROGRAMS); do \
-		$(INSTALL_SCRIPT) './bin/'$$file '$(DESTDIR)$(bindir)/'$$file ; \
+		$(INSTALL_SCRIPT) './bin/'$$file '$(DESTDIR)$(bindir)/sdb_'$$file ; \
 	done
 else
 install:

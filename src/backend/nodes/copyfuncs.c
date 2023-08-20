@@ -5232,8 +5232,8 @@ _copySliceTable(const SliceTable *from)
 		newnode->slices[i].primaryGang = from->slices[i].primaryGang;
 		COPY_SCALAR_FIELD(slices[i].parentIndex);
 		COPY_NODE_FIELD(slices[i].children);
-		COPY_NODE_FIELD(slices[i].primaryProcesses);
-		COPY_BITMAPSET_FIELD(slices[i].processesMap);
+		COPY_NODE_FIELD(slices[i].segments);
+		//COPY_BITMAPSET_FIELD(slices[i].processesMap);
 	}
 
 	COPY_SCALAR_FIELD(instrument_options);

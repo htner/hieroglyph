@@ -59,6 +59,8 @@ IMDRelation::GetStorageTypeStr(IMDRelation::Erelstoragetype rel_storage_type)
 	{
 		case ErelstorageHeap:
 			return CDXLTokens::GetDXLTokenStr(EdxltokenRelStorageHeap);
+		case ErelstorageParquet:
+			return CDXLTokens::GetDXLTokenStr(EdxltokenRelStorageParquet);
 		case ErelstorageAppendOnlyCols:
 			return CDXLTokens::GetDXLTokenStr(
 				EdxltokenRelStorageAppendOnlyCols);

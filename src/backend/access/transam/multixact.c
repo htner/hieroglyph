@@ -2495,6 +2495,7 @@ ExtendMultiXactMember(MultiXactOffset offset, int nmembers)
 MultiXactId
 GetOldestMultiXactId(void)
 {
+	return FirstMultiXactId;
 	MultiXactId oldestMXact;
 	MultiXactId nextMXact;
 	int			i;

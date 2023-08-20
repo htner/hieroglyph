@@ -48,6 +48,7 @@ public:
 	enum Erelstoragetype
 	{
 		ErelstorageHeap,
+		ErelstorageParquet,
 		ErelstorageAppendOnlyCols,
 		ErelstorageAppendOnlyRows,
 		ErelstorageForeign,

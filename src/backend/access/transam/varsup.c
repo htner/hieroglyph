@@ -55,6 +55,7 @@ int xid_warn_limit;
 FullTransactionId
 GetNewTransactionId(bool isSubXact)
 {
+	return FullTransactionIdFromEpochAndXid(0, BootstrapTransactionId);
 	FullTransactionId full_xid;
 	TransactionId xid;
 

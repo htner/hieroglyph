@@ -1,0 +1,44 @@
+syntax = "proto3";
+package sdb;
+
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./sdb";
+
+service Account {
+    // no support sql, web maanger
+    rpc Login(LoginRequest) returns (LoginResponse) {} 
+
+    // suppport sql
+    rpc UserLogin(UserLoginRequest) returns (UserLoginResponse) {}
+}
+
+message LoginRequest {
+  string account = 1;
+  string organization = 2;
+  string passwd = 4;
+}
+
+message LoginResponse {
+  uint64 rescode = 1;
+  string msg = 2;
+  uint64 organization_id = 4;
+  uint64 account_id = 5;
+}
+
+message UserLoginRequest {
+  string name = 1;
+  string organization = 2;
+  string database = 3;
+  string passwd = 4;
+}
+
+message UserLoginResponse {
+  string rescode = 1;
+  string msg = 2;
+  uint64 dbid = 3;
+  uint64 organization_id = 4;
+  uint64 user_id = 5;
+  uint64 session_id = 6;
+}

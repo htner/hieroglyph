@@ -355,10 +355,28 @@ systable_beginscan(Relation heapRelation,
 				   Snapshot snapshot,
 				   int nkeys, ScanKey key)
 {
+	Oid reloid = heapRelation->rd_id;	
+	bool indexRealOk = false;
+	if (kInitIndex == IIState_FINISH) {
+		indexRealOk = true;
+	} else if (kInitIndex >= IIState_PG_TYPE && reloid == TypeRelationId){
+		indexRealOk = true;
+	} else if (kInitIndex >= IIState_PG_CLASS && reloid == RelationRelationId){
+		indexRealOk = true;
+	} else if (kInitIndex >= IIState_PG_ATTR && reloid == AttributeRelationId){
+		indexRealOk = true;
+	}
+	/*
+	if (!initcache) {
+		indexId = InvalidOid;
+		indexOK = false;
+	}
+	*/
+
 	SysScanDesc sysscan;
 	Relation	irel;
 
-	if (indexOK &&
+	if (indexOK && indexRealOk && 
 		!IgnoreSystemIndexes &&
 		!ReindexIsProcessingIndex(indexId))
 		irel = index_open(indexId, AccessShareLock);
@@ -373,10 +391,12 @@ systable_beginscan(Relation heapRelation,
 
 	if (snapshot == NULL)
 	{
-		Oid			relid = RelationGetRelid(heapRelation);
+		// Oid			relid = RelationGetRelid(heapRelation);
 
-		snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
-		sysscan->snapshot = snapshot;
+		// snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
+		// sysscan->snapshot = NULL; // snapshot;
+		// sysscan->snapshot = SnapshotAny;
+		sysscan->snapshot = NULL;
 	}
 	else
 	{
@@ -445,8 +465,10 @@ systable_getnext(SysScanDesc sysscan)
 {
 	HeapTuple	htup = NULL;
 
+
 	if (sysscan->irel)
 	{
+		elog(WARNING, "index-getndex %u", sysscan->irel->rd_id);
 		if (index_getnext_slot(sysscan->iscan, ForwardScanDirection, sysscan->slot))
 		{
 			bool		shouldFree;

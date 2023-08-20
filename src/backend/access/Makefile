@@ -16,6 +16,7 @@ SUBDIRS	    = brin common gin gist hash heap index nbtree rmgrdesc spgist \
 SUBDIRS	  += external   \
 	     bitmap     \
 	     appendonly \
-	     aocs
+	     aocs \
+		 parquet
 
 include $(top_srcdir)/src/backend/common.mk

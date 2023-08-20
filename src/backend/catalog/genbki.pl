@@ -630,6 +630,7 @@ foreach my $declaration (@toast_decls)
 {
 	print $bki $declaration;
 }
+# print $bki "UPLOADALL\n";
 
 foreach my $declaration (@index_decls)
 {
@@ -638,6 +639,44 @@ foreach my $declaration (@index_decls)
 
 # last command in the BKI file: build the indexes declared above
 print $bki "build indices\n";
+
+print $bki "COPYTOPARQUET 2617\n";  # pg_operator",
+print $bki "COPYTOPARQUET 2753\n";  # pg_opfamily",
+print $bki "COPYTOPARQUET 2616\n";  # pg_opclass",
+print $bki "COPYTOPARQUET 2601\n";  # pg_am",
+print $bki "COPYTOPARQUET 2602\n";  # pg_amop",
+print $bki "COPYTOPARQUET 2603\n";  # pg_amproc",
+print $bki "COPYTOPARQUET 2612\n";  # pg_language",
+print $bki "COPYTOPARQUET 2600\n";  # pg_aggregate",
+print $bki "COPYTOPARQUET 2605\n";  # pg_cast",
+print $bki "COPYTOPARQUET 2615\n";  # pg_namespace",
+print $bki "COPYTOPARQUET 2607\n";  # pg_conversion",
+print $bki "COPYTOPARQUET 1262\n";  # pg_database",
+print $bki "COPYTOPARQUET 1213\n";  # pg_tablespace",
+print $bki "COPYTOPARQUET 7902\n";  # pg_pltemplate",
+print $bki "COPYTOPARQUET 1260\n";  # pg_authid",
+print $bki "COPYTOPARQUET 3602\n";  # pg_ts_config",
+print $bki "COPYTOPARQUET 3603\n";  # pg_ts_config_map",
+print $bki "COPYTOPARQUET 3600\n";  # pg_ts_dict",
+print $bki "COPYTOPARQUET 3601\n";  # pg_ts_parser",
+print $bki "COPYTOPARQUET 3764\n";  # pg_ts_template",
+print $bki "COPYTOPARQUET 6026\n";  # pg_resqueue",
+print $bki "COPYTOPARQUET 6060\n";  # pg_resqueuecapability",
+print $bki "COPYTOPARQUET 6059\n"; # pg_resourcetype",
+print $bki "COPYTOPARQUET 6436\n";  # pg_resgroup",
+print $bki "COPYTOPARQUET 6439\n";  # pg_resgroupcapability",
+print $bki "COPYTOPARQUET 5101\n";  # gp_id",
+print $bki "COPYTOPARQUET 5103\n";  # gp_version_at_initdb",
+print $bki "COPYTOPARQUET 7056\n";  # pg_compression",
+print $bki "COPYTOPARQUET 3456\n";  # pg_collation",
+print $bki "COPYTOPARQUET 3541\n";  # pg_range",
+print $bki "COPYTOPARQUET 1247\n";  # pg_type",
+print $bki "COPYTOPARQUET 1255\n";  # pg_proc",
+print $bki "COPYTOPARQUET 1249\n";  # pg_attribute",
+print $bki "COPYTOPARQUET 1259\n";  # pg_class",
+print $bki "COPYTOPARQUET 2610\n";  # pg_index",
+
+print $bki "UPLOADALL\n";
 
 # check that we didn't overrun available OIDs
 die

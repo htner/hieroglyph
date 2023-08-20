@@ -142,4 +142,6 @@ extern bool criticalRelcachesBuilt;
 /* should be used only by relcache.c and postinit.c */
 extern bool criticalSharedRelcachesBuilt;
 
+extern void unlink_oid(Oid rel_id, bool global);
+
 #endif							/* RELCACHE_H */

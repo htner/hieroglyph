@@ -42,4 +42,10 @@ extern bool index_check_policy_compatible(GpPolicy *policy,
 							  bool report_error,
 							  index_check_policy_compatible_context *error_context);
 
+GpPolicy *
+createSDBGpPolicy(Oid accessMethodId);
+
+const char *
+GpPolicyTypeName(GpPolicy *policy);
+
 #endif   /* CDBCAT_H */

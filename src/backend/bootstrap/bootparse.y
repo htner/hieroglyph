@@ -114,6 +114,7 @@ static int num_columns_read = 0;
 	Oid			oidval;
 }
 
+
 %type <list>  boot_index_params
 %type <ielem> boot_index_param
 %type <str>   boot_ident
@@ -129,6 +130,7 @@ static int num_columns_read = 0;
 %token <kw> XDECLARE INDEX ON USING XBUILD INDICES UNIQUE XTOAST
 %token <kw> OBJ_ID XBOOTSTRAP XSHARED_RELATION XROWTYPE_OID
 %token <kw> XFORCE XNOT XNULL
+%token <kw> XUPLOADALL XCOPYTOPARQUET
 
 %start TopLevel
 
@@ -153,6 +155,8 @@ Boot_Query :
 		| Boot_DeclareUniqueIndexStmt
 		| Boot_DeclareToastStmt
 		| Boot_BuildIndsStmt
+		| Boot_UploadAllStmt
+		| Boot_CopyToParquetStmt
 		;
 
 Boot_OpenStmt:
@@ -285,6 +289,7 @@ Boot_InsertStmt:
 							 numattr, num_columns_read);
 					if (boot_reldesc == NULL)
 						elog(FATAL, "relation not open");
+
 					InsertOneTuple();
 					do_end();
 				}
@@ -325,7 +330,6 @@ Boot_DeclareIndexStmt:
 					/* locks and races need not concern us in bootstrap mode */
 					relationId = RangeVarGetRelid(stmt->relation, NoLock,
 												  false);
-
 					DefineIndex(relationId,
 								stmt,
 								$4,
@@ -334,9 +338,9 @@ Boot_DeclareIndexStmt:
 								false,
 								false,
 								false,
-								true, /* skip_build */
+								true,  //skip_build 
 								false,
-								false /* is_new_table */);
+								false  ); // is_new_table 
 					do_end();
 				}
 		;
@@ -385,9 +389,9 @@ Boot_DeclareUniqueIndexStmt:
 								false,
 								false,
 								false,
-								true, /* skip_build */
+								true,
 								false,
-								false /* is_new_table */);
+								false);
 					do_end();
 				}
 		;
@@ -399,7 +403,7 @@ Boot_DeclareToastStmt:
 
 					do_start();
 
-					BootstrapToastTable($6, $3, $4);
+					// BootstrapToastTable($6, $3, $4);
 					do_end();
 				}
 		;
@@ -412,6 +416,27 @@ Boot_BuildIndsStmt:
 					do_end();
 				}
 		;
+
+Boot_UploadAllStmt:
+		  XUPLOADALL
+				{
+					do_start();
+					upload_all();
+					do_end();
+				}
+		;
+
+Boot_CopyToParquetStmt:
+		  XCOPYTOPARQUET boot_ident
+				{
+					do_start();
+					copy_to_parquet($2);
+					do_end();
+				}
+		;
+
+
+
 
 
 boot_index_params:
@@ -481,9 +506,13 @@ boot_column_val_list:
 
 boot_column_val:
 		  boot_ident
-			{ InsertOneValue($1, num_columns_read++); }
+			{ 
+			InsertOneValue($1, num_columns_read++); 
+			}
 		| NULLVAL
-			{ InsertOneNull(num_columns_read++); }
+			{ 
+			InsertOneNull(num_columns_read++); 
+			}
 		;
 
 boot_ident:

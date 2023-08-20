@@ -275,7 +275,7 @@ EVENT_LIBS		= @EVENT_LIBS@
 # Compilers
 
 CPP = @CPP@
-CPPFLAGS = @CPPFLAGS@
+CPPFLAGS = @CPPFLAGS@ $(INCLUDE) -I$(top_srcdir)/src -ggdb
 PG_SYSROOT = @PG_SYSROOT@
 
 override CPPFLAGS := $(ICU_CFLAGS) $(ZSTD_CFLAGS) $(CPPFLAGS)
@@ -821,7 +821,7 @@ LIBOBJS = @LIBOBJS@
 # files needed for the chosen CRC-32C implementation
 PG_CRC32C_OBJS = @PG_CRC32C_OBJS@
 
-LIBS := -lpgcommon -lpgport $(LIBS)
+LIBS := -lpgcommon -lpgport $(LIBS) -lparquet -larrow  -laws-cpp-sdk-core -laws-cpp-sdk-s3
 
 # to make ws2_32.lib the last library
 ifeq ($(PORTNAME),win32)

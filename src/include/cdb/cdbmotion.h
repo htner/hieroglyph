@@ -89,8 +89,9 @@ extern void CheckAndSendRecordCache(MotionLayerState *mlStates,
  *
  *		STOP_SENDING - Receiver no longer wants to receive from us.
  */
-extern SendReturnCode SendTuple(MotionLayerState *mlStates,
-								ChunkTransportState *transportStates,
+
+extern SendReturnCode SendTuple(MotionLayerState *state,
+								void *task,
 								int16 motNodeID,
 		  						TupleTableSlot *slot,
 								int16 targetRoute);
@@ -99,10 +100,9 @@ extern SendReturnCode SendTuple(MotionLayerState *mlStates,
 /* Send or broadcast an END_OF_STREAM token to the corresponding motion-node
  * on other segments.
  */
-void
-SendEndOfStream(MotionLayerState       *mlStates,
-                ChunkTransportState    *transportStates,
-                int                     motNodeID);
+extern void SendEndOfStream(MotionLayerState *state,
+							void *task,
+							int16 motionId);
 
 /*
  * Receive a tuple from the corresponding motion-node on any query-executor
@@ -113,14 +113,14 @@ SendEndOfStream(MotionLayerState       *mlStates,
  *
  * Returns the next tuple, or NULL if end-of-stream was reached.
  */
-extern MinimalTuple RecvTupleFrom(MotionLayerState *mlStates,
-								  ChunkTransportState *transportStates,
-								  int16 motNodeID,
-								  int16 srcRoute);
+extern MinimalTuple RecvTupleFrom(MotionLayerState *state,
+								  void *task,
+								  int16 motionID,
+								  int16 targetRoute);
 
-extern void SendStopMessage(MotionLayerState *mlStates,
-							ChunkTransportState *transportStates,
-							int16 motNodeID);
+extern void SendStopMessage(MotionLayerState *state, 
+							void *node, 
+							int16 motionID);
 
 /* used by ml_ipc to set the number of receivers that the motion node is expecting.
  * This is used by cdbmotion to keep track of when its seen enough EndOfStream
@@ -133,5 +133,11 @@ extern void UpdateMotionExpectedReceivers(MotionLayerState *mlStates,
  * Return a pointer to the internal "end-of-stream" message
  */
 extern TupleChunkListItem get_eos_tuplechunklist(void);
+
+
+
+
+//extern void SetupBrcpStream(EState *estate);
+
 
 #endif   /* CDBMOTION_H */

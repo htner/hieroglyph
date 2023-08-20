@@ -114,7 +114,6 @@ static DeadLockState deadlock_state = DS_NOT_YET_CHECKED;
 static volatile sig_atomic_t got_deadlock_timeout;
 
 static void RemoveProcFromArray(int code, Datum arg);
-static void ProcKill(int code, Datum arg);
 static void AuxiliaryProcKill(int code, Datum arg);
 static void CheckDeadLock(void);
 
@@ -360,8 +359,11 @@ InitProcess(void)
 	 * ProcGlobal should be set up already (if we are a backend, we inherit
 	 * this by fork() or EXEC_BACKEND mechanism from the postmaster).
 	 */
+#ifdef SDB_NOUSE
+
 	if (ProcGlobal == NULL)
 		elog(PANIC, "proc header uninitialized");
+#endif
 
 	if (MyProc != NULL)
 		elog(ERROR, "you already exist");
@@ -383,16 +385,21 @@ InitProcess(void)
 	 * While we are holding the ProcStructLock, also copy the current shared
 	 * estimate of spins_per_delay to local storage.
 	 */
+#ifdef SDB_NOUSE
 	SpinLockAcquire(ProcStructLock);
 
 	set_spins_per_delay(ProcGlobal->spins_per_delay);
+#endif
 
-	MyProc = *procgloballist;
+	// MyProc = *procgloballist;
+	MyProc = (PGPROC*)MemoryContextAllocZero(TopMemoryContext, sizeof(PGPROC));
 
 	if (MyProc != NULL)
 	{
+	#ifdef SDB_NOUSE
 		*procgloballist = (PGPROC *) MyProc->links.next;
 		SpinLockRelease(ProcStructLock);
+	#endif
 	}
 	else
 	{
@@ -402,7 +409,9 @@ InitProcess(void)
 		 * error message.  XXX do we need to give a different failure message
 		 * in the autovacuum case?
 		 */
+	#ifdef SDB_NOUSE
 		SpinLockRelease(ProcStructLock);
+	#endif
 		if (am_walsender)
 			ereport(FATAL,
 					(errcode(ERRCODE_TOO_MANY_CONNECTIONS),
@@ -412,30 +421,40 @@ InitProcess(void)
 				(errcode(ERRCODE_TOO_MANY_CONNECTIONS),
 				 errmsg("sorry, too many clients already")));
 	}
+#ifdef SDB_NOUSE
 	MyPgXact = &ProcGlobal->allPgXact[MyProc->pgprocno];
 	MyTmGxact = &ProcGlobal->allTmGxact[MyProc->pgprocno];
 	MyTmGxactLocal = (TMGXACTLOCAL*)MemoryContextAllocZero(TopMemoryContext, sizeof(TMGXACTLOCAL));
 	if (MyTmGxactLocal == NULL)
 		elog(FATAL, "allocating TMGXACTLOCAL failed");
 
+#endif
+	MyPgXact = (PGXACT*)MemoryContextAllocZero(TopMemoryContext, sizeof(PGXACT));
+	//MyPgXact = (PGXACT*)MemoryContextAllocZero(TopMemoryContext, sizeof(PGXACT));
 	if (gp_debug_pgproc)
 	{
 		elog(LOG, "allocating PGPROC entry for pid %d, freeProcs (prev ptr, new ptr): (%p, %p)",
 			 MyProcPid, MyProc, MyProc->links.next);
 	}
 
+#ifdef SDB_NOUSE
 	int mppLocalProcessSerial = pg_atomic_add_fetch_u32((pg_atomic_uint32 *)&ProcGlobal->mppLocalProcessCounter, 1);
+#endif
 
 	lockHolderProcPtr = MyProc;
 
 	/* Set the next pointer to NULL */
+#ifdef SDB_NOUSE
 	MyProc->links.next = NULL;
+#endif
 
 	/*
 	 * Cross-check that the PGPROC is of the type we expect; if this were not
 	 * the case, it would get returned to the wrong list.
 	 */
+#ifdef SDB_NOUSE
 	Assert(MyProc->procgloballist == procgloballist);
+#endif
 
 	/*
 	 * Now that we have a PGPROC, mark ourselves as an active postmaster
@@ -455,13 +474,17 @@ InitProcess(void)
 	 * Initialize all fields of MyProc, except for those previously
 	 * initialized by InitProcGlobal.
 	 */
+#ifdef SDB_NOUSE
 	SHMQueueElemInit(&(MyProc->links));
+#endif
 	MyProc->waitStatus = STATUS_OK;
 	MyProc->lxid = InvalidLocalTransactionId;
 	MyProc->fpVXIDLock = false;
 	MyProc->fpLocalTransactionId = InvalidLocalTransactionId;
+#ifdef SDB_NOUSE
 	MyPgXact->xid = InvalidTransactionId;
 	MyPgXact->xmin = InvalidTransactionId;
+#endif
 	MyProc->localDistribXactData.state = LOCALDISTRIBXACT_STATE_NONE;
 	MyProc->pid = MyProcPid;
 	/* backendId, databaseId and roleId will be filled in later */
@@ -470,11 +493,13 @@ InitProcess(void)
 	MyProc->roleId = InvalidOid;
 	MyProc->tempNamespaceId = InvalidOid;
 	MyProc->isBackgroundWorker = IsBackgroundWorker;
+#ifdef SDB_NOUSE
 	MyPgXact->delayChkpt = 0;
 	MyPgXact->vacuumFlags = 0;
 	/* NB -- autovac launcher intentionally does not set IS_AUTOVACUUM */
 	if (IsAutoVacuumWorkerProcess())
 		MyPgXact->vacuumFlags |= PROC_IS_AUTOVACUUM;
+#endif
 	MyProc->lwWaiting = false;
 	MyProc->lwWaitMode = 0;
 	MyProc->waitLock = NULL;
@@ -491,7 +516,7 @@ InitProcess(void)
 	 * deliver a response from a server under this spin, we need to 
 	 * assign it under the spin lock.
 	 */
-    MyProc->mppLocalProcessSerial = mppLocalProcessSerial;
+    MyProc->mppLocalProcessSerial = 1;// mppLocalProcessSerial;
 
     /* 
      * A nonzero gp_session_id uniquely identifies an MPP client session 
@@ -509,10 +534,13 @@ InitProcess(void)
 	 * mode connection to be assigned the same session ID as a normal mode
 	 * connection on master.
      */
+
+#ifdef SDB_NOUSE
 	if (IS_QUERY_DISPATCHER() &&
 		Gp_role == GP_ROLE_DISPATCH &&
 		gp_session_id == InvalidGpSessionId)
         gp_session_id = mppLocalProcessSerial;
+#endif
 
 	AssertImply(Gp_role == GP_ROLE_UTILITY && !IS_QUERY_DISPATCHER(),
 				gp_session_id == InvalidGpSessionId);
@@ -542,7 +570,9 @@ InitProcess(void)
 	/* Initialize fields for sync rep */
 	MyProc->waitLSN = 0;
 	MyProc->syncRepState = SYNC_REP_NOT_WAITING;
+#ifdef SDB_NOUSE
 	SHMQueueElemInit(&(MyProc->syncRepLinks));
+#endif
 
 	/* Initialize fields for group XID clearing. */
 	MyProc->procArrayGroupMember = false;
@@ -569,15 +599,19 @@ InitProcess(void)
 	 * on it.  That allows us to repoint the process latch, which so far
 	 * points to process local one, to the shared one.
 	 */
+#ifdef SDB_NOUSE
 	OwnLatch(&MyProc->procLatch);
 	SwitchToSharedLatch();
+#endif
 
 	/*
 	 * We might be reusing a semaphore that belonged to a failed process. So
 	 * be careful and reinitialize its value here.  (This is not strictly
 	 * necessary anymore, but seems like a good idea for cleanliness.)
 	 */
+#ifdef SDB_NOUSE
 	PGSemaphoreReset(MyProc->sem);
+#endif
 
 	/* Set wait portal (do not check if resource scheduling is enabled) */
 	MyProc->waitPortalId = INVALID_PORTALID;
@@ -585,6 +619,7 @@ InitProcess(void)
 	MyProc->queryCommandId = -1;
 
 	/* Init gxact */
+#ifdef SDB_NOUSE
 	MyTmGxact->gxid = InvalidDistributedTransactionId;
 	resetTmGxact();
 
@@ -599,6 +634,7 @@ InitProcess(void)
 	 */
 	InitLWLockAccess();
 	InitDeadLockChecking();
+#endif
 }
 
 /*
@@ -979,6 +1015,7 @@ update_spins_per_delay(void)
  * ProcKill() -- Destroy the per-proc data structure for
  *		this process. Release any of its held LW locks.
  */
+#ifdef SDB_NOUSE
 static void
 ProcKill(int code, Datum arg)
 {
@@ -1141,6 +1178,7 @@ ProcKill(int code, Datum arg)
 	if (AutovacuumLauncherPid != 0)
 		kill(AutovacuumLauncherPid, SIGUSR2);
 }
+#endif
 
 /*
  * AuxiliaryProcKill() -- Cut-down version of ProcKill for auxiliary

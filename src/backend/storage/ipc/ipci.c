@@ -232,7 +232,22 @@ CreateSharedMemoryAndSemaphores(int port)
 		/*
 		 * Create the shmem segment
 		 */
+#ifdef SDB_NOUSE
 		seghdr = PGSharedMemoryCreate(size, port, &shim);
+#endif
+		seghdr = MemoryContextAllocZero(TopMemoryContext, size);
+		/* Initialize new segment. */
+		//hdr = (PGShmemHeader *) memAddress;
+		//seghdr->creatorPID = getpid();
+		seghdr->magic = PGShmemMagic;
+		seghdr->dsm_control = 0;
+
+		seghdr->totalsize = size;
+		seghdr->freeoffset = MAXALIGN(sizeof(PGShmemHeader));
+
+		shim = seghdr;
+		/* Save info for possible future use */
+		UsedShmemSegAddr = seghdr;
 
 		InitShmemAccess(seghdr);
 

@@ -1,0 +1,116 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = false;
+option go_package="./sdb";
+
+//import  "optimizer_service.proto";
+//import  "worker_service.proto";
+//import  "schedule_service.proto";
+import  "config.proto";
+
+message LakeFile {
+  uint64 file_id = 2;
+}
+
+// must be no side effects, for cache
+message LakeFileMeta {
+    map<string, string> meta = 1;
+}
+
+/*
+message LakeFileHandle {
+  uint64 id  = 1;
+  string name = 2;
+}
+*/
+
+message DeleteLakeFiles {
+  repeated LakeFile files = 1;
+}
+
+message InsertLakeFiles {
+  repeated LakeFileDetail files = 1;
+}
+
+message PrepareLakeFiles {
+  //uint64 space_id = 1;
+  //uint64 start_file_id = 2;
+  //uint64 end_file_id = 3;
+  repeated LakeFile files = 1;
+}
+
+message LakeLogDetail {
+  DeleteLakeFiles deletes = 1;
+  InsertLakeFiles inserts = 2;
+}
+
+message LakeFileDetail {
+  uint64 dbid = 1;
+  uint64 rel = 2;
+  LakeFile base_info = 3;
+	uint64 xmin = 4; 
+	uint64 xmax = 5;
+	uint32 xmin_state = 6; 
+	uint32 xmax_state = 7; 
+  bool is_shared = 8;
+} 
+
+message LakeFileShared {
+  map<uint64, uint64> shared_rels = 2;
+}
+
+message LakeSpaceInfo {
+ uint32 space_id = 1;
+ string bucket = 2;
+}
+
+message LakeSpaceDetail {
+ LakeSpaceInfo base = 1;
+ S3Endpoint detail = 2;
+}
+
+message Database {
+  uint64 dbid = 1;
+  string dbname = 2;
+  uint64 organization_id = 3;
+  LakeSpaceInfo space = 4;
+}
+
+message WorkerResultData {
+  uint64 dbid = 1;
+  uint64 query_id = 2;
+  int32 rescode = 3;
+  string message = 4;
+  string result_dir = 5;
+
+  uint32 cmd_type = 6;
+  uint64 process_rows = 7;
+
+  string meta_file = 8;
+  repeated string data_files = 9;
+}
+
+message RelFiles {
+  uint64 rel = 1;
+  repeated LakeFile files = 2;
+  bytes version = 3;
+}

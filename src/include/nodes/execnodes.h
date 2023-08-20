@@ -645,10 +645,11 @@ typedef struct EState
 
 	int			active_recv_id;
 	void	   *motionlayer_context;  /* Motion Layer state */
-	struct ChunkTransportState *interconnect_context; /* Interconnect state */
 
 	/* MPP used resources */
-	bool		es_interconnect_is_setup;   /* is interconnect set-up?    */
+	//bool		es_interconnect_is_setup;   /* is interconnect set-up?    */
+	
+	bool		es_brpcstream_is_setup;   /* is brpc stream set-up?    */
 
 	bool		es_got_eos;			/* was end-of-stream received? */
 
@@ -680,6 +681,8 @@ typedef struct EState
 	 * vacuum, can avoid running uniqueness checks while inserting tuples.
 	 */
 	bool		gp_bypass_unique_check;
+
+	void		*task;
 
 } EState;
 

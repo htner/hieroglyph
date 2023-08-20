@@ -202,7 +202,7 @@ static bool authwarning = false;
  * (no quoting to worry about).
  */
 static const char *boot_options = "-F";
-static const char *backend_options = "--single -F -O -j -c gp_role=utility -c search_path=pg_catalog -c exit_on_error=true";
+static const char *backend_options = "--single -F -O -j -c gp_role=utility -c search_path=pg_catalog -c exit_on_error=true -d 5 -r log/boot.log";
 
 static const char *const subdirs[] = {
 	"global",
@@ -600,6 +600,7 @@ popen_check(const char *command, const char *mode)
 static void
 cleanup_directories_atexit(void)
 {
+	return;
 	if (success)
 		return;
 
@@ -1486,6 +1487,9 @@ bootstrap_template1(void)
 	for (line = bki_lines; *line != NULL; line++)
 	{
 		PG_CMD_PUTS(*line);
+	//	pg_log_warning("%s -> %s",
+	//					   cmd, *line);
+
 		free(*line);
 	}
 
@@ -2083,7 +2087,8 @@ setup_cdb_schema(FILE *cmdfd)
 	if (!dir)
 	{
 		pg_log_error("could not open cdb_init.d directory: %m");
-		exit(1);
+		//exit(1);
+		return;
 	}
 
 	/* Collect all files with .sql suffix in array. */

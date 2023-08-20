@@ -546,7 +546,7 @@ mdopen(SMgrRelation reln, ForkNumber forknum, int behavior)
 			pfree(path);
 			return NULL;
 		}
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode_for_file_access(),
 				 errmsg("could not open file \"%s\": %m", path)));
 	}
@@ -711,7 +711,7 @@ mdread(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		if (zero_damaged_pages || InRecovery)
 			MemSet(buffer, 0, BLCKSZ);
 		else
-			ereport(ERROR,
+			ereport(PANIC,
 					(errcode(ERRCODE_DATA_CORRUPTED),
 					 errmsg("could not read block %u in file \"%s\": read only %d of %d bytes",
 							blocknum, FilePathName(v->mdfd_vfd),

@@ -1,0 +1,132 @@
+syntax = "proto3";
+package sdb;
+/* to generate service */
+option cc_generic_services = true;
+
+option go_package="./sdb";
+
+import  "kvpair.proto";
+
+service Lake {
+    rpc Start(StartTransactionRequest) returns (StartTransactionResponse) {} rpc AllocateXid(AllocateXidRequest) returns (AllocateXidResponse) {}
+    rpc Commit(CommitRequest) returns (CommitResponse) {}
+    rpc Abort(AbortRequest) returns (AbortResponse) {}
+
+    rpc PrepareInsertFiles(PrepareInsertFilesRequest) returns (PrepareInsertFilesResponse) {}
+    rpc DeleteFiles(DeleteFilesRequest) returns (DeleteFilesResponse) {}
+    rpc GetFileList(GetFilesRequest) returns (GetFilesResponse) {}
+}
+
+
+
+message StartTransactionRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 uid = 3;
+}
+
+message StartTransactionResponse {
+}
+
+message AllocateXidRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    bool read = 3;
+    bool write = 4;
+}
+
+message AllocateXidResponse {
+    uint64 read_xid = 1;
+    uint64 write_xid = 2;
+}
+
+message CommitRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+}
+
+message CommitResponse {
+}
+
+message AbortRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+}
+
+message AbortResponse {
+}
+
+/* enums for type of operation represented by a Query or PlanTree */
+enum LockType {
+	LOCKTAG_RELATION = 0; 		/* whole relation */
+	LOCKTAG_RELATION_EXTEND = 1;	/* the right to extend a relation */
+	LOCKTAG_TRANSACTION = 2;		/* transaction (for waiting for xact done) */
+}
+
+message LockRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 rel = 3;
+    LockType lock_type = 4;
+}
+
+message LockResponse {
+}
+
+message UnockRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 rel = 3;
+    LockType lock_type = 4;
+}
+
+message UnlockResponse {
+}
+
+message PrepareInsertFilesRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 commit_xid = 3;
+    uint64 rel = 4;
+    uint64 commandid = 5;
+    uint64 count = 6;
+    //repeated string add_files = 6;
+}
+
+message PrepareInsertFilesResponse {
+    repeated LakeFile files = 1;
+}
+
+message DeleteFilesRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 commit_xid = 3;
+    uint64 commandid = 4;
+    uint64 rel = 5;
+    repeated LakeFile remove_files = 6;
+}
+
+message DeleteFilesResponse {
+}
+
+message GetFilesRequest {
+    uint64 dbid = 1;
+    uint64 sessionid = 2;
+    uint64 read_xid = 3;
+    uint64 commit_xid = 4;
+    uint64 commandid = 5;
+    uint64 rel = 6;
+
+    uint64 slice_count = 7;
+    uint64 slice_seg_index = 8;
+
+    uint64 rel_version = 9;
+    uint64 rel_last_modify_queryid = 10;
+
+    bool is_write = 11;
+}
+
+message GetFilesResponse {
+    repeated LakeFile files = 1;
+    string version = 2;
+}

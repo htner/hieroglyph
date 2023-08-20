@@ -22,6 +22,11 @@
 { oid => '3435', oid_symbol => 'AO_COLUMN_TABLE_AM_OID',
   descr => 'column-oriented append-optimized table access method',
   amname => 'ao_column', amhandler => 'ao_column_tableam_handler', amtype => 't' },
+{ oid => '5104', oid_symbol => 'PARQUET_TABLE_AM_OID',
+  descr => 'parquet column-oriented table access method',
+  amname => 'parquet', amhandler => 'parquet_tableam_handler', amtype => 't' },
+
+
 
 { oid => '403', oid_symbol => 'BTREE_AM_OID',
   descr => 'b-tree index access method',

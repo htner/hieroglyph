@@ -349,11 +349,13 @@ SerializeRecordCacheIntoChunks(SerTupInfo *pSerInfo,
 	return;
 }
 
+#ifdef SDB_NOUSE
 static bool
 CandidateForSerializeDirect(int16 targetRoute, struct directTransportBuffer *b)
 {
 	return targetRoute != BROADCAST_SEGIDX && b->pri != NULL && b->prilen > TUPLE_CHUNK_HEADER_SIZE;
 }
+#endif
 
 /*
  *
@@ -367,10 +369,10 @@ CandidateForSerializeDirect(int16 targetRoute, struct directTransportBuffer *b)
  * This code is based on the printtup_internal_20() function in printtup.c.
  */
 int
-SerializeTuple(TupleTableSlot *slot, SerTupInfo *pSerInfo, struct directTransportBuffer *b, TupleChunkList tcList, int16 targetRoute)
+SerializeTuple(TupleTableSlot *slot, SerTupInfo *pSerInfo, TupleChunkList tcList, int16 targetRoute)
 {
 	int                natts;
-	int                dataSize = TUPLE_CHUNK_HEADER_SIZE;
+	// int                dataSize = TUPLE_CHUNK_HEADER_SIZE;
 	TupleDesc          tupdesc;
 	TupleChunkListItem tcItem = NULL;
 	MinimalTuple       mintuple;
@@ -381,19 +383,9 @@ SerializeTuple(TupleTableSlot *slot, SerTupInfo *pSerInfo, struct directTranspor
 	bool               hasExternalAttr = false;
 
 	AssertArg(pSerInfo != NULL);
-	AssertArg(b != NULL);
 
 	tupdesc = pSerInfo->tupdesc;
 	natts = tupdesc->natts;
-
-	if (natts == 0 && CandidateForSerializeDirect(targetRoute, b))
-	{
-		/* TC_EMPTY is just one chunk */
-		SetChunkType(b->pri, TC_EMPTY);
-		SetChunkDataSize(b->pri, 0);
-
-		return TUPLE_CHUNK_HEADER_SIZE;
-	}
 
 	tcList->p_first = NULL;
 	tcList->p_last = NULL;
@@ -463,25 +455,6 @@ SerializeTuple(TupleTableSlot *slot, SerTupInfo *pSerInfo, struct directTranspor
 
 	/* total on-wire footprint: */
 	tuplen = tupbodylen + sizeof(int);
-
-	if (CandidateForSerializeDirect(targetRoute, b) &&
-		tuplen + TUPLE_CHUNK_HEADER_SIZE <= b->prilen)
-	{
-		/*
-		 * The tuple fits in the direct transport buffer.
-		 */
-		memcpy(b->pri + TUPLE_CHUNK_HEADER_SIZE, &tupbodylen, sizeof(tupbodylen));
-		memcpy(b->pri + TUPLE_CHUNK_HEADER_SIZE + sizeof(int), tupbody, tupbodylen);
-
-		dataSize += tuplen;
-
-		SetChunkType(b->pri, TC_WHOLE);
-		SetChunkDataSize(b->pri, dataSize - TUPLE_CHUNK_HEADER_SIZE);
-
-		if (shouldFreeTuple)
-			pfree(mintuple);
-		return dataSize;
-	}
 
 	/*
 	 * If direct in-line serialization failed then we fallback to chunked

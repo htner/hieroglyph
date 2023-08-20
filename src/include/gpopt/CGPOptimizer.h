@@ -33,6 +33,11 @@ public:
 			had_unexpected_failure	// output : set to true if optimizer unexpectedly failed to produce plan
 	);
 
+	static PlannedStmt * GPOPTOptimizedPlanBoth(
+		Query *query,
+		char** plan_str,
+		bool * had_unexpected_failure	// output : set to true if optimizer unexpectedly failed to produce plan
+	);
 	// serialize planned statement into DXL
 	static char *SerializeDXLPlan(Query *query);
 
@@ -46,6 +51,9 @@ extern "C" {
 
 extern PlannedStmt *GPOPTOptimizedPlan(Query *query,
 									   bool *had_unexpected_failure);
+extern PlannedStmt *GPOPTOptimizedPlanBoth(Query *query,
+										   char** plan_str,
+										   bool * had_unexpected_failure);
 extern char *SerializeDXLPlan(Query *query);
 extern void InitGPOPT();
 extern void TerminateGPOPT();

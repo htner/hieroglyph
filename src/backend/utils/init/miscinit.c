@@ -1557,6 +1557,7 @@ RecheckDataDirLockFile(void)
 void
 ValidatePgVersion(const char *path)
 {
+	return;
 	char		full_path[MAXPGPATH];
 	FILE	   *file;
 	int			ret;

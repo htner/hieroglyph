@@ -2411,10 +2411,14 @@ addToGxactDtxSegments(Gang *gang)
 bool
 CurrentDtxIsRollingback(void)
 {
+#ifdef SDB_NOUSE
 	return (MyTmGxactLocal->state == DTX_STATE_NOTIFYING_ABORT_NO_PREPARED ||
 			MyTmGxactLocal->state == DTX_STATE_NOTIFYING_ABORT_SOME_PREPARED ||
 			MyTmGxactLocal->state == DTX_STATE_NOTIFYING_ABORT_PREPARED ||
 			MyTmGxactLocal->state == DTX_STATE_RETRY_ABORT_PREPARED);
+#endif
+
+	return false;
 }
 
 Datum

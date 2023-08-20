@@ -244,6 +244,7 @@ ProcArrayShmemSize(void)
 void
 CreateSharedProcArray(void)
 {
+	return;
 	bool		found;
 
 	/* Create or attach to the ProcArray shared structure */
@@ -299,6 +300,7 @@ CreateSharedProcArray(void)
 void
 ProcArrayAdd(PGPROC *proc)
 {
+	return;
 	ProcArrayStruct *arrayP = procArray;
 	int			index;
 
@@ -359,6 +361,7 @@ ProcArrayAdd(PGPROC *proc)
 void
 ProcArrayRemove(PGPROC *proc, TransactionId latestXid)
 {
+	return;
 	ProcArrayStruct *arrayP = procArray;
 	int			index;
 
@@ -422,6 +425,7 @@ ProcArrayRemove(PGPROC *proc, TransactionId latestXid)
 void
 ProcArrayEndGxact(TMGXACT *tmGxact)
 {
+	return;
 	DistributedTransactionId gxid = tmGxact->gxid;
 
 	AssertImply(Gp_role == GP_ROLE_DISPATCH && gxid != InvalidDistributedTransactionId,
@@ -456,6 +460,7 @@ ProcArrayEndGxact(TMGXACT *tmGxact)
 void
 ProcArrayEndTransaction(PGPROC *proc, TransactionId latestXid)
 {
+	return;
 	PGXACT	   *pgxact = &allPgXact[proc->pgprocno];
 	TMGXACT	   *tmGxact = &allTmGxact[proc->pgprocno];
 

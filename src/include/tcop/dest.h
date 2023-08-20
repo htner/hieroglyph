@@ -126,6 +126,9 @@ struct _DestReceiver
 	void		(*rDestroy) (DestReceiver *self);
 	/* CommandDest code for this receiver */
 	CommandDest mydest;
+
+	char *filename;
+	char *dirname;
 	/* Private fields might appear beyond this point... */
 };
 

@@ -28,6 +28,7 @@
 #include "cdb/tupser.h"
 #include "utils/memutils.h"
 #include "utils/typcache.h"
+#include "sdb/execute.h"
 
 
 /*
@@ -53,17 +54,9 @@ static MotionNodeEntry *getMotionNodeEntry(MotionLayerState *mlStates, int16 mot
 static ChunkSorterEntry *getChunkSorterEntry(MotionLayerState *mlStates,
 					MotionNodeEntry *motNodeEntry,
 					int16 srcRoute);
-static void addChunkToSorter(ChunkTransportState *transportStates,
-							 MotionNodeEntry *pMNEntry,
-							 TupleChunkListItem tcItem,
-							 int16 motNodeID,
-							 ChunkSorterEntry *chunkSorterEntry,
-							 ChunkTransportStateEntry *pEntry,
-							 MotionConn *conn,
-							 int16 srcRoute);
-
-static void processIncomingChunks(MotionLayerState *mlStates,
-					  ChunkTransportState *transportStates,
+static void
+processIncomingSDBChunks(MotionLayerState *mlStates,
+					  void* task,
 					  MotionNodeEntry *pMNEntry,
 					  int16 motNodeID,
 					  int16 srcRoute);
@@ -76,8 +69,10 @@ static void statSendEOS(MotionLayerState *mlStates, MotionNodeEntry *pMNEntry);
 static void statChunksProcessed(MotionLayerState *mlStates, MotionNodeEntry *pMNEntry, int chunksProcessed, int chunkBytes, int tupleBytes);
 static void statNewTupleArrived(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry);
 static void statRecvTuple(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry);
+#ifdef SDB_NOUSE
 static bool ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo);
 static void UpdateSentRecordCache(MotionConn *conn);
+#endif
 
 
 
@@ -227,6 +222,7 @@ createMotionLayerState(int maxMotNodeID)
 		 * setExpectedReceivers() to set this if we are a "Receiving" motion node.
 		 */
 		pEntry->num_senders = 0;
+		pEntry->remapper = CreateTupleRemapper();
 	}
 
 	/* Allocation is done.	Go back to caller memory-context. */
@@ -312,13 +308,12 @@ UpdateMotionExpectedReceivers(MotionLayerState *mlStates, SliceTable *sliceTable
 	ExecSlice  *mySlice;
 	ExecSlice  *aSlice;
 	ListCell   *cell;
-	CdbProcess *cdbProc;
 	MotionNodeEntry *pEntry;
 
 	mySlice = &sliceTable->slices[sliceTable->localSlice];
 	foreach(cell, mySlice->children)
 	{
-		int			totalNumProcs, activeNumProcs, i;
+		int			totalNumProcs, activeNumProcs;
 		int			childId = lfirst_int(cell);
 
 		aSlice = &sliceTable->slices[childId];
@@ -328,197 +323,19 @@ UpdateMotionExpectedReceivers(MotionLayerState *mlStates, SliceTable *sliceTable
 		 * entries, so we count the entries.
 		 */
 		activeNumProcs = 0;
-		totalNumProcs = list_length(aSlice->primaryProcesses);
+		totalNumProcs = list_length(aSlice->segments);
+		/*
 		for (i = 0; i < totalNumProcs; i++)
 		{
-			cdbProc = list_nth(aSlice->primaryProcesses, i);
+			cdbProc = list_nth(aSlice->segments, i);
 			if (cdbProc)
 				activeNumProcs++;
 		}
+		*/
 
 		pEntry = getMotionNodeEntry(mlStates, childId);
-		pEntry->num_senders = activeNumProcs;
+		pEntry->num_senders = totalNumProcs;
 	}
-}
-
-void
-SendStopMessage(MotionLayerState *mlStates,
-				ChunkTransportState *transportStates,
-				int16 motNodeID)
-{
-	MotionNodeEntry *pEntry = getMotionNodeEntry(mlStates, motNodeID);
-
-	pEntry->stopped = true;
-	if (transportStates != NULL && transportStates->doSendStopMessage != NULL)
-		transportStates->doSendStopMessage(transportStates, motNodeID);
-}
-
-void
-CheckAndSendRecordCache(MotionLayerState *mlStates,
-						ChunkTransportState *transportStates,
-						int16 motNodeID,
-						int16 targetRoute)
-{
-	MotionNodeEntry *pMNEntry;
-	TupleChunkListData tcList;
-	MemoryContext oldCtxt;
-	ChunkTransportStateEntry *pEntry = NULL;
-	MotionConn *conn;
-
-	getChunkTransportState(transportStates, motNodeID, &pEntry);
-
-	/*
-	 * for broadcast we only mark sent_record_typmod for connection 0 for
-	 * efficiency and convenience
-	 */
-	if (targetRoute == BROADCAST_SEGIDX)
-		conn = &pEntry->conns[0];
-	else
-		conn = &pEntry->conns[targetRoute];
-
-	/*
-	 * Analyze tools.  Do not send any thing if this slice is in the bit mask
-	 */
-	if (gp_motion_slice_noop != 0 && (gp_motion_slice_noop & (1 << currentSliceId)) != 0)
-		return;
-
-	/*
-	 * Pull up the motion node entry with the node's details.  This includes
-	 * details that affect sending, such as whether the motion node needs to
-	 * include backup segment-dbs.
-	 */
-	pMNEntry = getMotionNodeEntry(mlStates, motNodeID);
-
-	if (!ShouldSendRecordCache(conn, &pMNEntry->ser_tup_info))
-		return;
-
-#ifdef AMS_VERBOSE_LOGGING
-	elog(DEBUG5, "Serializing RecordCache for sending.");
-#endif
-
-	/* Create and store the serialized form, and some stats about it. */
-	oldCtxt = MemoryContextSwitchTo(mlStates->motion_layer_mctx);
-
-	SerializeRecordCacheIntoChunks(&pMNEntry->ser_tup_info, &tcList, conn);
-
-	MemoryContextSwitchTo(oldCtxt);
-
-#ifdef AMS_VERBOSE_LOGGING
-	elog(DEBUG5, "Serialized RecordCache for sending:\n"
-		 "\ttarget-route %d \n"
-		 "\t%d bytes in serial form\n"
-		 "\tbroken into %d chunks",
-		 targetRoute,
-		 tcList.serialized_data_length,
-		 tcList.num_chunks);
-#endif
-
-	/* do the send. */
-	if (!SendTupleChunkToAMS(mlStates, transportStates, motNodeID, targetRoute, tcList.p_first))
-	{
-		pMNEntry->stopped = true;
-	}
-	else
-	{
-		/* update stats */
-		statSendTuple(mlStates, pMNEntry, &tcList);
-	}
-
-	/* cleanup */
-	clearTCList(&pMNEntry->ser_tup_info.chunkCache, &tcList);
-
-	UpdateSentRecordCache(conn);
-}
-
-/*
- * Function:  SendTuple - Sends a portion or whole tuple to the AMS layer.
- */
-SendReturnCode
-SendTuple(MotionLayerState *mlStates,
-		  ChunkTransportState *transportStates,
-		  int16 motNodeID,
-		  TupleTableSlot *slot,
-		  int16 targetRoute)
-{
-	MotionNodeEntry *pMNEntry;
-	TupleChunkListData tcList;
-	MemoryContext oldCtxt;
-	SendReturnCode rc;
-
-	AssertArg(!TupIsNull(slot));
-
-	/*
-	 * Analyze tools.  Do not send any thing if this slice is in the bit mask
-	 */
-	if (gp_motion_slice_noop != 0 && (gp_motion_slice_noop & (1 << currentSliceId)) != 0)
-		return SEND_COMPLETE;
-
-	/*
-	 * Pull up the motion node entry with the node's details.  This includes
-	 * details that affect sending, such as whether the motion node needs to
-	 * include backup segment-dbs.
-	 */
-	pMNEntry = getMotionNodeEntry(mlStates, motNodeID);
-
-#ifdef AMS_VERBOSE_LOGGING
-	elog(DEBUG5, "Serializing HeapTuple for sending.");
-#endif
-
-	struct directTransportBuffer b;
-	if (targetRoute != BROADCAST_SEGIDX)
-		getTransportDirectBuffer(transportStates, motNodeID, targetRoute, &b);
-
-	int			sent = 0;
-
-	/* Create and store the serialized form, and some stats about it. */
-	oldCtxt = MemoryContextSwitchTo(mlStates->motion_layer_mctx);
-
-	sent = SerializeTuple(slot, &pMNEntry->ser_tup_info, &b, &tcList, targetRoute);
-
-	MemoryContextSwitchTo(oldCtxt);
-	if (sent > 0)
-	{
-		putTransportDirectBuffer(transportStates, motNodeID, targetRoute, sent);
-
-		/* fill-in tcList fields to update stats */
-		tcList.num_chunks = 1;
-		tcList.serialized_data_length = sent;
-
-		/* update stats */
-		statSendTuple(mlStates, pMNEntry, &tcList);
-
-		return SEND_COMPLETE;
-	}
-	/* Otherwise fall-through */
-
-#ifdef AMS_VERBOSE_LOGGING
-	elog(DEBUG5, "Serialized HeapTuple for sending:\n"
-		 "\ttarget-route %d \n"
-		 "\t%d bytes in serial form\n"
-		 "\tbroken into %d chunks",
-		 targetRoute,
-		 tcList.serialized_data_length,
-		 tcList.num_chunks);
-#endif
-
-	/* do the send. */
-	if (!SendTupleChunkToAMS(mlStates, transportStates, motNodeID, targetRoute, tcList.p_first))
-	{
-		pMNEntry->stopped = true;
-		rc = STOP_SENDING;
-	}
-	else
-	{
-		/* update stats */
-		statSendTuple(mlStates, pMNEntry, &tcList);
-
-		rc = SEND_COMPLETE;
-	}
-
-	/* cleanup */
-	clearTCList(&pMNEntry->ser_tup_info.chunkCache, &tcList);
-
-	return rc;
 }
 
 TupleChunkListItem
@@ -531,31 +348,6 @@ get_eos_tuplechunklist(void)
  * Sends a token to all peer Motion Nodes, indicating that this motion
  * node has no more tuples to send out.
  */
-void
-SendEndOfStream(MotionLayerState *mlStates,
-				ChunkTransportState *transportStates,
-				int motNodeID)
-{
-	MotionNodeEntry *pMNEntry;
-
-	/*
-	 * Pull up the motion node entry with the node's details.  This includes
-	 * details that affect sending, such as whether the motion node needs to
-	 * include backup segment-dbs.
-	 */
-	pMNEntry = getMotionNodeEntry(mlStates, motNodeID);
-
-	transportStates->SendEos(transportStates, motNodeID, s_eos_chunk_data);
-
-	/*
-	 * We increment our own "stream-ends received" count when we send our own,
-	 * as well as when we receive one.
-	 */
-	pMNEntry->num_stream_ends_recvd++;
-
-	/* We record EOS as if a tuple were sent. */
-	statSendEOS(mlStates, pMNEntry);
-}
 
 /*
  * Receive one tuple from a sender. An unordered receiver will call this with
@@ -565,7 +357,7 @@ SendEndOfStream(MotionLayerState *mlStates,
  */
 MinimalTuple
 RecvTupleFrom(MotionLayerState *mlStates,
-			  ChunkTransportState *transportStates,
+			  void *task,
 			  int16 motNodeID,
 			  int16 srcRoute)
 {
@@ -621,7 +413,7 @@ RecvTupleFrom(MotionLayerState *mlStates,
 			break;
 		}
 
-		processIncomingChunks(mlStates, transportStates, pMNEntry, motNodeID, srcRoute);
+		processIncomingSDBChunks(mlStates, task, pMNEntry, motNodeID, srcRoute);
 	}
 
 	/* Stats */
@@ -629,100 +421,6 @@ RecvTupleFrom(MotionLayerState *mlStates,
 		statRecvTuple(pMNEntry, pCSEntry);
 
 	return tuple;
-}
-
-
-/*
- * This helper function is the receive-tuple workhorse.  It pulls
- * tuple chunks from the AMS, and pushes them to the chunk-sorter
- * where they can be sorted based on sender, and reconstituted into
- * whole HeapTuples.  Functions like RecvTuple() and RecvTupleFrom()
- * should definitely call this before trying to get a HeapTuple to
- * return.  It can also be called during other operations if that
- * seems like a good idea.  For example, it can be called sometime
- * during send-tuple operations as well.
- */
-static void
-processIncomingChunks(MotionLayerState *mlStates,
-					  ChunkTransportState *transportStates,
-					  MotionNodeEntry *pMNEntry,
-					  int16 motNodeID,
-					  int16 srcRoute)
-{
-	TupleChunkListItem tcItem,
-				tcNext;
-	MemoryContext oldCtxt;
-	ChunkSorterEntry *chunkSorterEntry;
-	ChunkTransportStateEntry *pEntry = NULL;
-	MotionConn *conn;
-
-	/* Keep track of processed chunk stats. */
-	int			numChunks,
-				chunkBytes,
-				tupleBytes;
-
-	oldCtxt = MemoryContextSwitchTo(mlStates->motion_layer_mctx);
-
-	/*
-	 * Get all of the currently available tuple-chunks, and push each one into
-	 * the chunk-sorter.
-	 */
-	if (srcRoute == ANY_ROUTE)
-		tcItem = transportStates->RecvTupleChunkFromAny(transportStates, motNodeID, &srcRoute);
-	else
-		tcItem = transportStates->RecvTupleChunkFrom(transportStates, motNodeID, srcRoute);
-
-	/* Look up various things related to the sender that we received chunks from. */
-	chunkSorterEntry = getChunkSorterEntry(mlStates, pMNEntry, srcRoute);
-	getChunkTransportState(transportStates, motNodeID, &pEntry);
-	conn = pEntry->conns + srcRoute;
-
-	numChunks = 0;
-	chunkBytes = 0;
-	tupleBytes = 0;
-
-	while (tcItem != NULL)
-	{
-		numChunks++;
-
-		/* Detach the current chunk off of the front of the list. */
-		tcNext = tcItem->p_next;
-		tcItem->p_next = NULL;
-
-		/* Track stats. */
-		chunkBytes += tcItem->chunk_length;
-		if (tcItem->chunk_length >= TUPLE_CHUNK_HEADER_SIZE)
-		{
-			tupleBytes += tcItem->chunk_length - TUPLE_CHUNK_HEADER_SIZE;
-		}
-		else
-		{
-			elog(ERROR, "Received tuple-chunk of size %u; smaller than"
-				 " chunk header size %d!", tcItem->chunk_length,
-				 TUPLE_CHUNK_HEADER_SIZE);
-		}
-
-		/* Stick the chunk into the sorter. */
-		addChunkToSorter(transportStates,
-						 pMNEntry,
-						 tcItem,
-						 motNodeID,
-						 chunkSorterEntry,
-						 pEntry,
-						 conn,
-						 srcRoute);
-
-		tcItem = tcNext;
-	}
-
-	/* The chunk list we just processed freed-up our rx-buffer space. */
-	if (numChunks > 0 && Gp_interconnect_type == INTERCONNECT_TYPE_UDPIFC)
-		MlPutRxBufferIFC(transportStates, motNodeID, srcRoute);
-
-	/* Stats */
-	statChunksProcessed(mlStates, pMNEntry, numChunks, chunkBytes, tupleBytes);
-
-	MemoryContextSwitchTo(oldCtxt);
 }
 
 void
@@ -992,157 +690,6 @@ materializeChunk(TupleChunkListItem *tcItem)
 }
 
 /*
- * Add another tuple-chunk to the chunk sorter.  If the new chunk
- * completes another HeapTuple, that tuple will be deserialized and
- * stored into a htfifo.  If not, the chunk is added to the
- * appropriate list of chunks.
- */
-static void
-addChunkToSorter(ChunkTransportState *transportStates,
-				 MotionNodeEntry *pMNEntry,
-				 TupleChunkListItem tcItem,
-				 int16 motNodeID,
-				 ChunkSorterEntry *chunkSorterEntry,
-				 ChunkTransportStateEntry *pEntry,
-				 MotionConn *conn,
-				 int16 srcRoute)
-{
-	TupleChunkType tcType;
-
-	AssertArg(tcItem != NULL);
-
-	/* Look at the chunk's type, to figure out what to do with it. */
-	GetChunkType(tcItem, &tcType);
-
-	switch (tcType)
-	{
-		case TC_WHOLE:
-		case TC_EMPTY:
-			/* There shouldn't be any partial tuple data in the list! */
-			if (chunkSorterEntry->chunk_list.num_chunks != 0)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received TC_WHOLE chunk from [src=%d,mn=%d] after partial tuple data",
-								srcRoute, motNodeID)));
-			}
-
-			/* Put this chunk into the list, then turn it into a HeapTuple! */
-			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
-			reconstructTuple(pMNEntry, chunkSorterEntry, conn->remapper);
-
-			break;
-
-		case TC_PARTIAL_START:
-
-			/* There shouldn't be any partial tuple data in the list! */
-			if (chunkSorterEntry->chunk_list.num_chunks != 0)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received TC_PARTIAL_START chunk from [src=%d,mn=%d] after partial tuple data",
-								srcRoute, motNodeID)));
-			}
-
-			/*
-			 * we don't have enough to reconstruct the tuple, we need to copy
-			 * the chunk data out of our shared buffer
-			 */
-			materializeChunk(&tcItem);
-
-			/* Put this chunk into the list. */
-			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
-
-			break;
-
-		case TC_PARTIAL_MID:
-
-			/* There should be partial tuple data in the list. */
-			if (chunkSorterEntry->chunk_list.num_chunks <= 0)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received TC_PARTIAL_MID chunk from [src=%d,mn=%d] without any leading tuple data",
-								srcRoute, motNodeID)));
-			}
-
-			/*
-			 * we don't have enough to reconstruct the tuple, we need to copy
-			 * the chunk data out of our shared buffer
-			 */
-			materializeChunk(&tcItem);
-
-			/* Append this chunk to the list. */
-			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
-
-			break;
-
-		case TC_PARTIAL_END:
-
-			/* There should be partial tuple data in the list. */
-			if (chunkSorterEntry->chunk_list.num_chunks <= 0)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received TC_PARTIAL_END chunk from [src=%d,mn=%d] without any leading tuple data",
-								srcRoute, motNodeID)));
-			}
-
-			/* Put this chunk into the list, then turn it into a HeapTuple! */
-			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
-			reconstructTuple(pMNEntry, chunkSorterEntry, conn->remapper);
-
-			break;
-
-		case TC_END_OF_STREAM:
-#ifdef AMS_VERBOSE_LOGGING
-			elog(LOG, "Got end-of-stream. motnode %d route %d", motNodeID, srcRoute);
-#endif
-			/* There shouldn't be any partial tuple data in the list! */
-			if (chunkSorterEntry->chunk_list.num_chunks != 0)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received TC_END_OF_STREAM chunk from [src=%d,mn=%d] after partial tuple data",
-								srcRoute, motNodeID)));
-			}
-
-			/* Make sure that we haven't already received end-of-stream! */
-
-			if (chunkSorterEntry->end_of_stream)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-						 errmsg("received end-of-stream chunk from [src=%d,mn=%d] when already marked as at end-of-stream",
-								srcRoute, motNodeID)));
-			}
-
-			/* Mark the state as "end of stream." */
-			chunkSorterEntry->end_of_stream = true;
-			pMNEntry->num_stream_ends_recvd++;
-
-			if (pMNEntry->num_stream_ends_recvd == pMNEntry->num_senders)
-				pMNEntry->moreNetWork = false;
-
-			/*
-			 * Since we received an end-of-stream.	Then we no longer need
-			 * read interest in the interconnect.
-			 */
-			DeregisterReadInterest(transportStates, motNodeID, srcRoute,
-								   "end of stream");
-			break;
-
-		default:
-			ereport(ERROR,
-					(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
-					 errmsg("received tuple chunk of unrecognized type %d (len %d) from [src=%d,mn=%d]",
-							tcType, tcItem->chunk_length, srcRoute, motNodeID)));
-	}
-}
-
-
-
-/*
  * STATISTICS HELPER-FUNCTIONS
  *
  * NOTE: the only fields that are required to be valid are
@@ -1246,6 +793,7 @@ statRecvTuple(MotionNodeEntry *pMNEntry, ChunkSorterEntry *pCSEntry)
 /*
  * Return true if the record cache should be sent to master
  */
+#ifdef SDB_NOUSE
 static bool
 ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo)
 {
@@ -1253,12 +801,417 @@ ShouldSendRecordCache(MotionConn *conn, SerTupInfo *pSerInfo)
 		NextRecordTypmod > 0 &&
 		NextRecordTypmod > conn->sent_record_typmod;
 }
+#endif
 
 /*
  * Update the number of sent record types.
  */
+#ifdef SDB_NOUSE
 static void
 UpdateSentRecordCache(MotionConn *conn)
 {
 	conn->sent_record_typmod = NextRecordTypmod;
+}
+#endif
+
+void 
+SendEndOfStream(MotionLayerState *mlStates, void *task, int16 motNodeID) 
+{
+	MotionNodeEntry *pMNEntry;
+
+	/*
+	 * Pull up the motion node entry with the node's details.  This includes
+	 * details that affect sending, such as whether the motion node needs to
+	 * include backup segment-dbs.
+	 */
+	pMNEntry = getMotionNodeEntry(mlStates, motNodeID);
+
+	SDBSendEndOfStream(task, motNodeID, s_eos_chunk_data);
+
+	/*
+	 * We increment our own "stream-ends received" count when we send our own,
+	 * as well as when we receive one.
+	 */
+	pMNEntry->num_stream_ends_recvd++;
+
+	/* We record EOS as if a tuple were sent. */
+	statSendEOS(mlStates, pMNEntry);
+}
+
+SendReturnCode
+SendTuple(MotionLayerState *mlStates, 
+		  void *task,
+		  int16 motNodeID,
+		  TupleTableSlot *slot,
+		  int16 targetRoute)
+{
+	MotionNodeEntry *pMNEntry;
+	TupleChunkListData tcList;
+	MemoryContext oldCtxt;
+	SendReturnCode rc;
+
+	AssertArg(!TupIsNull(slot));
+
+	/*
+	 * Analyze tools.  Do not send any thing if this slice is in the bit mask
+	 */
+	if (gp_motion_slice_noop != 0 && (gp_motion_slice_noop & (1 << currentSliceId)) != 0)
+		return SEND_COMPLETE;
+
+	/*
+	 * Pull up the motion node entry with the node's details.  This includes
+	 * details that affect sending, such as whether the motion node needs to
+	 * include backup segment-dbs.
+	 */
+	pMNEntry = getMotionNodeEntry(mlStates, motNodeID);
+
+#ifdef AMS_VERBOSE_LOGGING
+	elog(DEBUG5, "Serializing HeapTuple for sending.");
+#endif
+
+	int			sent = 0;
+
+	/* Create and store the serialized form, and some stats about it. */
+	oldCtxt = MemoryContextSwitchTo(mlStates->motion_layer_mctx);
+
+	sent = SerializeTuple(slot, &pMNEntry->ser_tup_info, &tcList, targetRoute);
+
+	MemoryContextSwitchTo(oldCtxt);
+
+	/* Otherwise fall-through */
+
+#ifdef AMS_VERBOSE_LOGGING
+	elog(DEBUG5, "Serialized HeapTuple for sending:\n"
+		 "\ttarget-route %d \n"
+		 "\t%d bytes in serial form\n"
+		 "\tbroken into %d chunks",
+		 targetRoute,
+		 tcList.serialized_data_length,
+		 tcList.num_chunks);
+#endif
+
+	/* do the send. */
+	if (!SendTupleChunkToAMS(mlStates, task, motNodeID, targetRoute, tcList.p_first))
+	{
+		pMNEntry->stopped = true;
+		rc = STOP_SENDING;
+	}
+	else
+	{
+		/* update stats */
+		statSendTuple(mlStates, pMNEntry, &tcList);
+
+		rc = SEND_COMPLETE;
+	}
+
+	/* cleanup */
+	clearTCList(&pMNEntry->ser_tup_info.chunkCache, &tcList);
+
+	return rc;
+
+}
+
+void
+SendStopMessage(MotionLayerState *mlStates,
+				void *task,
+				int16 motNodeID)
+{
+	MotionNodeEntry *pEntry = getMotionNodeEntry(mlStates, motNodeID);
+
+	pEntry->stopped = true;
+	SDBBroadcastStopMessage(task, motNodeID);
+}
+
+void
+TeardownStreams(EState *estate) 
+{
+}
+
+void
+SetupStream(EState *estate)
+{
+	SliceTable* sliceTable = estate->es_sliceTable;
+	ExecSlice  *mySlice = &sliceTable->slices[sliceTable->localSlice];
+	ExecSlice  *childSlice;
+	ListCell   *cell;
+	ListCell   *scell;
+
+	int32_t my_route = 0;
+	int32_t my_seg = sliceTable->localSegIndex;
+	foreach(scell, mySlice->segments)
+	{
+		int segindex = lfirst_int(scell);
+		if (segindex == my_seg) {
+			break; 
+		}
+		my_route++;
+	}
+
+	foreach (cell, mySlice->children)
+	{
+		int childId = lfirst_int(cell);
+		childSlice = &sliceTable->slices[childId];
+		int numProcs = list_length(childSlice->segments);
+		int route = 0;
+		SDBInitRecvStream(estate->task, childSlice->sliceIndex, numProcs);
+		foreach(scell, childSlice->segments)
+		{
+			int segindex = lfirst_int(scell);
+			SDBSetupRecvStream(estate->task, 
+					  childSlice->sliceIndex,
+					  childSlice->sliceIndex,
+					  mySlice->sliceIndex, 
+					  segindex,
+					  my_seg,
+					  route,
+					  my_route);
+			route++;
+		}
+	}
+
+	if (mySlice->parentIndex != -1) {
+		ExecSlice  *parentSlice = &sliceTable->slices[mySlice->parentIndex];
+		int numProcs = list_length(parentSlice->segments);
+		int route = 0;
+		SDBInitSendStream(estate->task, mySlice->sliceIndex, numProcs);
+		foreach(scell, parentSlice->segments)
+		{
+			int segindex = lfirst_int(scell);
+			SDBSetupSendStream(estate->task, 
+								mySlice->sliceIndex, 
+								mySlice->sliceIndex, 
+								parentSlice->sliceIndex, 
+								my_seg,
+								segindex,
+								my_route,
+								route);
+			SDBStartSendStream(estate->task, mySlice->sliceIndex, route);
+			route++;
+		}
+	}
+
+	estate->es_brpcstream_is_setup = true;
+}
+
+/*
+ * Add another tuple-chunk to the chunk sorter.  If the new chunk
+ * completes another HeapTuple, that tuple will be deserialized and
+ * stored into a htfifo.  If not, the chunk is added to the
+ * appropriate list of chunks.
+ */
+static void
+addSDBChunkToSorter(MotionNodeEntry *pMNEntry,
+				 TupleChunkListItem tcItem,
+				 int16 motNodeID,
+				 ChunkSorterEntry *chunkSorterEntry,
+				 int16 srcRoute)
+{
+	TupleChunkType tcType;
+
+	AssertArg(tcItem != NULL);
+
+	/* Look at the chunk's type, to figure out what to do with it. */
+	GetChunkType(tcItem, &tcType);
+
+	switch (tcType)
+	{
+		case TC_WHOLE:
+		case TC_EMPTY:
+			/* There shouldn't be any partial tuple data in the list! */
+			if (chunkSorterEntry->chunk_list.num_chunks != 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received TC_WHOLE chunk from [src=%d,mn=%d] after partial tuple data",
+								srcRoute, motNodeID)));
+			}
+
+			/* Put this chunk into the list, then turn it into a HeapTuple! */
+			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
+			reconstructTuple(pMNEntry, chunkSorterEntry, pMNEntry->remapper);
+
+			break;
+
+		case TC_PARTIAL_START:
+
+			/* There shouldn't be any partial tuple data in the list! */
+			if (chunkSorterEntry->chunk_list.num_chunks != 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received TC_PARTIAL_START chunk from [src=%d,mn=%d] after partial tuple data",
+								srcRoute, motNodeID)));
+			}
+
+			/*
+			 * we don't have enough to reconstruct the tuple, we need to copy
+			 * the chunk data out of our shared buffer
+			 */
+			materializeChunk(&tcItem);
+
+			/* Put this chunk into the list. */
+			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
+
+			break;
+
+		case TC_PARTIAL_MID:
+
+			/* There should be partial tuple data in the list. */
+			if (chunkSorterEntry->chunk_list.num_chunks <= 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received TC_PARTIAL_MID chunk from [src=%d,mn=%d] without any leading tuple data",
+								srcRoute, motNodeID)));
+			}
+
+			/*
+			 * we don't have enough to reconstruct the tuple, we need to copy
+			 * the chunk data out of our shared buffer
+			 */
+			materializeChunk(&tcItem);
+
+			/* Append this chunk to the list. */
+			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
+
+			break;
+
+		case TC_PARTIAL_END:
+
+			/* There should be partial tuple data in the list. */
+			if (chunkSorterEntry->chunk_list.num_chunks <= 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received TC_PARTIAL_END chunk from [src=%d,mn=%d] without any leading tuple data",
+								srcRoute, motNodeID)));
+			}
+
+			/* Put this chunk into the list, then turn it into a HeapTuple! */
+			appendChunkToTCList(&chunkSorterEntry->chunk_list, tcItem);
+			reconstructTuple(pMNEntry, chunkSorterEntry, pMNEntry->remapper);
+
+			break;
+
+		case TC_END_OF_STREAM:
+#ifdef AMS_VERBOSE_LOGGING
+			elog(LOG, "Got end-of-stream. motnode %d route %d", motNodeID, srcRoute);
+#endif
+			/* There shouldn't be any partial tuple data in the list! */
+			if (chunkSorterEntry->chunk_list.num_chunks != 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received TC_END_OF_STREAM chunk from [src=%d,mn=%d] after partial tuple data",
+								srcRoute, motNodeID)));
+			}
+
+			/* Make sure that we haven't already received end-of-stream! */
+
+			if (chunkSorterEntry->end_of_stream)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+						 errmsg("received end-of-stream chunk from [src=%d,mn=%d] when already marked as at end-of-stream",
+								srcRoute, motNodeID)));
+			}
+
+			/* Mark the state as "end of stream." */
+			chunkSorterEntry->end_of_stream = true;
+			pMNEntry->num_stream_ends_recvd++;
+
+			if (pMNEntry->num_stream_ends_recvd == pMNEntry->num_senders)
+				pMNEntry->moreNetWork = false;
+
+			break;
+
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_GP_INTERCONNECTION_ERROR),
+					 errmsg("received tuple chunk of unrecognized type %d (len %d) from [src=%d,mn=%d]",
+							tcType, tcItem->chunk_length, srcRoute, motNodeID)));
+	}
+}
+
+
+/*
+ * This helper function is the receive-tuple workhorse.  It pulls
+ * tuple chunks from the AMS, and pushes them to the chunk-sorter
+ * where they can be sorted based on sender, and reconstituted into
+ * whole HeapTuples.  Functions like RecvTuple() and RecvTupleFrom()
+ * should definitely call this before trying to get a HeapTuple to
+ * return.  It can also be called during other operations if that
+ * seems like a good idea.  For example, it can be called sometime
+ * during send-tuple operations as well.
+ */
+static void
+processIncomingSDBChunks(MotionLayerState *mlStates,
+					  void* task,
+					  MotionNodeEntry *pMNEntry,
+					  int16 motNodeID,
+					  int16 srcRoute)
+{
+	TupleChunkListItem tcItem,
+				tcNext;
+	MemoryContext oldCtxt;
+	ChunkSorterEntry *chunkSorterEntry;
+
+	/* Keep track of processed chunk stats. */
+	int			numChunks,
+				chunkBytes,
+				tupleBytes;
+
+	oldCtxt = MemoryContextSwitchTo(mlStates->motion_layer_mctx);
+
+	/*
+	 * Get all of the currently available tuple-chunks, and push each one into
+	 * the chunk-sorter.
+	 */
+	if (srcRoute == ANY_ROUTE)
+		tcItem = SDBRecvTupleChunkFromAny(task, motNodeID, &srcRoute);
+	else
+		tcItem = SDBRecvTupleChunkFrom(task, motNodeID, srcRoute);
+
+	/* Look up various things related to the sender that we received chunks from. */
+	chunkSorterEntry = getChunkSorterEntry(mlStates, pMNEntry, srcRoute);
+
+	numChunks = 0;
+	chunkBytes = 0;
+	tupleBytes = 0;
+
+	while (tcItem != NULL)
+	{
+		numChunks++;
+
+		/* Detach the current chunk off of the front of the list. */
+		tcNext = tcItem->p_next;
+		tcItem->p_next = NULL;
+
+		/* Track stats. */
+		chunkBytes += tcItem->chunk_length;
+		if (tcItem->chunk_length >= TUPLE_CHUNK_HEADER_SIZE)
+		{
+			tupleBytes += tcItem->chunk_length - TUPLE_CHUNK_HEADER_SIZE;
+		}
+		else
+		{
+			elog(ERROR, "Received tuple-chunk of size %u; smaller than"
+				 " chunk header size %d!", tcItem->chunk_length,
+				 TUPLE_CHUNK_HEADER_SIZE);
+		}
+
+		/* Stick the chunk into the sorter. */
+		addSDBChunkToSorter(pMNEntry,
+						 tcItem,
+						 motNodeID,
+						 chunkSorterEntry,
+						 srcRoute);
+
+		tcItem = tcNext;
+	}
+
+	/* Stats */
+	statChunksProcessed(mlStates, pMNEntry, numChunks, chunkBytes, tupleBytes);
+
+	MemoryContextSwitchTo(oldCtxt);
 }
