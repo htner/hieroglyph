@@ -3,13 +3,13 @@ package lakehouse
 import (
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"runtime"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
+	log "github.com/sirupsen/logrus"
 )
 
 var ErrorRetry = errors.New("retry")
@@ -21,8 +21,30 @@ func GetFunctionName(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
-func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
-	//return L.LockWait(tr, lock, -1)
+func (L *LockMgr) PreLock(dbid uint64, sid uint64, updates []uint64) error {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		for _, rel := range updates {
+			var fdblock keys.Lock
+			fdblock.Database = dbid
+			fdblock.Relation = rel
+			fdblock.LockType = keys.UpdateLock
+			fdblock.Sid = sid
+			err := L.Lock(tr, &fdblock)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	})
+	return err
+}
+
+func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *keys.Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
 	for i := 0; i < retryNum; i++ {
 		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			err := L.TryLockAndWatch(tr, lock)
@@ -55,12 +77,12 @@ func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *Lock, f func(fdb.Transac
 	return data, err
 }
 
-func (L *LockMgr) Lock(tr fdb.Transaction, lock *Lock) error {
+func (L *LockMgr) Lock(tr fdb.Transaction, lock *keys.Lock) error {
 	return L.TryLockAndWatch(tr, lock)
 }
 
-func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realType uint8) (lockBefore bool, err error) {
-	prefix, err := kv.MarshalRangePerfix(checkLock)
+func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *keys.Lock, realType uint8) (lockBefore bool, err error) {
+	prefix, err := fdbkv.MarshalRangePerfix(checkLock)
 	if err != nil {
 		return false, err
 	}
@@ -79,25 +101,22 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 
 	// Advance will return true until the iterator is exhausted
 	for _, data := range kvs {
-		fdblock := &Lock{}
-		err := kv.UnmarshalKey(data.Key, fdblock)
+		fdblock := &keys.Lock{}
+		err := fdbkv.UnmarshalKey(data.Key, fdblock)
 		if err != nil {
 			log.Printf("Unable to UnmarshalKey: %v %v\n", data, err)
 			return false, err
 		}
-		err = kv.UnmarshalValue(data.Value, fdblock)
-		if err != nil {
-			log.Printf("Unable to UnmarshalValue: %v %v\n", data, err)
-			return false, err
-		}
 
 		log.Printf("get other lock: %v\n", fdblock)
+
 		// 支持重入
 		if fdblock.Sid == checkLock.Sid && fdblock.LockType == realType {
 			log.Printf("reentry %v\n", checkLock)
 			return true, nil
 		}
-		if LockConflicts(fdblock.LockType, realType) {
+
+		if keys.LockConflicts(fdblock.LockType, realType) {
 			fut := tr.Watch(data.Key)
 			log.Printf("LockConflicts Watch: %s\n", data.Key)
 			tr.Commit()
@@ -113,20 +132,20 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *Lock, realTyp
 	return false, nil
 }
 
-func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
+func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *keys.Lock) error {
 	sessOp := NewSessionOperator(tr, lock.Sid)
-	sess, err := sessOp.CheckAndGet(kv.SessionTransactionStart)
+	sess, err := sessOp.CheckAndGet(keys.SessionTransactionStart)
 	if err != nil {
 		log.Printf("CheckAndGet error %v %v %v %v", err, L, sessOp, lock)
 		return err
 	}
 	log.Printf("lock in session %v", sess)
 
-	var checkLock Lock
+	var checkLock keys.Lock
 	checkLock.Database = lock.Database
 	checkLock.Relation = lock.Relation
 	checkLock.Sid = lock.Sid
-	conflictsTypes := GetConflictsLocks(lock.LockType)
+	conflictsTypes := keys.GetConflictsLocks(lock.LockType)
 
 	for _, conflictsType := range conflictsTypes {
 		checkLock.LockType = conflictsType
@@ -142,19 +161,19 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *Lock) error {
 	}
 
 	kvOp := NewKvOperator(tr)
-	return kvOp.Write(lock, lock)
+	return kvOp.Write(lock, &fdbkv.EmptyValue{})
 }
 
-func (M *LockMgr) Unlock(tr fdb.Transaction, lock *Lock) error {
+func (M *LockMgr) Unlock(tr fdb.Transaction, lock *keys.Lock) error {
 	kvOp := NewKvOperator(tr)
 	return kvOp.Delete(lock)
 }
 
-func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, sid types.SessionId, xid types.TransactionId) error {
-	var lock Lock
+func (M *LockMgr) UnlockAll(tr fdb.Transaction, database uint64, sid uint64) error {
+	var lock keys.Lock
 	lock.Database = database
 	kvOp := NewKvOperator(tr)
-	prefix, err := kv.MarshalRangePerfix(&lock)
+	prefix, err := fdbkv.MarshalRangePerfix(&lock)
 	if err != nil {
 		return err
 	}
@@ -169,22 +188,23 @@ func (M *LockMgr) UnlockAll(tr fdb.Transaction, database types.DatabaseId, sid t
 		return err
 	}
 
+	log.Println("get database locks", kvs)
 	// Advance will return true until the iterator is exhausted
 	for _, data := range kvs {
-		fdblock := &Lock{}
-		err := kv.UnmarshalKey(data.Key, fdblock)
+		fdblock := &keys.Lock{}
+		err := fdbkv.UnmarshalKey(data.Key, fdblock)
 		if err != nil {
 			return err
 		}
-		err = kv.UnmarshalValue(data.Value, fdblock)
-		if err != nil {
-			return err
-		}
-
-		if fdblock.Sid == sid {
-			if fdblock.Xid == xid || xid == InvaildTranscaton {
-				kvOp.Delete(fdblock)
+		/*
+			err = fdbkv.UnmarshalValue(data.Value, fdblock)
+			if err != nil {
+				return err
 			}
+		*/
+		if fdblock.Sid == sid {
+			log.Println("delete lock ", fdblock)
+			kvOp.Delete(fdblock)
 		}
 	}
 	return nil

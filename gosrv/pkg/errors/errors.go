@@ -1,7 +1,7 @@
 package errors
 
 import (
-  "fmt"
+	"fmt"
 	"log"
 )
 
@@ -25,8 +25,8 @@ func LogAndCreate(errmsg string, code int) error {
 }
 
 type MyErrorCode struct {
-    code int
-    s    string
+	code int
+	s    string
 }
 
 func (e *MyErrorCode) Error() string {
@@ -34,7 +34,7 @@ func (e *MyErrorCode) Error() string {
 }
 
 func (e *MyErrorCode) Code() int {
-    return e.code
+	return e.code
 }
 
 func ErrorCode(err error) *MyErrorCode {

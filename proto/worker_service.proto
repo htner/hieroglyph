@@ -43,9 +43,6 @@ message PrepareTaskRequest {
   uint64 dbid = 6;
   uint64 worker_id = 7;
 
-  uint64 read_xid = 8;
-  uint64 commit_xid = 9;
-
   string sql = 10;
   bytes query_info = 11;
   bytes plan_info = 12;

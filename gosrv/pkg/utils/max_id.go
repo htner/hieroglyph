@@ -6,24 +6,24 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 )
 
 type MaxIdOperator struct {
 	tr        fdb.Transaction
-	key       kvpair.FdbKey
+	key       fdbkv.FdbKey
 	current   uint64
 	init      bool
 	localnext bool
 }
 
-func NewMaxIdOperator(tr fdb.Transaction, key kvpair.FdbKey) (L *MaxIdOperator) {
+func NewMaxIdOperator(tr fdb.Transaction, key fdbkv.FdbKey) (L *MaxIdOperator) {
 	return &MaxIdOperator{tr: tr, key: key, current: 0, init: false, localnext: false}
 }
 
 func (I *MaxIdOperator) GetCurrent() (uint64, error) {
 	kvOp := fdbkv.NewKvOperator(I.tr)
-	var max_id kvpair.MaxId
+	var max_id keys.MaxId
 	err := kvOp.Read(I.key, &max_id)
 	if err != nil {
 		if err != fdbkv.ErrEmptyData {
@@ -39,7 +39,7 @@ func (I *MaxIdOperator) GetCurrent() (uint64, error) {
 
 func (I *MaxIdOperator) GetNext() (uint64, error) {
 	kvOp := fdbkv.NewKvOperator(I.tr)
-	var max_id kvpair.MaxId
+	var max_id keys.MaxId
 	err := kvOp.Read(I.key, &max_id)
 	if err != nil {
 		if err != fdbkv.ErrEmptyData {
@@ -73,14 +73,14 @@ func (I *MaxIdOperator) Sync() error {
 		return nil
 	}
 	kvOp := fdbkv.NewKvOperator(I.tr)
-	var max_id kvpair.MaxId
+	var max_id keys.MaxId
 	max_id.Value = I.current
 	return kvOp.Write(I.key, &max_id)
 }
 
 func (I *MaxIdOperator) Add(count uint64) (uint64, uint64, error) {
 	kvOp := fdbkv.NewKvOperator(I.tr)
-	var max_id kvpair.MaxId
+	var max_id keys.MaxId
 	err := kvOp.Read(I.key, &max_id)
 	if err != nil {
 		if err != fdbkv.ErrEmptyData {

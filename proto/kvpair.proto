@@ -114,3 +114,21 @@ message RelFiles {
   repeated LakeFile files = 2;
   bytes version = 3;
 }
+
+message Session {
+	uint64 id = 1;
+	uint64 uid = 2;
+	uint64 dbid = 3;
+
+	bytes token = 4;
+	int32 state = 5;
+	bool auto_commit = 6;
+
+	uint64 read_transaction_id = 7;
+	uint64 write_transaction_id = 8;
+	//ReadOnlyTransactions map[uint64]uint64
+}
+
+message LocKValue {
+  uint64 xid = 2;
+}

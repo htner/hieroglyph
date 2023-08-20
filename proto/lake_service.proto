@@ -86,7 +86,6 @@ message UnlockResponse {
 message PrepareInsertFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 commit_xid = 3;
     uint64 rel = 4;
     uint64 commandid = 5;
     uint64 count = 6;
@@ -100,7 +99,6 @@ message PrepareInsertFilesResponse {
 message DeleteFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 commit_xid = 3;
     uint64 commandid = 4;
     uint64 rel = 5;
     repeated LakeFile remove_files = 6;
@@ -112,8 +110,6 @@ message DeleteFilesResponse {
 message GetFilesRequest {
     uint64 dbid = 1;
     uint64 sessionid = 2;
-    uint64 read_xid = 3;
-    uint64 commit_xid = 4;
     uint64 commandid = 5;
     uint64 rel = 6;
 

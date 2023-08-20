@@ -5,14 +5,14 @@ import (
 )
 
 type RelNode struct {
-	Database types.DatabaseId
-	Relation types.RelId
+	Database uint64
+	Relation uint64
 }
 
 type RelDesc struct {
-	Database types.DatabaseId
-	Id       types.RelId
-	Type     types.TypeId
+	Database uint64
+	Id       uint64
+	Type     uint64
 	Kind     types.KindId
 	AM       types.OID
 }
@@ -20,6 +20,6 @@ type RelDesc struct {
 type Relation struct {
 }
 
-func (r *Relation) NewRelation(rel RelDesc, xid types.TransactionId, sid types.SessionId) {
+func (r *Relation) NewRelation(rel RelDesc, xid uint64, sid uint64) {
 	//t := NewTranscationWithXid(rel.Database, xid, sid) //InitTranscation(xid)
 }

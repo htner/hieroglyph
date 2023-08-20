@@ -1,19 +1,17 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
 	"time"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type SessionTick struct {
-	Id       types.SessionId
+	Id       uint64
 	LastTick int64
 }
 
-func NewLocalSessionPing(id types.SessionId) *SessionTick {
+func NewLocalSessionPing(id uint64) *SessionTick {
 	return &SessionTick{
 		Id:       id,
 		LastTick: time.Now().Local().UnixMicro(),

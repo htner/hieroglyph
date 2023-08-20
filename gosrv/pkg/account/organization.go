@@ -7,9 +7,8 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
-	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
@@ -33,7 +32,7 @@ func GetDatabase(organization, database string) (*sdb.Database, error) {
 	_, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 		kvReader := fdbkv.NewKvReader(rtr)
 
-		key := &kvpair.OrganizationNameKey{Name: organization}
+		key := &keys.OrganizationNameKey{Name: organization}
 		idPointer := new(sdb.IdPointer)
 		err := kvReader.ReadPB(key, idPointer)
 		if err != nil {
@@ -41,14 +40,14 @@ func GetDatabase(organization, database string) (*sdb.Database, error) {
 			return nil, err
 		}
 
-		keyDatabaseName := &kvpair.DatabaseNameKey{OrganizationId: idPointer.Id, DatabaseName: database}
+		keyDatabaseName := &keys.DatabaseNameKey{OrganizationId: idPointer.Id, DatabaseName: database}
 		err = kvReader.ReadPB(keyDatabaseName, idPointer)
 		if err != nil {
 			log.Printf("read database name error %s.%s->%s", organization, database, err.Error())
 			return nil, err
 		}
 
-		keyDatabase := &kvpair.DatabaseKey{Id: idPointer.Id}
+		keyDatabase := &keys.DatabaseKey{Id: idPointer.Id}
 		err = kvReader.ReadPB(keyDatabase, sdbDB)
 		if err != nil {
 			log.Printf("read database error %s", err.Error())
@@ -77,7 +76,7 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 	organizationId, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 		kvReader := fdbkv.NewKvReader(rtr)
 
-		key := &kvpair.OrganizationNameKey{Name: organization}
+		key := &keys.OrganizationNameKey{Name: organization}
 		idPointer := new(sdb.IdPointer)
 		err := kvReader.ReadPB(key, idPointer)
 		if err != nil {
@@ -95,14 +94,14 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 	sdbDatabase, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		idKey := kvpair.FirstClassObjectMaxKey{MaxTag: kvpair.FCDatabaseMaxIDTag}
+		idKey := keys.FirstClassObjectMaxKey{MaxTag: keys.FCDatabaseMaxIDTag}
 		idOp := utils.NewMaxIdOperator(tr, &idKey)
 		id, err := idOp.GetNext()
 		if err != nil {
 			return nil, err
 		}
 
-		key := &kvpair.DatabaseNameKey{OrganizationId: organizationId.(uint64), DatabaseName: dbname}
+		key := &keys.DatabaseNameKey{OrganizationId: organizationId.(uint64), DatabaseName: dbname}
 		idPointer := &sdb.IdPointer{}
 		err = kvOp.ReadPB(key, idPointer)
 		if err == nil {
@@ -111,7 +110,7 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 			return nil, err
 		}
 
-		keyDatabase := &kvpair.DatabaseKey{Id: id}
+		keyDatabase := &keys.DatabaseKey{Id: id}
 		sdbDatabase := new(sdb.Database)
 		sdbDatabase.Dbid = id
 		sdbDatabase.Dbname = dbname
@@ -130,8 +129,16 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 		return sdbDatabase, err
 	})
 	if e == nil {
+		sess, err := lakehouse.CreateSession(1, 1)
+		if err != nil {
+			return nil, err
+		}
 		lakeop := new(lakehouse.LakeOperator)
-		lakeop.Copy(1, types.DatabaseId(dbid))
+		tr := lakehouse.NewTranscation(sess.Dbid, sess.Id)
+		// only for old table
+		tr.Start(true)
+		lakeop.Copy(sess.Dbid, uint64(dbid), sess.Id)
+		tr.Commit()
 		return sdbDatabase.(*sdb.Database), e
 	}
 	return nil, e
@@ -151,7 +158,7 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
 	sdbUser, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 		kvReader := fdbkv.NewKvReader(rtr)
 
-		key := &kvpair.OrganizationNameKey{Name: organization}
+		key := &keys.OrganizationNameKey{Name: organization}
 		idPointer := new(sdb.IdPointer)
 		err := kvReader.ReadPB(key, idPointer)
 		if err != nil {
@@ -160,7 +167,7 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
 		log.Printf("get organizationId : %d", idPointer.Id)
 
 		/*
-		   keyOrga:= &kvpair.OrganizationKey{Id:idPointer.Id}
+		   keyOrga:= &keys.OrganizationKey{Id:idPointer.Id}
 		   organization := new(sdb.Organization)
 		   err = kvReader.ReadPB(keyOrga, organization)
 		   if err != nil {
@@ -169,7 +176,7 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
 		*/
 
 		log.Printf("get user %s in organizationId : %d", user, idPointer.Id)
-		keyUserName := &kvpair.UserLoginNameKey{OrganizationId: idPointer.Id, LoginName: user}
+		keyUserName := &keys.UserLoginNameKey{OrganizationId: idPointer.Id, LoginName: user}
 		err = kvReader.ReadPB(keyUserName, idPointer)
 		if err != nil {
 			return nil, err
@@ -177,7 +184,7 @@ func GetUser(organization, user, passwd string) (*sdb.User, error) {
 
 		log.Printf("get user id: %d", idPointer.Id)
 
-		keyUser := &kvpair.UserKey{Id: idPointer.Id}
+		keyUser := &keys.UserKey{Id: idPointer.Id}
 		sdbUser := new(sdb.User)
 		err = kvReader.ReadPB(keyUser, sdbUser)
 		if err != nil {
@@ -212,21 +219,21 @@ func CreateUser(organization, account, passwd string) (*sdb.User, error) {
 	user, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := fdbkv.NewKvOperator(tr)
 
-		keyOrganName := &kvpair.OrganizationNameKey{Name: organization}
+		keyOrganName := &keys.OrganizationNameKey{Name: organization}
 		idPointerOrgan := &sdb.IdPointer{}
 		err = kvOp.ReadPB(keyOrganName, idPointerOrgan)
 		if err != nil {
 			return nil, err
 		}
 
-		idKey := kvpair.FirstClassObjectMaxKey{MaxTag: kvpair.FCUserMaxIDTag}
+		idKey := keys.FirstClassObjectMaxKey{MaxTag: keys.FCUserMaxIDTag}
 		idOp := utils.NewMaxIdOperator(tr, &idKey)
 		id, err := idOp.GetNext()
 		if err != nil {
 			return nil, err
 		}
 
-		key := &kvpair.UserLoginNameKey{OrganizationId: idPointerOrgan.Id, LoginName: account}
+		key := &keys.UserLoginNameKey{OrganizationId: idPointerOrgan.Id, LoginName: account}
 		idPointer := &sdb.IdPointer{}
 		err = kvOp.ReadPB(key, idPointer)
 		if err == nil {
@@ -235,7 +242,7 @@ func CreateUser(organization, account, passwd string) (*sdb.User, error) {
 			return nil, err
 		}
 
-		keyUser := &kvpair.UserKey{Id: id}
+		keyUser := &keys.UserKey{Id: id}
 		user := new(sdb.User)
 		user.Id = id
 		user.OrganizationId = idPointerOrgan.Id
