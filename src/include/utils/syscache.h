@@ -172,6 +172,8 @@ extern bool RelationInvalidatesSnapshotsOnly(Oid relid);
 extern bool RelationHasSysCache(Oid relid);
 extern bool RelationSupportsSysCache(Oid relid);
 
+extern void SysOneCacheInvalidate(int rel_or_idx_oid);
+
 /*
  * The use of the macros below rather than direct calls to the corresponding
  * functions is encouraged, as it insulates the caller from changes in the

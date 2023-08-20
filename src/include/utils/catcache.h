@@ -219,7 +219,7 @@ extern void ReleaseCatCacheList(CatCList *list);
 
 extern void ResetCatalogCaches(void);
 extern void CatalogCacheFlushCatalog(Oid catId);
-extern void CatalogCacheFlushCatalogAndIndex(Oid catId);
+extern void CatalogCacheInvalidRelCatalog(Oid rel_oid);
 extern void CatCacheInvalidate(CatCache *cache, uint32 hashValue);
 extern void PrepareToInvalidateCacheTuple(Relation relation,
 										  HeapTuple tuple,
@@ -228,5 +228,8 @@ extern void PrepareToInvalidateCacheTuple(Relation relation,
 
 extern void PrintCatCacheLeakWarning(HeapTuple tuple, const char *resOwnerName);
 extern void PrintCatCacheListLeakWarning(CatCList *list, const char *resOwnerName);
+
+extern void GetCCHashEqFuncs(Oid keytype, CCHashFN *hashfunc, RegProcedure *eqfunc,
+ 							CCFastEqualFN *fasteqfunc);
 
 #endif							/* CATCACHE_H */

@@ -6,6 +6,7 @@ extern "C" {
 #include "catalog/index.h"
 #include "catalog/pg_class_d.h"
 #include "storage/bufmgr.h"
+#include "utils/syscache.h"
 }
 #include <vector>
 #include "../catalog_index/catalog_to_index.hpp"

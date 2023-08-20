@@ -3,6 +3,7 @@
 
 #include "backend/sdb/common/pg_export.hpp"
 #include "utils/palloc.h"
+#include <butil/logging.h>
 
 namespace sdb {
 
@@ -27,10 +28,24 @@ public:
 	List* Parse(const char* query_string) {
 		List* parsetree_list;
 
+
 		auto oldcontext = MemoryContextSwitchTo(parse_context_);
-		parsetree_list = raw_parser(query_string);
-    elog_node_display(PG_LOG, "parse results:", parsetree_list, true);
-    MemoryContextSwitchTo(oldcontext);
+		PG_TRY();
+		{
+			parsetree_list = raw_parser(query_string);
+			elog_node_display(PG_LOG, "parse results:", parsetree_list, true);
+		}
+		PG_CATCH();
+		{
+			ErrorData *errdata;
+			errdata = CopyErrorData();
+			FlushErrorState();
+			LOG(ERROR) << "pg analyze and rewrite failed: " << errdata->message;
+			FreeErrorData(errdata);
+			parsetree_list = nullptr;
+		}
+		PG_END_TRY();
+    	MemoryContextSwitchTo(oldcontext);
 		return parsetree_list;
 	}
 

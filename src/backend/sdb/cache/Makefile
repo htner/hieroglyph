@@ -1,18 +1,21 @@
 #-------------------------------------------------------------------------
 #
-# Makefile for wukongdb
+# Makefile--
+#    Makefile for wukongdb/optimizer/
 #
-# src/backend/wukongdb/Makefile
+# IDENTIFICATION
+#    src/backend/wukongdb/optimizer/Makefile
 #
 #-------------------------------------------------------------------------
-
-include ./Makefile.conf
+include ../../../../src/backend/sdb/Makefile.conf
 
 subdir = $(SDB_SUB_DIR)
 top_builddir = $(SDB_TOP_BUILD_PREFIX)
 
+CXXFLAGS += -std=c++17 
+
 include $(SDB_GLOBAL_MAKEFILE)
 
-SUBDIRS = optimizer worker common cache
+OBJS = $(patsubst %.cpp, %.o, $(wildcard *.cpp))
 
 include $(SDB_COMMON_MK)
