@@ -1,4 +1,4 @@
-package kvpair
+package keys
 
 import (
 	"bytes"

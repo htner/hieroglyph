@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,13 +18,13 @@ func NewKvOperator(tr fdb.Transaction) *KvOperator {
 	return &KvOperator{t: tr}
 }
 
-func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvOperator) Write(key FdbKey, value FdbValue) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}
 	fKey := fdb.Key(sKey)
-	sValue, err := kv.MarshalValue(value)
+	sValue, err := MarshalValue(value)
 	log.Println("kv write:", sKey, len(sKey), sValue, len(sValue))
 	if err != nil {
 		return err
@@ -35,8 +34,8 @@ func (t *KvOperator) Write(key kv.FdbKey, value kv.FdbValue) error {
 	return nil
 }
 
-func (t *KvOperator) Delete(key kv.FdbKey) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvOperator) Delete(key FdbKey) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}
@@ -45,8 +44,8 @@ func (t *KvOperator) Delete(key kv.FdbKey) error {
 	return nil
 }
 
-func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvOperator) Read(key FdbKey, value FdbValue) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}
@@ -62,17 +61,17 @@ func (t *KvOperator) Read(key kv.FdbKey, value kv.FdbValue) error {
 	if len(v) == 0 {
 		return ErrEmptyData
 	}
-	return kv.UnmarshalValue(v, value)
+	return UnmarshalValue(v, value)
 }
 
-func (t *KvOperator) WritePB(key kv.FdbKey, msg proto.Message) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvOperator) WritePB(key FdbKey, msg proto.Message) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}
 	fKey := fdb.Key(sKey)
 	sValue, err := proto.Marshal(msg)
-	//sValue, err := kv.MarshalValue(value)
+	//sValue, err := MarshalValue(value)
 	// log.Println(sKey, len(sKey), sValue, len(sValue))
 	if err != nil {
 		return err
@@ -82,8 +81,8 @@ func (t *KvOperator) WritePB(key kv.FdbKey, msg proto.Message) error {
 	return nil
 }
 
-func (t *KvOperator) ReadPB(key kv.FdbKey, msg proto.Message) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvOperator) ReadPB(key FdbKey, msg proto.Message) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}

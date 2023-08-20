@@ -1,4 +1,4 @@
-package kvpair
+package keys
 
 /*
 	"bytes"
@@ -9,8 +9,8 @@ package kvpair
 
 /*
 type MaxDeleteVersionTag struct {
-	DbId types.DatabaseId
-	Rel types.RelId
+	DbId uint64
+	Rel uint64
 	Version uint64
 }
 

@@ -1,15 +1,13 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type FileListVersion struct {
-	DbId    types.DatabaseId
-	Rel     types.RelId
+	DbId    uint64
+	Rel     uint64
 	Version uint64
 }
 

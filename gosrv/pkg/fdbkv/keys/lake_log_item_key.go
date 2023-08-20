@@ -1,11 +1,10 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
 
 	"github.com/google/uuid"
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 const (
@@ -15,14 +14,14 @@ const (
 )
 
 type LakeLogItemKey struct {
-	Database types.DatabaseId
-	Rel      types.RelId
-	Xid      types.TransactionId
+	Database uint64
+	Rel      uint64
+	Xid      uint64
 	Action   int8
 	UUID     string
 }
 
-func NewLakeLogItemKey(database types.DatabaseId, rel types.RelId, xid types.TransactionId, action int8) *LakeLogItemKey {
+func NewLakeLogItemKey(database uint64, rel uint64, xid uint64, action int8) *LakeLogItemKey {
 	return &LakeLogItemKey{
 		Database: database,
 		Rel:      rel,

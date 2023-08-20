@@ -8,8 +8,8 @@ import (
 	"math"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 	"github.com/htner/sdb/gosrv/pkg/utils"
 	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
@@ -23,7 +23,7 @@ import (
 type LakeOperator struct {
 }
 
-func (L *LakeOperator) Copy(dest, source types.DatabaseId) {
+func (L *LakeOperator) Copy(dest, source uint64, s uint64) {
 	// only catatlog copy now
 	var space sdb.LakeSpaceDetail
 	space.Base = new(sdb.LakeSpaceInfo)
@@ -37,62 +37,62 @@ func (L *LakeOperator) Copy(dest, source types.DatabaseId) {
 	// "minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
 
 	catalogs := postgres.CatalogNames
-	for rel, _ := range catalogs {
+	for rel := range catalogs {
 		relCopy := new(LakeRelCopyOperator)
 		relCopy.destDb = dest
-		relCopy.destRel = types.RelId(rel)
+		relCopy.destRel = uint64(rel)
 		relCopy.destSpace = &space
 
 		relCopy.sourceDb = source
-		relCopy.sourceRel = types.RelId(rel)
+		relCopy.sourceRel = uint64(rel)
 		relCopy.sourceSpace = &space
 
-		relCopy.Copy()
+		relCopy.Copy(s)
 	}
 }
 
 type LakeDBCopyOperator struct {
-	dest   types.DatabaseId
-	source types.DatabaseId
+	dest   uint64
+	source uint64
 }
 
 type LakeRelCopyOperator struct {
-	destRel   types.RelId
-	destDb    types.DatabaseId
+	destRel   uint64
+	destDb    uint64
 	destSpace *sdb.LakeSpaceDetail
 
-	sourceRel   types.RelId
-	sourceDb    types.DatabaseId
+	sourceRel   uint64
+	sourceDb    uint64
 	sourceSpace *sdb.LakeSpaceDetail
 
 	isSameOrginaztion bool
 }
 
-func (L *LakeRelCopyOperator) Copy() error {
+func (L *LakeRelCopyOperator) Copy(s uint64) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
 	}
 	var mgr LockMgr
-	var fdblock Lock
+	var fdblock keys.Lock
 
-	fdblock.Database = types.DatabaseId(L.sourceDb)
+	fdblock.Database = uint64(L.sourceDb)
 	fdblock.Relation = L.sourceRel
-	fdblock.LockType = ReadLock
-	fdblock.Sid = 1
+	fdblock.LockType = keys.DDLLock
+	fdblock.Sid = s
 
 	data, err := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 
-			var key kvpair.FileKey = kvpair.FileKey{Database: L.sourceDb, Relation: L.sourceRel, Fileid: 0}
+			var key keys.FileKey = keys.FileKey{Database: L.sourceDb, Relation: L.sourceRel, Fileid: 0}
 
-			sKeyStart, err := kvpair.MarshalRangePerfix(&key)
+			sKeyStart, err := fdbkv.MarshalRangePerfix(&key)
 			if err != nil {
 				log.Printf("marshal ranage perfix %v", err)
 				return nil, err
 			}
 			key.Fileid = math.MaxUint64
-			sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
+			sKeyEnd, err := fdbkv.MarshalRangePerfix(&key)
 			if err != nil {
 				log.Printf("marshal ranage perfix %v", err)
 				return nil, err
@@ -100,6 +100,7 @@ func (L *LakeRelCopyOperator) Copy() error {
 
 			keyStart := fdb.Key(sKeyStart)
 			keyEnd := fdb.Key(sKeyEnd)
+
 			rr := tr.GetRange(fdb.KeyRange{Begin: keyStart, End: keyEnd},
 				fdb.RangeOptions{Limit: 10000})
 			ri := rr.Iterator()
@@ -113,8 +114,8 @@ func (L *LakeRelCopyOperator) Copy() error {
 					log.Printf("Unable to read next value: %v\n", e)
 					return nil, nil
 				}
-				var key kvpair.FileKey
-				err = kvpair.UnmarshalKey(data.Key, &key)
+				var key keys.FileKey
+				err = fdbkv.UnmarshalKey(data.Key, &key)
 				if err != nil {
 					log.Printf("UnmarshalKey error ? %v %v", data, err)
 					return nil, err
@@ -142,7 +143,7 @@ func (L *LakeRelCopyOperator) Copy() error {
 	data, err = mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
 			kvOp := NewKvOperator(tr)
-			idKey := kvpair.SecondClassObjectMaxKey{MaxTag: kvpair.MAXFILEIDTag, Dbid: L.destDb}
+			idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: L.destDb}
 			idOp := utils.NewMaxIdOperator(tr, &idKey)
 			_, err = idOp.GetCurrent()
 			if err != nil {
@@ -164,7 +165,7 @@ func (L *LakeRelCopyOperator) Copy() error {
 					return nil, err
 				}
 
-				var key kvpair.FileKey
+				var key keys.FileKey
 				key.Database = L.sourceDb
 				key.Relation = L.sourceRel
 				key.Fileid = fileid

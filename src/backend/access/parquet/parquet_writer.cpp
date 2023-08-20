@@ -29,6 +29,7 @@
 #include <butil/iobuf.h>
 
 #include "lake_service.pb.h"
+#include "backend/sdb/common/common.hpp"
 
 #define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
 
@@ -42,10 +43,6 @@
  * @param reader_id reder id
  * @return ParquetWriter* modify parquet reader object
  */
-
-extern uint64_t commit_xid;
-extern uint64_t dbid;
-extern uint64_t sessionid;
 
 std::shared_ptr<ParquetWriter> CreateParquetWriter(
     Oid rel, const char *filename, TupleDesc tuple_desc) {
@@ -249,7 +246,6 @@ void ParquetWriter::PrepareUpload() {
 	// FIX_SDB: 
 	request.set_dbid(dbid);
 	request.set_sessionid(sessionid);
-	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
 	request.set_count(1);
 
@@ -299,7 +295,6 @@ void ParquetWriter::CommitUpload() {
 	//*add_file = filename_;
 	request.set_dbid(dbid);
 	request.set_sessionid(sessionid);
-	request.set_commit_xid(commit_xid);
 	request.set_rel(rel_id);
 	auto lakefile = request.add_remove_files();
 	lakefile->set_file_id(file_id_);

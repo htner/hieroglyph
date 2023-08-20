@@ -23,8 +23,6 @@ extern std::string kResultS3Region;
 extern std::string kResultS3Endpoint;
 extern bool kResultIsMinio;
 
-extern uint64_t read_xid;
-extern uint64_t commit_xid;
 extern uint64_t dbid;
 extern uint64_t sessionid;
 extern uint64_t query_id;

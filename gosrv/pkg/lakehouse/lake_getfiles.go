@@ -13,8 +13,7 @@ import (
 	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash"
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
-	"github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
-	"github.com/htner/sdb/gosrv/pkg/types"
+	"github.com/htner/sdb/gosrv/pkg/fdbkv/keys"
 	_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
 	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
@@ -50,17 +49,15 @@ func (h hasher) Sum64(data []byte) uint64 {
 	return xxhash.Sum64(data)
 }
 
-func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) GetAllFile(rel uint64, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
 	}
 
-	var session *kvpair.Session
-
 	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		t := L.T
-		session, err = t.CheckReadAble(tr)
+		err = t.CheckReadAble(tr)
 		return nil, err
 	})
 
@@ -70,15 +67,15 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 	}
 
 	data, err := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
-		var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
+		var key keys.FileKey = keys.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
 
-		sKeyStart, err := kvpair.MarshalRangePerfix(&key)
+		sKeyStart, err := fdbkv.MarshalRangePerfix(&key)
 		if err != nil {
 			log.Printf("marshal ranage perfix %v", err)
 			return nil, err
 		}
 		key.Fileid = math.MaxUint64
-		sKeyEnd, err := kvpair.MarshalRangePerfix(&key)
+		sKeyEnd, err := fdbkv.MarshalRangePerfix(&key)
 		if err != nil {
 			log.Printf("marshal ranage perfix %v", err)
 			return nil, err
@@ -100,8 +97,8 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 				log.Printf("Unable to read next value: %v\n", e)
 				return nil, nil
 			}
-			var key kvpair.FileKey
-			err = kvpair.UnmarshalKey(data.Key, &key)
+			var key keys.FileKey
+			err = fdbkv.UnmarshalKey(data.Key, &key)
 			if err != nil {
 				log.Printf("UnmarshalKey error ? %v %v", data, err)
 				return nil, err
@@ -121,13 +118,13 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 		return nil, err
 	}
 
-	if data == nil || session == nil {
+	if data == nil {
 		return nil, errors.New("data is null")
 	}
 
 	files := data.([]*sdb.LakeFileDetail)
 	// check session mvcc
-	files, err = L.statifiesMvcc(files, session.WriteTranscationId)
+	files, err = L.statifiesMvcc(files, L.T.session.WriteTransactionId)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +136,7 @@ func (L *LakeRelOperator) GetAllFile(rel types.RelId, segCount, segIndex uint64)
 }
 
 /*
-func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) GetAllFileForUpdate(rel uint64, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return nil, err
@@ -152,7 +149,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segInde
 	fdblock.LockType = UpdateLock
 	fdblock.Sid = L.T.Sid
 
-	var session *kvpair.Session
+	var session *keys.Session
 
 	data, err := mgr.DoWithAutoLock(db, &fdblock,
 		func(tr fdb.Transaction) (interface{}, error) {
@@ -162,9 +159,9 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segInde
 				return nil, err
 			}
 
-      var key kvpair.FileKey = kvpair.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
+      var key keys.FileKey = keys.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
 
-			sKey, err := kvpair.MarshalRangePerfix(&key)
+			sKey, err := keys.MarshalRangePerfix(&key)
 			if err != nil {
 				return nil, err
 			}
@@ -184,7 +181,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segInde
 					log.Printf("Unable to read next value: %v\n", e)
 					return nil, nil
 				}
-				err = kvpair.UnmarshalKey(data.Key, &key)
+				err = keys.UnmarshalKey(data.Key, &key)
 				if err != nil {
 					return nil, err
 				}
@@ -206,7 +203,7 @@ func (L *LakeRelOperator) GetAllFileForUpdate(rel types.RelId, segCount, segInde
 }
 */
 
-func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid types.TransactionId) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uint64) ([]*sdb.LakeFileDetail, error) {
 	// return files, nil
 	statifiesFiles := make([]*sdb.LakeFileDetail, 0)
 	db, err := fdb.OpenDefault()
@@ -228,7 +225,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
 			if file.Xmin == 1 {
 				xminState = uint32(XS_COMMIT)
 			} else {
-				state, err := L.T.State(kvReader, types.TransactionId(file.Xmin))
+				state, err := L.T.State(kvReader, uint64(file.Xmin))
 				if err != nil {
 					log.Println("not found min state:", file.Xmin, file)
 					return nil, err
@@ -238,7 +235,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
 			log.Println("xmin:", xminState, " xmax:", xmaxState)
 
 			if file.Xmax != uint64(InvaildTranscaton) {
-				state, err := L.T.State(kvReader, types.TransactionId(file.Xmax))
+				state, err := L.T.State(kvReader, uint64(file.Xmax))
 				if err != nil {
 					log.Println("not found max state:", file.Xmax)
 					return nil, errors.New("read error")
@@ -267,7 +264,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid typ
 	return statifiesFiles, nil
 }
 
-func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDetail, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
+func (L *LakeRelOperator) statifiesHash(rel uint64, files []*sdb.LakeFileDetail, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
 	_, ok := postgres.CatalogNames[uint32(rel)]
 	if ok {
 		return files, nil
@@ -299,7 +296,7 @@ func (L *LakeRelOperator) statifiesHash(rel types.RelId, files []*sdb.LakeFileDe
 	return statifiesFiles, nil
 }
 
-func (L *LakeRelOperator) GetRelLakeList(rel types.RelId) (*sdb.RelFiles, error) {
+func (L *LakeRelOperator) GetRelLakeList(rel uint64) (*sdb.RelFiles, error) {
 	files, err := L.GetAllFile(rel, 0, 0)
 	if err != nil {
 		return nil, err

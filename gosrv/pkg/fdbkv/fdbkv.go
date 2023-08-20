@@ -1,4 +1,4 @@
-package kvpair
+package fdbkv
 
 import (
 	"bytes"

@@ -40,7 +40,6 @@ message PushWorkerResultRequest {
   TaskIdentify task_id  = 1;
   uint64 sessionid = 2;
   uint64 dbid = 3;
-  uint64 commit_xid = 4;
  
   WorkerResultData result = 5;
 }
