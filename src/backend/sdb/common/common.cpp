@@ -20,8 +20,6 @@ std::string kResultS3Region = "ap1";
 std::string kResultS3Endpoint = "127.0.0.1:9000";
 bool kResultIsMinio = true;
 
-uint64_t read_xid = 0;
-uint64_t commit_xid = 0;
 uint64_t dbid = 1;
 uint64_t sessionid = 1;
 uint64_t query_id = 0;

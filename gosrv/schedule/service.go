@@ -7,7 +7,6 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
-	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	log "github.com/sirupsen/logrus"
 	//"google.golang.org/grpc/credentials/insecure"
@@ -30,7 +29,7 @@ func (s *ScheduleServer) Depart(ctx context.Context, in *pb.ExecQueryRequest) (*
 
 func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorkerResultRequest) (*sdb.PushWorkerResultReply, error) {
 	out := new(sdb.PushWorkerResultReply)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Result.Dbid))
+	mgr := schedule.NewQueryMgr(uint64(in.Result.Dbid))
 	err := mgr.WriterWorkerResult(in)
 
 	log.Println(in)
@@ -41,7 +40,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 		}
 		log.Println("wirte query result ", in)
 		if isFinish {
-			tr := lakehouse.NewTranscationWithXid(types.DatabaseId(in.Dbid), types.TransactionId(in.CommitXid), types.SessionId(in.Sessionid))
+			tr := lakehouse.NewTranscation(in.Dbid, in.Sessionid)
 			tr.TryAutoCommit()
 		}
 	}
@@ -51,7 +50,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQueryResultRequest) (*sdb.CheckQueryResultReply, error) {
 	//out := new(sdb.QueryResultReply)
 	log.Println(in)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(in.Dbid))
+	mgr := schedule.NewQueryMgr(uint64(in.Dbid))
 	result, err := mgr.ReadQueryResult(in.QueryId)
 	reply := new(sdb.CheckQueryResultReply)
 	if err == fdbkv.ErrEmptyData {

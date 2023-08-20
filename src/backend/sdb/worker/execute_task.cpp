@@ -54,8 +54,6 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 }
 
 void ExecuteTask::Prepare() {
-	read_xid = request_.read_xid();
-	commit_xid = request_.commit_xid();
 	dbid = request_.dbid();
 	sessionid = request_.sessionid();
 	query_id = request_.task_identify().query_id();
@@ -136,7 +134,6 @@ void ExecuteTask::HandleQuery() {
 		sdb::PushWorkerResultRequest request;
 		request.set_dbid(request_.dbid());
 		request.set_sessionid(request_.sessionid());
-		request.set_commit_xid(request_.commit_xid());
 
 		auto task_id = request.mutable_task_id();
 		*task_id = request_.task_identify();
@@ -210,7 +207,6 @@ void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
 	sdb::PushWorkerResultRequest request;
 	request.set_dbid(request_.dbid());
 	request.set_sessionid(request_.sessionid());
-	request.set_commit_xid(request_.commit_xid());
 
 	auto task_id = request.mutable_task_id();
 	*task_id = request_.task_identify();

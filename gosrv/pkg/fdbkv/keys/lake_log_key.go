@@ -1,16 +1,14 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type LakeLogKey struct {
-	database types.DatabaseId
-	rel      types.RelId
-	xid      types.TransactionId
+	database uint64
+	rel      uint64
+	xid      uint64
 }
 
 func (s *LakeLogKey) Tag() uint16 {

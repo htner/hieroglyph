@@ -30,10 +30,7 @@ extern "C" {
 #include <butil/logging.h>
 #include "lake_service.pb.h"
 #include "auto_mem.hpp"
-
-extern uint64_t commit_xid;
-extern uint64_t dbid;
-extern uint64_t sessionid;
+#include "backend/sdb/common/common.hpp"
 
 /**
  * @brief Create a parquet modify state object
@@ -175,8 +172,6 @@ void ParquetS3WriterState::CommitUpload() {
 	sdb::DeleteFilesRequest request;
     request.set_dbid(dbid);
     request.set_sessionid(sessionid);
-    request.set_commit_xid(commit_xid);
-    // request->set_commandid();
     request.set_rel(rel_id);
 
 	for (auto it = delete_files.begin(); it != delete_files.end(); ++it) {

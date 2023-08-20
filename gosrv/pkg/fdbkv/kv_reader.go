@@ -6,7 +6,6 @@ import (
 	//_ "github.com/htner/sdb/gosrv/pkg/utils/logformat"
 	//log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	kv "github.com/htner/sdb/gosrv/pkg/fdbkv/kvpair"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -18,8 +17,8 @@ func NewKvReader(tr fdb.ReadTransaction) *KvReader {
 	return &KvReader{t: tr}
 }
 
-func (t *KvReader) Read(key kv.FdbKey, value kv.FdbValue) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvReader) Read(key FdbKey, value FdbValue) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}
@@ -35,11 +34,11 @@ func (t *KvReader) Read(key kv.FdbKey, value kv.FdbValue) error {
 	if len(v) == 0 {
 		return ErrEmptyData
 	}
-	return kv.UnmarshalValue(v, value)
+	return UnmarshalValue(v, value)
 }
 
-func (t *KvReader) ReadPB(key kv.FdbKey, msg proto.Message) error {
-	sKey, err := kv.MarshalKey(key)
+func (t *KvReader) ReadPB(key FdbKey, msg proto.Message) error {
+	sKey, err := MarshalKey(key)
 	if err != nil {
 		return err
 	}

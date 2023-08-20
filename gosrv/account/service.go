@@ -7,7 +7,6 @@ import (
 
 	"github.com/htner/sdb/gosrv/pkg/account"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
-	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 )
 
@@ -51,7 +50,7 @@ func (s *AccountServer) UserLogin(ctx context.Context, req *sdb.UserLoginRequest
 		return resp, nil
 	}
 
-	sess, err := lakehouse.CreateSession(types.DatabaseId(db.Dbid), user.Id)
+	sess, err := lakehouse.CreateSession(uint64(db.Dbid), user.Id)
 	if err != nil {
 		resp.Rescode = "28000"
 		resp.Msg = "invalid_authorization_specification"

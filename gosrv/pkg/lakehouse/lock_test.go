@@ -10,7 +10,7 @@ import (
 
 const macfile string = ""
 
-var xid types.TransactionId = 1
+var xid uint64 = 1
 
 func StartLock(t *testing.T, lockType uint8, name string) {
 	var mgr LockMgr

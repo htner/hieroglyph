@@ -1,4 +1,4 @@
-package kvpair
+package keys
 
 const (
 	SessionTag                 uint16 = 10

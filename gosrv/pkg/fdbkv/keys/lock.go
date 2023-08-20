@@ -1,35 +1,36 @@
-package lakehouse
+package keys
 
-import ()
+import (
+	"bytes"
+	"encoding/binary"
+)
 
-/*
 type Lock struct {
 	Database uint64
 	Relation uint64
 	LockType uint8
 	Sid      uint64
-	Xid      uint64
+	//Xid      uint64
 }
 
 const (
-	ALLLock    = 0
-	ReadLock   = 1
-	InsertLock = 2
+	ALLLock = 0
+	// ReadLock   = 1  read not need lock
+	// InsertLock = 2  insert not need lock
 	UpdateLock = 3 // update / delete
-	DDLLock    = 4
+	DDLLock    = 4 // not ddl lock now
 )
 
 func GetConflictsLocks(T uint8) []uint8 {
 	switch T {
-	case ReadLock:
-		fallthrough
-	case InsertLock:
-		return []uint8{DDLLock}
+	//case InsertLock:
+	//		return []uint8{}
 	case UpdateLock:
-		return []uint8{DDLLock, UpdateLock}
+		return []uint8{UpdateLock}
 	case DDLLock:
 		//return []uint8{DDLLock, UpdateLock, InsertLock, ReadLock};
-		return []uint8{ALLLock}
+		//return []uint8{ALLLock}
+		return []uint8{DDLLock}
 	}
 	return []uint8{}
 }
@@ -45,7 +46,7 @@ func LockConflicts(T1, T2 uint8) bool {
 }
 
 func (K *Lock) Tag() uint16 {
-	return kv.LockTag
+	return LockTag
 }
 
 func (K *Lock) EncFdbKey(buf *bytes.Buffer) error {
@@ -66,9 +67,11 @@ func (K *Lock) EncFdbKey(buf *bytes.Buffer) error {
 	return binary.Write(buf, binary.LittleEndian, K.Sid)
 }
 
+/*
 func (V *Lock) EncFdbValue(buf *bytes.Buffer) error {
 	return binary.Write(buf, binary.LittleEndian, V.Xid)
 }
+*/
 
 func (K *Lock) RangePerfix(buf *bytes.Buffer) error {
 	err := binary.Write(buf, binary.LittleEndian, K.Database)
@@ -104,6 +107,7 @@ func (K *Lock) DecFdbKey(buf *bytes.Reader) error {
 	return binary.Read(buf, binary.LittleEndian, &K.Sid)
 }
 
+/*
 func (V *Lock) DecFdbValue(buf *bytes.Reader) error {
 	return binary.Read(buf, binary.LittleEndian, &V.Xid)
 }

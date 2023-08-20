@@ -9,7 +9,6 @@ import (
 	"github.com/htner/sdb/gosrv/pkg/config"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
 	"github.com/htner/sdb/gosrv/pkg/schedule"
-	"github.com/htner/sdb/gosrv/pkg/types"
 	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 
@@ -39,6 +38,17 @@ type QueryHandler struct {
 	newQueryId uint64
 }
 
+func (Q *QueryHandler) prelock() error {
+	// if Q.request. CHECK CMD TYPE
+	var mgr lakehouse.LockMgr
+	err := mgr.PreLock(Q.request.Dbid, Q.request.Sid, Q.optimizerResult.WriteRels)
+	if err != nil {
+		log.Printf("lock result error: %v", err)
+		return err
+	}
+	return nil
+}
+
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	Q.request = req
 	Q.sliceTable = new(sdb.PBSliceTable)
@@ -46,14 +56,14 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	// Set up a connection to the server.
 
 	// start transtion
-	tr := lakehouse.NewTranscation(types.DatabaseId(req.Dbid), types.SessionId(req.Sid))
+	tr := lakehouse.NewTranscation(req.Dbid, req.Sid)
 	tr.Start(true)
 
 	//catalogFiles := make(map[uint32][]*sdb.LakeFileDetail)
-	lakeop := lakehouse.NewLakeRelOperator(types.DatabaseId(req.Dbid), types.SessionId(req.Sid), lakehouse.InvaildTranscaton)
+	lakeop := lakehouse.NewLakeRelOperator(req.Dbid, req.Sid)
 	Q.catalogFiles = make([]*sdb.RelFiles, 0)
 	for oid := range postgres.CatalogNames {
-		relLakeList, err := lakeop.GetRelLakeList(types.RelId(oid))
+		relLakeList, err := lakeop.GetRelLakeList(uint64(oid))
 		if err != nil {
 			log.Println(err)
 			return 0, nil
@@ -65,7 +75,7 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 	newQueryId := uint64(time.Now().UnixMilli())
 	Q.newQueryId = newQueryId
 
-	mgr := schedule.NewQueryMgr(types.DatabaseId(req.Dbid))
+	mgr := schedule.NewQueryMgr(uint64(req.Dbid))
 	err := mgr.WriterQueryDetail(req, newQueryId)
 	if err != nil {
 		return 0, err
@@ -73,6 +83,12 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 
 	err = Q.optimize()
 	if err != nil {
+		return 0, err
+	}
+
+	err = Q.prelock()
+	if err != nil {
+		log.Printf("lock result error: %v", err)
 		return 0, err
 	}
 
@@ -280,7 +296,7 @@ func (Q *QueryHandler) prepareSliceTable() error {
 	}
 
 	log.Printf("init root count %d->%d", Q.newQueryId, root_slice_count)
-	mgr := schedule.NewQueryMgr(types.DatabaseId(Q.request.Dbid))
+	mgr := schedule.NewQueryMgr(uint64(Q.request.Dbid))
 	err := mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryInit), uint32(root_slice_count))
 	if err != nil {
 		log.Printf("InitQueryResult errro %v", err)

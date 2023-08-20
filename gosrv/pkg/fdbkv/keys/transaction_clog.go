@@ -1,17 +1,15 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type TransactionCLog struct {
-	Tid       types.TransactionId
-	DbId      types.DatabaseId
-	Sessionid types.SessionId
-	Status    types.XState
+	Tid       uint64
+	DbId      uint64
+	Sessionid uint64
+	Status    uint8
 }
 
 func (s *TransactionCLog) Tag() uint16 {

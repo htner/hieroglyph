@@ -1,15 +1,13 @@
-package kvpair
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/htner/sdb/gosrv/pkg/types"
 )
 
 type MaxTid struct {
-	DbId types.DatabaseId
-	Max  types.TransactionId
+	DbId uint64
+	Max  uint64
 }
 
 func (m *MaxTid) Tag() uint16 {
