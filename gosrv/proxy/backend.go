@@ -18,6 +18,7 @@ import (
 
 	//"github.com/htner/sdb/gosrv/pkg/grpcresolver"
 	"github.com/htner/sdb/gosrv/pkg/service"
+	"github.com/htner/sdb/gosrv/pkg/utils/postgres"
 	"github.com/htner/sdb/gosrv/proto/sdb"
 	"github.com/jackc/pgproto3/v2"
 	log "github.com/sirupsen/logrus"
@@ -231,28 +232,18 @@ func (p *Proxy) readClientConn() error {
 	return nil
 }
 
-const (
-	CMD_UNKNOWN = 0
-	CMD_SELECT  = 1 /* select stmt */
-	CMD_UPDATE  = 2 /* update stmt */
-	CMD_INSERT  = 3 /* insert stmt */
-	CMD_DELETE  = 4
-	CMD_UTILITY = 5 /* cmds like create, destroy, copy, vacuum, etc. */
-	CMD_NOTHING = 6 /* dummy command for instead nothing rules with qual */
-)
-
 func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error {
-	if resp.Result.CmdType == CMD_UPDATE ||
-		resp.Result.CmdType == CMD_INSERT ||
-		resp.Result.CmdType == CMD_DELETE {
+	if resp.Result.CmdType == postgres.CMD_UPDATE ||
+		resp.Result.CmdType == postgres.CMD_INSERT ||
+		resp.Result.CmdType == postgres.CMD_DELETE {
 		var commandTag string
 
 		switch resp.Result.CmdType {
-		case CMD_UPDATE:
+		case postgres.CMD_UPDATE:
 			commandTag = "UPDATE "
-		case CMD_INSERT:
+		case postgres.CMD_INSERT:
 			commandTag = "INSERT 0 "
-		case CMD_DELETE:
+		case postgres.CMD_DELETE:
 			commandTag = "DELETE "
 		}
 		commandTag += strconv.FormatUint(resp.Result.ProcessRows, 10)
@@ -260,6 +251,12 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 		command.CommandTag = []byte(commandTag)
 		return p.backend.Send(&command)
 	}
+	if resp.Result.CmdType == postgres.CMD_UTILITY &&
+      resp.Result.Message != "" {
+		var command pgproto3.CommandComplete
+		command.CommandTag = []byte(resp.Result.Message)
+		return p.backend.Send(&command)
+  }
 
 	//const defaultRegion = "us-east-1"
 	staticResolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {

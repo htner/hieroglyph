@@ -67,5 +67,7 @@ message OptimizeReply {
   bytes plan_params_str = 5;
   repeated PBPlanSlice slices = 6;
   repeated uint64 read_rels = 7;
-  repeated uint64 write_rels = 8;
+  repeated uint64 insert_rels = 8;
+  repeated uint64 update_rels = 9;
+  repeated uint64 delete_rels = 10;
 }

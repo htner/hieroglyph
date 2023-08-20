@@ -13,6 +13,7 @@ import (
 )
 
 var ErrorRetry = errors.New("retry")
+// var ErrorRetry = errors.New("retry")
 
 type LockMgr struct {
 }
@@ -25,32 +26,46 @@ func (L *LockMgr) PreLock(dbid uint64, sid uint64, updates []uint64) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
-	}
+  }
 
-	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		for _, rel := range updates {
-			var fdblock keys.Lock
-			fdblock.Database = dbid
-			fdblock.Relation = rel
-			fdblock.LockType = keys.UpdateLock
-			fdblock.Sid = sid
-			err := L.Lock(tr, &fdblock)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return nil, nil
-	})
-	return err
+  for _, rel := range updates {
+
+    var fdblock keys.Lock
+    fdblock.Database = dbid
+    fdblock.Relation = rel
+    fdblock.LockType = keys.UpdateLock
+    fdblock.Sid = sid
+
+    log.Println("pre lock", fdblock)
+
+    retryNum := 10
+    for i := 0; i < retryNum; i++ {
+      _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+        err := L.Lock(tr, &fdblock)
+        if err != nil {
+          return nil, err
+        }
+        return nil, nil
+      })
+
+      if err == ErrorRetry {
+        log.Printf("pre lock and retry %d", i)
+        continue
+      } else {
+        break
+      }
+    }
+  }
+  return err
 }
 
 func (L *LockMgr) DoWithAutoLock(db fdb.Database, lock *keys.Lock, f func(fdb.Transaction) (interface{}, error), retryNum int) (data interface{}, err error) {
-	for i := 0; i < retryNum; i++ {
-		data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-			err := L.TryLockAndWatch(tr, lock)
-			fmt.Println(db, tr, lock, i)
-			if i != 0 {
-				log.Printf("do with auto lock retry %d", i)
+  for i := 0; i < retryNum; i++ {
+    data, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+      err := L.TryLockAndWatch(tr, lock)
+      fmt.Println(db, tr, lock, i)
+      if i != 0 {
+        log.Printf("do with auto lock retry %d", i)
 			}
 			return nil, err
 		})
@@ -81,7 +96,7 @@ func (L *LockMgr) Lock(tr fdb.Transaction, lock *keys.Lock) error {
 	return L.TryLockAndWatch(tr, lock)
 }
 
-func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *keys.Lock, realType uint8) (lockBefore bool, err error) {
+func (L *LockMgr) CheckConflicts(tr fdb.Transaction, checkLock *keys.Lock, realType uint8) (lockBefore bool, err error) {
 	prefix, err := fdbkv.MarshalRangePerfix(checkLock)
 	if err != nil {
 		return false, err
@@ -126,7 +141,7 @@ func (L *LockMgr) TryCheckConflicts(tr fdb.Transaction, checkLock *keys.Lock, re
 				return false, err
 			}
 			log.Printf("Retry, LockConflicts key: %s\n", data.Key)
-			return false, errors.New("Retry")
+			return false, ErrorRetry
 		}
 	}
 	return false, nil
@@ -150,7 +165,7 @@ func (L *LockMgr) TryLockAndWatch(tr fdb.Transaction, lock *keys.Lock) error {
 	for _, conflictsType := range conflictsTypes {
 		checkLock.LockType = conflictsType
 		// log.Println(checkLock, conflictsTypes)
-		lockBefore, err := L.TryCheckConflicts(tr, &checkLock, lock.LockType)
+		lockBefore, err := L.CheckConflicts(tr, &checkLock, lock.LockType)
 		if err != nil {
 			return err
 		}
@@ -170,6 +185,8 @@ func (M *LockMgr) Unlock(tr fdb.Transaction, lock *keys.Lock) error {
 }
 
 func (M *LockMgr) UnlockAll(tr fdb.Transaction, database uint64, sid uint64) error {
+  log.Printf("unlock all database:%d sid:%d", database, sid)
+
 	var lock keys.Lock
 	lock.Database = database
 	kvOp := NewKvOperator(tr)
