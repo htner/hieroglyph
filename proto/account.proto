@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = false;
+option go_package="./sdb";
+
+message SdbAccount {
+  uint64 id = 1;
+  string email = 2;  
+  string phone = 3;  
+  string username = 4;  
+  string passwd = 5;
+}
+
+
+message Organization {
+  uint64 id = 1;
+  uint64 creator = 2;
+  string name = 3;
+  uint64 create_time = 4;
+}
+
+message User {
+  uint64 id = 1;
+  uint64 organization_id = 2;
+  string name = 3;
+  string passwd = 4;
+  uint64 create_time = 5;
+}
+
+message IdPointer {
+  uint64 id = 1;
+}

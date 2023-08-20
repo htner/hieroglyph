@@ -719,17 +719,17 @@ cdbcomponent_getCdbComponents()
 	{
 		if (cdb_component_dbs == NULL)
 		{
-			cdb_component_dbs = getCdbComponentInfo();
-			cdb_component_dbs->fts_version = getFtsVersion();
-			cdb_component_dbs->expand_version = GetGpExpandVersion();
+			/* cdb_component_dbs = getCdbComponentInfo(); */
+			/* cdb_component_dbs->fts_version = getFtsVersion(); */
+			/* cdb_component_dbs->expand_version = GetGpExpandVersion(); */
 		}
 	}
 	PG_CATCH();
 	{
-		if (Gp_role == GP_ROLE_DISPATCH)
-			FtsNotifyProber();
+		/* if (Gp_role == GP_ROLE_DISPATCH) */
+			/* FtsNotifyProber(); */
 
-		PG_RE_THROW();
+		/* PG_RE_THROW(); */
 	}
 	PG_END_TRY();
 
@@ -1751,7 +1751,8 @@ int
 getgpsegmentCount(void)
 {
 	/* 1 represents a singleton postgresql in utility mode */
-	int32 numsegments = 1;
+	int32 numsegments = 3;
+	return numsegments;
 
 	if (Gp_role == GP_ROLE_DISPATCH)
 		numsegments = cdbcomponent_getCdbComponents()->total_segments;

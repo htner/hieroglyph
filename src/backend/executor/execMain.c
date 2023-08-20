@@ -314,6 +314,14 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 	 */
 	estate = CreateExecutorState();
 	queryDesc->estate = estate;
+	if (queryDesc->ddesc != NULL) 
+	{
+		estate->task = queryDesc->ddesc->task;
+	} 
+	else 
+	{
+		estate->task = NULL;
+	}
 
 	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
 
@@ -696,7 +704,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 				estate->es_sliceTable &&
 				estate->es_sliceTable->slices[0].gangType == GANGTYPE_UNALLOCATED &&
 				estate->es_sliceTable->slices[0].children &&
-				!estate->es_interconnect_is_setup)
+				!estate->es_brpcstream_is_setup)
 			{
 				Assert(!estate->interconnect_context);
 				SetupInterconnect(estate);
@@ -710,7 +718,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 			Assert(!"unsupported parallel execution strategy");
 		}
 
-		if(estate->es_interconnect_is_setup)
+		if(estate->es_brpcstream_is_setup)
 			Assert(estate->interconnect_context != NULL);
 
 	}

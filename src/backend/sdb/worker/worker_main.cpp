@@ -19,6 +19,7 @@
 
 #include "backend/sdb/common/pg_export.hpp"
 
+#include <thread>
 #include <gflags/gflags.h>
 #include <butil/logging.h>
 #include <brpc/server.h>
@@ -29,26 +30,47 @@
 
 #include "backend/sdb/worker/execute_task.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
+#include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/flags.hpp"
 
-DECLARE_int32(port);
-DECLARE_int32(idle_timeout_s);
-DECLARE_bool(gzip);
+int WorkerServerRun(int argc, char** argv);
 
-int WorkerThreadRun(int argc, char** argv) {
-	InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+int WorkerServiceMain(int argc, char* argv[]) {
+
+    // Parse gflags. We recommend you to use gflags as well.
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+	FLAGS_reuse_addr = true;
+	FLAGS_reuse_port = true;
+
+	not_initdb = true;
+	MyDatabaseId = FLAGS_dbid;
+	dbid = FLAGS_dbid;
+	MyDatabaseTableSpace = 1;
+
+	kDBBucket = FLAGS_bucket;
+	kDBS3User = FLAGS_s3user;
+	kDBS3Password = FLAGS_s3passwd;
+	kDBS3Region = FLAGS_region;
+	kDBS3Endpoint = FLAGS_endpoint;
+	kDBIsMinio = FLAGS_isminio;
+	sdb::CatalogInfo catalog_info;
+
+	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
+	Gp_role = GP_ROLE_EXECUTE;
+	std::thread worker_thread(WorkerServerRun, argc, argv);
 
 	while (true) {
 		auto task = sdb::ExecuteTaskQueueSingleton::GetInstance()->pop_front(); 
-		task->Run();
+		LOG(ERROR) << "get one task";
+		task->Run(catalog_info);
 	}
+	worker_thread.join();	
 }
-int WorkerServiceMain(int argc, char* argv[]) {
-    // Parse gflags. We recommend you to use gflags as well.
-    gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+int WorkerServerRun(int argc, char** argv) {
 
     // Generally you only need one Server.
     brpc::Server server;
-
 
 	sdb::WorkerService http_svc;
     // Add services into server. Notice the second parameter, because the
@@ -60,6 +82,7 @@ int WorkerServiceMain(int argc, char* argv[]) {
         return -1;
     }
 
+	//FLAGS_port = PostPortNumber;
     // Start the server.
     brpc::ServerOptions options;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
@@ -67,7 +90,6 @@ int WorkerServiceMain(int argc, char* argv[]) {
         LOG(ERROR) << "Fail to start HttpServer";
         return -1;
     }
-
     // Wait until Ctrl-C is pressed, then Stop() and Join() the server.
     server.RunUntilAskedToQuit();
     return 0;

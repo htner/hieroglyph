@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = false;
+option go_package="./sdb";
+
+message S3Endpoint {
+  string user = 3;
+  // TODO use credentials
+  string password = 4;
+  string credentials_file = 5;
+  bool is_minio = 6;
+  string endpoint = 7;
+  string region = 8;
+}
+
+message SdbZone {
+  uint32 zone_id = 1;
+  string zone_name = 2;
+  S3Endpoint s3_info = 3;
+}

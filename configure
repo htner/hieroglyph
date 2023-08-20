@@ -7929,7 +7929,7 @@ $as_echo "checking whether to build with gpcloud... $enable_gpcloud" >&6; }
 
 if test "$enable_orca" = yes || test "$enable_gpcloud" = yes; then :
    # then
-    ax_cxx_compile_alternatives="14 1y"    ax_cxx_compile_cxx14_required=true
+    ax_cxx_compile_alternatives="17 1y"    ax_cxx_compile_cxx14_required=true
   ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
 ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'

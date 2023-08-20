@@ -57,6 +57,8 @@ static uint32 evalHashKey(ExprContext *econtext, List *hashkeys, CdbHash *h);
 
 static void doSendEndOfStream(Motion *motion, MotionState *node);
 static void doSendTuple(Motion *motion, MotionState *node, TupleTableSlot *outerTupleSlot);
+static void doSendStopMessage(MotionState *node, int16 motionID);
+static MinimalTuple doRecvTupleFrom(MotionState *node, int16 motionID, int16 targetRoute);
 
 
 /*=========================================================================
@@ -306,7 +308,7 @@ execMotionUnsortedReceiver(MotionState *node)
 	TupleTableSlot *slot;
 	MinimalTuple tuple;
 	Motion	   *motion = (Motion *) node->ps.plan;
-	EState	   *estate = node->ps.state;
+	// EState	   *estate = node->ps.state;
 
 	AssertState(motion->motionType == MOTIONTYPE_GATHER ||
 				motion->motionType == MOTIONTYPE_GATHER_SINGLE ||
@@ -314,43 +316,13 @@ execMotionUnsortedReceiver(MotionState *node)
 				motion->motionType == MOTIONTYPE_BROADCAST ||
 				(motion->motionType == MOTIONTYPE_EXPLICIT && motion->segidColIdx > 0));
 
-	Assert(node->ps.state->motionlayer_context);
-
 	if (node->stopRequested)
 	{
-		SendStopMessage(node->ps.state->motionlayer_context,
-						node->ps.state->interconnect_context,
-						motion->motionID);
+		doSendStopMessage(node, motion->motionID);
 		return NULL;
 	}
 
-	if (estate->interconnect_context == NULL)
-	{
-		if (!estate->es_interconnect_is_setup && estate->dispatcherState &&
-			!estate->es_got_eos)
-		{
-			/*
-			 * We could only possibly get here in the following scenario:
-			 * 1. We are QD gracefully aborting a transaction.
-			 * 2. We have torn down the interconnect of the current slice.
-			 * 3. Since an error has happened, we no longer need to finish fetching
-			 * all the tuples, hence squelching the executor subtree.
-			 * 4. We are in the process of ExecSquelchShareInputScan(), and the
-			 * Shared Scan has this Motion below it.
-			 *
-			 * NB: if you need to change this, see also execMotionSortedReceiver()
-			 */
-			ereport(NOTICE,
-					(errmsg("An ERROR must have happened. Stopping a Shared Scan.")));
-			return NULL;
-		}
-		else
-			ereport(ERROR, (errmsg("Interconnect is down unexpectedly.")));
-	}
-
-	tuple = RecvTupleFrom(node->ps.state->motionlayer_context,
-						  node->ps.state->interconnect_context,
-						  motion->motionID, ANY_ROUTE);
+	tuple = doRecvTupleFrom(node, motion->motionID, ANY_ROUTE);
 
 	if (!tuple)
 	{
@@ -441,34 +413,8 @@ execMotionSortedReceiver(MotionState *node)
 	if (node->stopRequested)
 	{
 
-		SendStopMessage(node->ps.state->motionlayer_context,
-						node->ps.state->interconnect_context,
-						motion->motionID);
+		doSendStopMessage(node, motion->motionID);
 		return NULL;
-	}
-
-	if (estate->interconnect_context == NULL)
-	{
-		if (!estate->es_interconnect_is_setup && estate->dispatcherState &&
-			!estate->es_got_eos)
-		{
-			/*
-			 * We could only possibly get here in the following scenario:
-			 * 1. We are QD gracefully aborting a transaction.
-			 * 2. We have torn down the interconnect of the current slice.
-			 * 3. Since an error has happened, we no longer need to finish fetching
-			 * all the tuples, hence squelching the executor subtree.
-			 * 4. We are in the process of ExecSquelchShareInputScan(), and the
-			 * Shared Scan has this Motion below it.
-			 *
-			 * NB: if you need to change this, see also execMotionUnsortedReceiver()
-			 */
-			ereport(NOTICE,
-					(errmsg("An ERROR must have happened. Stopping a Shared Scan.")));
-			return NULL;
-		}
-		else
-			ereport(ERROR, (errmsg("Interconnect is down unexpectedly.")));
 	}
 
 	/*
@@ -485,16 +431,14 @@ execMotionSortedReceiver(MotionState *node)
 
 		Assert(sendSlice->sliceIndex == motion->motionID);
 
-		foreach_with_count(lcProcess, sendSlice->primaryProcesses, iSegIdx)
+		foreach_with_count(lcProcess, sendSlice->segments, iSegIdx)
 		{
 			MemoryContext oldcxt;
 
 			if (lfirst(lcProcess) == NULL)
 				continue;			/* skip this one: we are not receiving from it */
 
-			inputTuple = RecvTupleFrom(node->ps.state->motionlayer_context,
-									   node->ps.state->interconnect_context,
-									   motion->motionID, iSegIdx);
+			inputTuple = doRecvTupleFrom(node, motion->motionID, iSegIdx);
 
 			if (!inputTuple)
 				continue;			/* skip this one: received nothing */
@@ -566,8 +510,7 @@ execMotionSortedReceiver(MotionState *node)
 		Assert(DatumGetInt32(binaryheap_first(hp)) == node->routeIdNext);
 
 		/* Receive the successor of the tuple that we returned last time. */
-		inputTuple = RecvTupleFrom(node->ps.state->motionlayer_context,
-								   node->ps.state->interconnect_context,
+		inputTuple = doRecvTupleFrom(node,
 								   motion->motionID,
 								   node->routeIdNext);
 
@@ -873,6 +816,7 @@ ExecInitMotion(Motion *node, EState *estate, int eflags)
 						  tupDesc);
 
 
+
 #ifdef CDB_MOTION_DEBUG
 	motionstate->outputFunArray = (Oid *) palloc(tupDesc->natts * sizeof(Oid));
 	for (int i = 0; i < tupDesc->natts; i++)
@@ -897,7 +841,7 @@ ExecInitMotion(Motion *node, EState *estate, int eflags)
 void
 ExecEndMotion(MotionState *node)
 {
-	Motion	   *motion = (Motion *) node->ps.plan;
+	//Motion	   *motion = (Motion *) node->ps.plan;
 #ifdef MEASURE_MOTION_TIME
 	double		otherTimeSec;
 	double		motionTimeSec;
@@ -983,8 +927,8 @@ ExecEndMotion(MotionState *node)
 	 *
 	 * TODO: For now, we don't flush the comm-layer.  NO ERRORS DURING AMS!!!
 	 */
-	EndMotionLayerNode(node->ps.state->motionlayer_context, motion->motionID,
-					   /* flush-comm-layer */ false);
+	//EndMotionLayerNode(node->ps.state->motionlayer_context, motion->motionID,
+	//				   /* flush-comm-layer */ false);
 
 #ifdef CDB_MOTION_DEBUG
 	if (node->outputFunArray)
@@ -1113,9 +1057,9 @@ doSendEndOfStream(Motion *motion, MotionState *node)
 	 * We have no more child tuples, but we have not successfully sent an
 	 * End-of-Stream token yet.
 	 */
-	SendEndOfStream(node->ps.state->motionlayer_context,
-					node->ps.state->interconnect_context,
-					motion->motionID);
+	SendEndOfStream(node->ps.state->motionlayer_context, 
+					 node->ps.state->task,
+					 motion->motionID);
 	node->sentEndOfStream = true;
 }
 
@@ -1214,17 +1158,12 @@ doSendTuple(Motion *motion, MotionState *node, TupleTableSlot *outerTupleSlot)
 	else
 		elog(ERROR, "unknown motion type %d", motion->motionType);
 
-	CheckAndSendRecordCache(node->ps.state->motionlayer_context,
-							node->ps.state->interconnect_context,
-							motion->motionID,
-							targetRoute);
-
 	/* send the tuple out. */
 	sendRC = SendTuple(node->ps.state->motionlayer_context,
-					   node->ps.state->interconnect_context,
-					   motion->motionID,
-					   outerTupleSlot,
-					   targetRoute);
+							  node->ps.state->task,
+							  motion->motionID,
+							  outerTupleSlot,
+							  targetRoute);
 
 	Assert(sendRC == SEND_COMPLETE || sendRC == STOP_SENDING);
 	if (sendRC == SEND_COMPLETE)
@@ -1249,6 +1188,12 @@ doSendTuple(Motion *motion, MotionState *node, TupleTableSlot *outerTupleSlot)
 #endif
 }
 
+void
+doSendStopMessage(MotionState *node, int16 motionID) {
+	SendStopMessage(node->ps.state->motionlayer_context, 
+						   node->ps.state->task, 
+						   motionID);
+}
 
 /*
  * ExecReScanMotion
@@ -1301,7 +1246,15 @@ ExecSquelchMotion(MotionState *node)
 	node->ps.state->active_recv_id = -1;
 
 	/* pass down */
-	SendStopMessage(node->ps.state->motionlayer_context,
-					node->ps.state->interconnect_context,
-					motion->motionID);
+	doSendStopMessage(node, motion->motionID);
 }
+
+MinimalTuple
+doRecvTupleFrom(MotionState *node, int16 motionID, int16 targetRoute) 
+{
+	return RecvTupleFrom(node->ps.state->motionlayer_context,
+								node->ps.state->task, 
+								motionID, 
+								targetRoute);
+}
+

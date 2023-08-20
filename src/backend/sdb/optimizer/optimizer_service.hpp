@@ -7,7 +7,7 @@
 #include <brpc/server.h>
 #include <brpc/restful.h>
 
-#include "optimizer/optimizer_service.pb.h"
+#include "optimizer_service.pb.h"
 #include "backend/sdb/common/singleton.hpp"
 #include "backend/sdb/common/shared_queue.hpp"
 #include "backend/sdb/optimizer/optimize_task.hpp"
@@ -23,12 +23,13 @@ public:
   OptimizerService() = default;
 	virtual ~OptimizerService() = default; 
 
-  void Depart(google::protobuf::RpcController* cntl_base,
+  void Optimize(google::protobuf::RpcController* cntl_base,
               const sdb::OptimizeRequest* req,
               sdb::OptimizeReply* res,
               google::protobuf::Closure* done) {
     brpc::ClosureGuard done_guard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+    LOG(ERROR) << "get one meesage";
     if (FLAGS_gzip) {
       cntl->set_response_compress_type(brpc::COMPRESS_TYPE_GZIP);
     }

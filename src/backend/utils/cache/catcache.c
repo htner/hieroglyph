@@ -741,6 +741,34 @@ CatalogCacheFlushCatalog(Oid catId)
 	CACHE_elog(DEBUG2, "end of CatalogCacheFlushCatalog call");
 }
 
+void
+CatalogCacheFlushCatalogAndIndex(Oid catId)
+{
+	slist_iter	iter;
+
+	CACHE_elog(DEBUG2, "CatalogCacheFlushCatalog called for %u", catId);
+
+	slist_foreach(iter, &CacheHdr->ch_caches)
+	{
+		CatCache   *cache = slist_container(CatCache, cc_next, iter.cur);
+
+		/* Does this cache store tuples of the target catalog? */
+		if (cache->cc_reloid == catId)
+		{
+			/* we need remove index*/
+			unlink_oid(cache->cc_indexoid, false);
+
+			/* Yes, so flush all its contents */
+			ResetCatalogCache(cache);
+
+			/* Tell inval.c to call syscache callbacks for this cache */
+			CallSyscacheCallbacks(cache->id, 0);
+		}
+	}
+
+	CACHE_elog(DEBUG2, "end of CatalogCacheFlushCatalog call");
+}
+
 /*
  *		InitCatCache
  *
@@ -931,6 +959,7 @@ CatalogCacheInitializeCache(CatCache *cache)
 	CatalogCacheInitializeCache_DEBUG1;
 
 	relation = table_open(cache->cc_reloid, AccessShareLock);
+	elog(WARNING, "---------- table open %d", cache->cc_reloid);
 
 	/*
 	 * switch to the cache context so our allocations do not vanish at the end
@@ -1149,7 +1178,7 @@ CrossCheckTuple(int cacheId,
 			rd_rel = (Form_pg_class) GETSTRUCT(tuple);
 			if (rd_rel->oid != DatumGetObjectId(key1))
 			{
-				elog(ERROR, "pg_class_oid_index is broken, oid=%d is pointing to tuple with oid=%d (xmin:%u xmax:%u)",
+				elog(PANIC, "pg_class_oid_index is broken, oid=%d is pointing to tuple with oid=%d (xmin:%u xmax:%u)",
 					 DatumGetObjectId(key1), rd_rel->oid,
 					 HeapTupleHeaderGetXmin((tuple)->t_data),
 					 HeapTupleHeaderGetRawXmax((tuple)->t_data));
@@ -1358,6 +1387,7 @@ SearchCatCacheInternal(CatCache *cache,
  * as small as possible.  To avoid that effort being undone by a helpful
  * compiler, try to explicitly forbid inlining.
  */
+
 static pg_noinline HeapTuple
 SearchCatCacheMiss(CatCache *cache,
 				   int nkeys,
@@ -1409,7 +1439,7 @@ SearchCatCacheMiss(CatCache *cache,
 	relation = table_open(cache->cc_reloid, AccessShareLock);
 
 	scandesc = systable_beginscan(relation,
-								  cache->cc_indexoid,
+	  						      cache->cc_indexoid,
 								  IndexScanOK(cache, cur_skey),
 								  NULL,
 								  nkeys,
@@ -1417,6 +1447,7 @@ SearchCatCacheMiss(CatCache *cache,
 
 	ct = NULL;
 
+	//elog(WARNING, "heap tuple is vaild");
 	while (HeapTupleIsValid(ntp = systable_getnext(scandesc)))
 	{
 		/*
@@ -1425,6 +1456,7 @@ SearchCatCacheMiss(CatCache *cache,
 		 * fetched. If not fail and contain the damage which maybe caused due to
 		 * index corruption for some reason.
 		 */
+		//elog(WARNING, "heap tuple get tuple");
 		if (scandesc->irel)
 		{
 			CrossCheckTuple(cache->id, v1, v2, v3, v4, ntp);
@@ -2136,16 +2168,21 @@ PrintCatCacheLeakWarning(HeapTuple tuple, const char *resOwnerName)
 {
 	CatCTup    *ct = (CatCTup *) (((char *) tuple) -
 								  offsetof(CatCTup, tuple));
+	if (ct->ct_magic != CT_MAGIC) {
+
+	}
 
 	/* Safety check to ensure we were handed a cache entry */
 	Assert(ct->ct_magic == CT_MAGIC);
 
+	/*
 	elog(WARNING, "cache reference leak: cache %s (%d), tuple %u/%u has count %d, resowner '%s'",
 		 ct->my_cache->cc_relname, ct->my_cache->id,
 		 ItemPointerGetBlockNumber(&(tuple->t_self)),
 		 ItemPointerGetOffsetNumber(&(tuple->t_self)),
 		 ct->refcount,
          resOwnerName);
+	*/
 }
 
 void

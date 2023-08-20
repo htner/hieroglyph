@@ -564,6 +564,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	char		relname[NAMEDATALEN];
 	Oid			namespaceId;
 	GpPolicy   *policy;
+	GpPolicy   *policySupport;
 	Oid			relationId = InvalidOid;
 	Oid			tablespaceId;
 	Relation	rel;
@@ -583,6 +584,8 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	ObjectAddress address;
 	LOCKMODE	parentLockmode;
 	Oid			accessMethodId = InvalidOid;
+	const char* amname = "";
+  
 	List	   *schema;
 	List	   *cooked_constraints;
 	bool		shouldDispatch = dispatch &&
@@ -769,8 +772,10 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * If the statement hasn't specified an access method, but we're defining
 	 * a type of relation that needs one, use the default.
 	 */
-	if (stmt->accessMethod != NULL)
+	if (stmt->accessMethod != NULL) {
+		amname = stmt->accessMethod;
 		accessMethodId = get_table_am_oid(stmt->accessMethod, false);
+	}
 	else if (stmt->partbound && (relkind == RELKIND_RELATION || relkind == RELKIND_PARTITIONED_TABLE))
 	{
 		HeapTuple	tup;
@@ -787,17 +792,22 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			elog(ERROR, "cache lookup failed for relation %u", relid);
 
 		accessMethodId = ((Form_pg_class) GETSTRUCT(tup))->relam;
+		amname = "inherit not support";
 
 		ReleaseSysCache(tup);
 
-		if (!OidIsValid(accessMethodId))
-			accessMethodId = get_table_am_oid(default_table_access_method, false);
+		if (!OidIsValid(accessMethodId)) {
+			amname = default_table_access_method;
+			accessMethodId = get_table_am_oid(amname, false);
+		}
 	}
 	else if (relkind == RELKIND_RELATION ||
 			 relkind == RELKIND_TOASTVALUE ||
 			 relkind == RELKIND_PARTITIONED_TABLE ||
-			 relkind == RELKIND_MATVIEW)
+			 relkind == RELKIND_MATVIEW) {
+		amname = default_table_access_method;
 		accessMethodId = get_table_am_oid(default_table_access_method, false);
+	}
 
 	/* 
 	 * GPDB: for partitioned tables, inherit reloptions from the parent. 
@@ -916,6 +926,43 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	}
 	else
 		policy = getPolicyForDistributedBy(stmt->distributedBy, descriptor);
+
+	if (accessMethodId != InvalidOid)
+	{
+		/*
+		 * We force the distribution policy by access method here, whether it's
+		 * normal CREATE TABLE or CREATE TABLE AS SELECT(CTAS). Previously CTAS
+		 * is handled by intoPolicy, in setQryDistributionPolicy().
+		 * Views don't have AM so amHandlerOid is InvalidOid.
+		 */
+		policySupport = createSDBGpPolicy(accessMethodId);
+		if (!GpPolicyEqual(policy, policySupport))
+		{
+			const char* type = GpPolicyTypeName(policySupport);
+			/*
+			 * Sometimes accessMethodId is InvalidOid (for example parition
+			 * root), let's avoid outputing the am information if there is
+			 * none to avoid confusion.
+			 */
+			ereport(NOTICE, (errmsg("currect relation %s%s distribution policy forced set to %s",
+							 OidIsValid(accessMethodId) ? " with access method: " : "",
+							 OidIsValid(accessMethodId) ? amname: ""),
+							 type));
+		} else {
+			const char* type = GpPolicyTypeName(policySupport);
+			ereport(NOTICE, (errmsg("currect relation %s%s distribution policy set to %s",
+							 OidIsValid(accessMethodId) ? " with access method: " : "",
+							 OidIsValid(accessMethodId) ? amname: ""),
+							 type));
+		}
+		policy = policySupport;
+	}
+	const char* type = GpPolicyTypeName(policy);
+	ereport(WARNING, (errmsg("currect relation %s%s distribution policy set to %s",
+						 OidIsValid(accessMethodId) ? " with access method: " : "",
+						 OidIsValid(accessMethodId) ? amname: ""),
+						 type));
+	
 
 	if (partitioned && GpPolicyIsReplicated(policy))
 		ereport(ERROR,

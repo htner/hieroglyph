@@ -18,6 +18,8 @@
 // A server to receive HelloRequest and send back HelloReply
 
 #include "backend/sdb/common/pg_export.hpp"
+
+#include <chrono>
 #include <gflags/gflags.h>
 #include <brpc/server.h>
 #include <brpc/restful.h>
@@ -30,21 +32,40 @@
 #include "backend/sdb/optimizer/optimize_task.hpp"
 #include "backend/sdb/optimizer/optimizer_service.hpp"
 
-#include <butil/logging.h> // LOG Last
+#include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/flags.hpp"
 
-DECLARE_int32(port);
-DECLARE_int32(idle_timeout_s);
-DECLARE_bool(gzip);
+#include <butil/logging.h> // LOG Last
+#include <thread>
 
 int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
-    InitMinimizePostgresEnv(argc, argv, "sdb", "sdb");
+	gflags::ParseCommandLineFlags(&argc, &argv, true);
+	//
+	not_initdb = true;
+	MyDatabaseId = FLAGS_dbid;
+	dbid = FLAGS_dbid;
+	MyDatabaseTableSpace = 1;
+	Gp_role = GP_ROLE_DISPATCH;
+
+	kDBBucket = FLAGS_bucket;
+	kDBS3User = FLAGS_s3user;
+	kDBS3Password = FLAGS_s3passwd;
+	kDBS3Region = FLAGS_region;
+	kDBS3Endpoint = FLAGS_endpoint;
+	kDBIsMinio = FLAGS_isminio;
+	sdb::CatalogInfo catalog_info;
+
+    //InitMinimizePostgresEnv(argc, argv, "template1", "template1");
+	InitMinimizePostgresEnv(argv[0], FLAGS_dir.data(), FLAGS_database.data(), "root");
+
+	Gp_role = GP_ROLE_DISPATCH;
 	std::thread pg_thread(OptimizerServerRun, argc, argv);
 
 	while (true) {
 		auto task = sdb::TaskQueueSingleton::GetInstance()->pop_front(); 
-		task->Run();
+		task->Run(catalog_info);
 	}
 
 	pg_thread.join();	
@@ -52,8 +73,10 @@ int OptimizerServiceMain(int argc, char* argv[]) {
 
 int OptimizerServerRun(int argc, char** argv) {
 	// Parse gflags. We recommend you to use gflags as well.
-	// gflags::ParseCommandLineFlags(&argc, &argv, true);
+	FLAGS_reuse_addr = true;
+	FLAGS_reuse_port = true;
 	// Generally you only need one Server.
+	//
 	brpc::Server server;
 
 	sdb::OptimizerService http_svc;
@@ -61,18 +84,31 @@ int OptimizerServerRun(int argc, char** argv) {
 	// Add services into server. Notice the second parameter, because the
 	// service is put on stack, we don't want server to delete it, otherwise
 	// use brpc::SERVER_OWNS_SERVICE.
-	if (server.AddService(&http_svc,
-					   brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-	LOG(ERROR) << "Fail to add http_svc";
-		return -1;
+	for (int i = 0; i < FLAGS_try_num; ++i) {
+		if (server.AddService(&http_svc,
+						   brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+			LOG(ERROR) << "Fail to add http_svc";
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+			continue;
+		} else {
+			break;
+		}
 	}
+
+	// FLAGS_port = PostPortNumber;
 
 	// Start the server.
 	brpc::ServerOptions options;
 	options.idle_timeout_sec = FLAGS_idle_timeout_s;
-	if (server.Start(FLAGS_port, &options) != 0) {
-	LOG(ERROR) << "Fail to start HttpServer";
-		return -1;
+	for (int i = 0; i < FLAGS_try_num; ++i) {
+		int32 port = FLAGS_port;
+		if (server.Start(port, &options) != 0) {
+			LOG(ERROR) << "Fail to start HttpServer, port" << port;
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+			continue;
+		} else {
+			break;
+		}
 	}
 
 	// Wait until Ctrl-C is pressed, then Stop() and Join() the server.

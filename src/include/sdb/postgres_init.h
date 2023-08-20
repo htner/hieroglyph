@@ -1,7 +1,27 @@
-extern "C" {
+#ifndef __POSTGETS_INIT_H_SEFEWF
+#define __POSTGETS_INIT_H_SEFEWF 1
+
 void
-InitMinimizePostgresEnv(int argc, char *argv[],
+InitMinimizePostgresEnv(const char* proc, const char* dir,
 			 const char *dbname,
 			 const char *username);
-}
 
+void 
+set_worker_param(int64_t sessionid,
+				 int64_t identifier);
+
+void
+exec_worker_query(const char *query_string,
+				  PlannedStmt	   *plan,
+				  SerializedParams *paramInfo,
+				  SliceTable *sliceTable,
+				  const char *result_dir,
+				  const char *result_file,
+				  uint64_t* process_rows,
+				  void* task);
+
+void prepare_catalog(Oid *oid_arr, int size);
+
+PlannedStmt *utility_optimizer(Query *query);
+
+#endif

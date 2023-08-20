@@ -22,6 +22,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memdebug.h"
 #include "utils/memutils.h"
+#include "access/write_result_object.h"
 
 
 static void printtup_startup(DestReceiver *self, int operation,
@@ -944,3 +945,172 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 
 	return true;
 }
+
+//////////////////////////////////////////////////////////////////////////////////
+
+static void object_comm_reset(void);
+static int  object_flush(void);
+static int  object_flush_if_writable(void);
+static bool object_is_send_pending(void);
+static int  object_putmessage(char msgtype, const char *s, size_t len);
+static void object_putmessage_noblock(char msgtype, const char *s, size_t len);
+static void object_startcopyout(void);
+static void object_endcopyout(bool errorAbort);
+
+static PQcommMethods PqCommObjectMethods = {
+	object_comm_reset,
+	object_flush,
+	object_flush_if_writable,
+	object_is_send_pending,
+	object_putmessage,
+	object_putmessage_noblock,
+	object_startcopyout,
+	object_endcopyout
+};
+
+void
+SetRemoteDestFileInfo(DestReceiver *self, char *dirname, char* filename)
+{
+	self->dirname = dirname;
+	self->filename = filename;
+	elog(LOG, "dddtest result dirname: %s, filename: %s", dirname, filename);
+	CreateObjectStream(self->dirname, self->filename);
+}
+
+/* ----------------
+ *		printtup --- print a tuple in protocol 3.0
+ * ----------------
+ */
+static bool
+printtup_object(TupleTableSlot *slot, DestReceiver *self)
+{
+	return printtup(slot, self);
+}
+
+static void
+printtup_startup_object(DestReceiver *self, int operation, TupleDesc typeinfo)
+{
+	printtup_startup(self, operation, typeinfo);
+}
+
+static void
+printtup_shutdown_object(DestReceiver *self)
+{
+	printtup_shutdown(self);
+	WriteResultEnd();
+}
+
+static void
+printtup_destroy_object(DestReceiver *self)
+{
+	printtup_destroy(self);
+
+	WriteResultEnd();
+}
+
+DestReceiver *
+printtup_create_DR_object(CommandDest dest)
+{
+	DR_printtup *self = (DR_printtup *) palloc0(sizeof(DR_printtup));
+
+	PqCommMethods = &PqCommObjectMethods;
+	self->pub.receiveSlot = printtup_object;	/* might get changed later */
+	self->pub.rStartup = printtup_startup_object;
+	self->pub.rShutdown = printtup_shutdown_object;
+	self->pub.rDestroy = printtup_destroy_object;
+	self->pub.mydest = dest;
+
+	/*
+	 * Send T message automatically if DestRemote, but not if
+	 * DestRemoteExecute
+	 */
+	self->sendDescrip = (dest == DestRemote);
+
+	self->attrinfo = NULL;
+	self->nattrs = 0;
+	self->myinfo = NULL;
+	self->buf.data = NULL;
+	self->tmpcontext = NULL;
+	
+	return (DestReceiver *) self;
+}
+
+void
+object_comm_reset(void)
+{
+}
+
+int
+object_flush(void)
+{
+	WriteResultFlush();
+	return 0;
+}
+
+int
+object_flush_if_writable(void)
+{
+	WriteResultFlush();
+	return 0;
+}
+
+bool
+object_is_send_pending(void)
+{
+	return true;
+}
+
+int
+object_putmessage(char msgtype, const char *s, size_t len)
+{
+	char * tmp = palloc(len + 1);
+	memcpy(tmp, s, len);
+	tmp[len] = '0';
+
+	int ret  = 0;
+
+	switch (msgtype) {
+		case 'T' :
+		case 'D' :
+		case 'B' :
+		case 'C' :
+			ret = WriteResultToObject(msgtype, s, len);
+			break;
+		default:
+			elog(WARNING, "not write to object");
+			break;
+	}
+
+	return ret; 
+}
+
+void
+object_putmessage_noblock(char msgtype, const char *s, size_t len)
+{
+	char * tmp = palloc(len + 1);
+	memcpy(tmp, s, len);
+	tmp[len] = '0';
+
+	switch (msgtype) {
+		case 'T' :
+		case 'D' :
+		case 'B' :
+		case 'C' :
+			(void) WriteResultToObject(msgtype, s, len);
+			break;
+		default:
+			elog(WARNING, "not write to object");
+			break;
+	}
+}
+
+void
+object_startcopyout(void)
+{
+}
+
+void
+object_endcopyout(bool errorAbort)
+{
+}
+

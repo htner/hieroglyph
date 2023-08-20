@@ -19,6 +19,7 @@
 
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "access/htup_details.h"
 #include "access/tableam.h"
 #include "access/xact.h"
@@ -65,6 +66,7 @@ static void ShutdownAuxiliaryProcess(int code, Datum arg);
 static Form_pg_attribute AllocateAttribute(void);
 static Oid	gettype(char *type);
 static void cleanup(void);
+extern void ParquetWriterUpload();
 
 /* ----------------
  *		global variables
@@ -451,7 +453,9 @@ AuxiliaryProcessMain(int argc, char *argv[])
 			 */
 			SetProcessingMode(BootstrapProcessing);
 			bootstrap_signals();
+#ifdef SDB_NOUSE
 			BootStrapXLOG();
+#endif
 			BootstrapModeMain();
 			proc_exit(1);		/* should never return */
 
@@ -499,6 +503,71 @@ CheckerModeMain(void)
 	proc_exit(0);
 }
 
+static void CopyTableToParquet(Oid relid) {
+	Relation rel;	
+	SysScanDesc scan;
+	HeapTuple tuple;
+
+	rel = relation_open(relid, AccessShareLock);		
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	while((tuple = systable_getnext(scan)) != NULL) {
+		simple_parquet_insert_cache(rel, tuple);
+	}
+	simple_parquet_upload(rel);
+	relation_close(rel, AccessShareLock);
+}
+
+
+
+static void CopyPGClassTableToParquet() {
+	Oid relid = RelationRelationId; // pg_class
+	Relation rel;	
+
+	int			chnattrs = 1;	/* # of above */
+	Datum	   *newvals;		/* vals of above */
+	bool	   *newnulls;		/* null flags for above */
+	int		   *chattrs;		/* attnums of attributes to change */
+
+	chattrs = (int *) palloc(sizeof(int));
+	newvals = (Datum *) palloc(sizeof(Datum));
+	newnulls = (bool *) palloc(sizeof(bool));
+
+	chattrs[0] = 7;
+	newvals[0] = ObjectIdGetDatum(5104); // parquet am
+	newnulls[0] = false;
+
+	SysScanDesc scan;
+	HeapTuple tuple;
+
+	rel = relation_open(relid, AccessShareLock);		
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	while((tuple = systable_getnext(scan)) != NULL) {
+		Datum		datum;
+		Datum		datum_tid;
+
+		bool		isnull;
+		datum = heap_getattr(tuple, 7,
+					   RelationGetDescr(rel), &isnull);
+		datum_tid = heap_getattr(tuple, 1,
+					   RelationGetDescr(rel), &isnull);
+		if (DatumGetObjectId(datum) == 2) {
+			tuple = heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
+			// elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
+		} else if (DatumGetObjectId(datum) == 403) {
+			// elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
+		}
+		simple_parquet_insert_cache(rel, tuple);
+		//simple_parquet_insert(rel, tuple);
+	}
+
+	pfree(chattrs);
+	pfree(newvals);
+	pfree(newnulls);
+
+	simple_parquet_upload(rel);
+	relation_close(rel, AccessShareLock);
+}
+
 /*
  *	 The main entry point for running the backend in bootstrap mode
  *
@@ -506,6 +575,46 @@ CheckerModeMain(void)
  *	 The bootstrap backend doesn't speak SQL, but instead expects
  *	 commands in a special bootstrap language.
  */
+
+extern bool SDB_StartTransaction(uint64 dbid, uint64 sid);
+extern bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* read_xid, uint64* write_xid);
+extern bool SDB_CommitTransaction(uint64 dbid, uint64 sid);
+
+extern uint64_t read_xid;
+extern uint64_t commit_xid;
+extern uint64_t dbid;
+extern uint64_t sessionid;
+extern uint64_t query_id;
+extern uint64_t slice_count;
+extern uint64_t slice_seg_index;
+
+void upload_all() {
+	simple_parquet_uploadall();
+}
+void copy_to_parquet(char* table) {
+	int tableid = strtoul(table, NULL, 0);
+	/*
+	if (tableid == ProcRelationId) {
+		elog(WARNING, "copy pg_proc to parquet");
+		CopyTableToParquet(1247);
+	} else if (tableid == 1255) {
+		elog(WARNING, "copy pg_type to parquet");
+		CopyTableToParquet(1255);
+	} else if (tableid == 1249) {
+		elog(WARNING, "copy pg_attribute to parquet");
+		CopyTableToParquet(1249);
+	} else 
+	*/
+	if (tableid == RelationRelationId) {
+		elog(WARNING, "copy pg_class to parquet");
+		// need change am 
+		CopyPGClassTableToParquet();
+	} else {
+		elog(WARNING, "copy table to parquet %s %d", table, tableid);
+		CopyTableToParquet(tableid); // "pg_proc"
+	}
+}
+
 static void
 BootstrapModeMain(void)
 {
@@ -533,13 +642,27 @@ BootstrapModeMain(void)
 	{
 		attrtypes[i] = NULL;
 		Nulls[i] = false;
-	}
-
-	/*
-	 * Process bootstrap input.
+	} /*
+	 * Process bootstrap input.type <list>  boot_index_params
 	 */
 	StartTransactionCommand();
+	dbid = 1;
+	sessionid = 1;
+	read_xid = 1;
+	commit_xid = 1;
+
+	query_id = 1;
+	slice_count = 1;
+	slice_seg_index = 1;
+
+	SDB_StartTransaction(1, 1);
+	SDB_AlloccateXid(1, 1, true, true, NULL, NULL);
 	boot_yyparse();
+	//ParquetWriterUpload();
+    simple_parquet_uploadall();
+	//
+	SDB_CommitTransaction(1, 1);
+
 	CommitTransactionCommand();
 
 	/*
@@ -829,13 +952,19 @@ InsertOneTuple(void)
 	TupleDesc	tupDesc;
 	int			i;
 
-	elog(DEBUG4, "inserting row with %d columns", numattr);
+//	elog(WARNING, "inserting row with %d columns", numattr);
 
 	tupDesc = CreateTupleDesc(numattr, attrtypes);
 	tuple = heap_form_tuple(tupDesc, values, Nulls);
 	pfree(tupDesc);				/* just free's tupDesc, not the attrtypes */
 
-	simple_heap_insert(boot_reldesc, tuple);
+	if (boot_reldesc->rd_rel->relam == HEAP_TABLE_AM_OID) {
+		simple_heap_insert(boot_reldesc, tuple);
+//		elog(WARNING, "inserting row to heap");
+	} else if (boot_reldesc->rd_rel->relam == PARQUET_TABLE_AM_OID) {
+		simple_parquet_insert_cache(boot_reldesc, tuple);
+//		elog(WARNING, "inserting row to parquet");
+	}
 	heap_freetuple(tuple);
 	elog(DEBUG4, "row inserted");
 
@@ -975,7 +1104,7 @@ gettype(char *type)
 		table_close(rel, NoLock);
 		return gettype(type);
 	}
-	elog(ERROR, "unrecognized type \"%s\"", type);
+	elog(PANIC, "unrecognized type \"%s\"", type);
 	/* not reached, here to make compiler happy */
 	return 0;
 }
@@ -1128,7 +1257,6 @@ index_register(Oid heap,
 	MemoryContextSwitchTo(oldcxt);
 }
 
-
 /*
  * build_indices -- fill in all the indexes registered earlier
  */
@@ -1150,3 +1278,4 @@ build_indices(void)
 		table_close(heap, NoLock);
 	}
 }
+

@@ -200,9 +200,8 @@ CreateExecutorState(void)
 	estate->es_jit = NULL;
 
 	estate->es_sliceTable = NULL;
-	estate->interconnect_context = NULL;
 	estate->motionlayer_context = NULL;
-	estate->es_interconnect_is_setup = false;
+	estate->es_brpcstream_is_setup = false;
 	estate->active_recv_id = -1;
 	estate->es_got_eos = false;
 	estate->cancelUnfinished = false;
@@ -1329,7 +1328,7 @@ InitSliceTable(EState *estate, PlannedStmt *plannedstmt)
 		currExecSlice->planNumSegments = currPlanSlice->numsegments;
 		currExecSlice->segments = NIL;
 		currExecSlice->primaryGang = NULL;
-		currExecSlice->primaryProcesses = NIL;
+		// currExecSlice->primaryProcesses = NIL;
 
 		parentIndex = currPlanSlice->parentIndex;
 		if (parentIndex < -1 || parentIndex >= numSlices)
@@ -1460,8 +1459,8 @@ AssignGangs(CdbDispatcherState *ds, QueryDesc *queryDesc)
 	rootIdx = RootSliceIndex(queryDesc->estate);
 
 	/* cleanup processMap because initPlan and main Plan share the same slice table */
-	for (int i = 0; i < sliceTable->numSlices; i++)
-		sliceTable->slices[i].processesMap = NULL;
+	//for (int i = 0; i < sliceTable->numSlices; i++)
+//		sliceTable->slices[i].processesMap = NULL;
 
 	AssignWriterGangFirst(ds, sliceTable, rootIdx);
 	InventorySliceTree(ds, sliceTable, rootIdx);
@@ -1545,7 +1544,7 @@ InventorySliceTree(CdbDispatcherState *ds, SliceTable *sliceTable, int sliceInde
 	if (slice->gangType == GANGTYPE_UNALLOCATED)
 	{
 		slice->primaryGang = NULL;
-		slice->primaryProcesses = getCdbProcessesForQD(true);
+		// slice->primaryProcesses = getCdbProcessesForQD(true);
 	}
 	else if (!slice->primaryGang)
 	{
@@ -1637,11 +1636,10 @@ void mppExecutorFinishup(QueryDesc *queryDesc)
 	primaryWriterSliceIndex = PrimaryWriterSliceIndex(estate);
 
 	/* Teardown the Interconnect */
-	if (estate->es_interconnect_is_setup)
+	if (estate->es_brpcstream_is_setup)
 	{
-		TeardownInterconnect(estate->interconnect_context, false);
-		estate->interconnect_context = NULL;
-		estate->es_interconnect_is_setup = false;
+		TeardownInterconnect(estate, false);
+		estate->es_brpcstream_is_setup = false;
 	}
 
 	/*
@@ -1723,10 +1721,10 @@ void mppExecutorCleanup(QueryDesc *queryDesc)
 	if (query_info_collect_hook && QueryCancelCleanup)
 		(*query_info_collect_hook)(METRICS_QUERY_CANCELING, queryDesc);
 	/* Clean up the interconnect. */
-	if (estate->es_interconnect_is_setup)
+	if (estate->es_brpcstream_is_setup)
 	{
-		TeardownInterconnect(estate->interconnect_context, true);
-		estate->es_interconnect_is_setup = false;
+		TeardownInterconnect(estate, true);
+		estate->es_brpcstream_is_setup = false;
 	}
 
 	/*

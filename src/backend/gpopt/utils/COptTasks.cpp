@@ -782,4 +782,28 @@ COptTasks::SetXform(char *xform_str, bool should_disable)
 	return false;
 }
 
+//---------------------------------------------------------------------------
+//	@function:
+//		COptTasks::GPOPTOptimizedPlan
+//
+//	@doc:
+//		optimizes a query to plannedstmt
+//
+//---------------------------------------------------------------------------
+PlannedStmt *
+COptTasks::GPOPTOptimizedPlanBoth(Query *query, SOptContext *gpopt_context, char** plan_dtx)
+{
+	Assert(query);
+	Assert(gpopt_context);
+
+	gpopt_context->m_query = query;
+	gpopt_context->m_should_generate_plan_stmt = true;
+	gpopt_context->m_should_serialize_plan_dxl = true;
+	Execute(&OptimizeTask, gpopt_context);
+	if (plan_dtx) {
+		*plan_dtx = gpopt_context->m_plan_dxl;
+	}
+	return gpopt_context->m_plan_stmt;
+}
+
 // EOF

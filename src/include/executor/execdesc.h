@@ -133,9 +133,9 @@ typedef struct ExecSlice
 	 * The number of processes must agree with the plan slice to be
 	 * implemented.
 	 */
-	List		*primaryProcesses;
+	// List		*primaryProcesses;
 	/* A bitmap to identify which QE should execute this slice */
-	Bitmapset	*processesMap;
+	// Bitmapset	*processesMap;
 } ExecSlice;
 
 /*
@@ -151,6 +151,7 @@ typedef struct SliceTable
 {
 	NodeTag		type;
 
+	int			localSegIndex;
 	int			localSlice;		/* Index of the slice to execute. */
 	int			numSlices;
 	ExecSlice  *slices;			/* Array of slices, indexed by SliceIndex */
@@ -239,6 +240,8 @@ typedef struct QueryDispatchDesc
 	 * Security context flags.
 	 */
 	int		secContext;
+
+	void* task;
 } QueryDispatchDesc;
 
 /*
@@ -316,6 +319,7 @@ typedef struct QueryDesc
 
 	/* This is always set NULL by the core system, but plugins can change it */
 	struct Instrumentation *totaltime;	/* total time spent in ExecutorRun */
+
 } QueryDesc;
 
 /* in pquery.c */

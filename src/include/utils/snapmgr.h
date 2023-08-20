@@ -96,8 +96,9 @@ extern PGDLLIMPORT SnapshotData CatalogSnapshotData;
 
 /* This macro encodes the knowledge of which snapshots are MVCC-safe */
 #define IsMVCCSnapshot(snapshot)  \
+    ( (snapshot) != NULL &&	\
 	((snapshot)->snapshot_type == SNAPSHOT_MVCC || \
-	 (snapshot)->snapshot_type == SNAPSHOT_HISTORIC_MVCC)
+	 (snapshot)->snapshot_type == SNAPSHOT_HISTORIC_MVCC))
 
 extern Snapshot GetTransactionSnapshot(void);
 extern Snapshot GetLatestSnapshot(void);

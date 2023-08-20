@@ -35,6 +35,7 @@
 #include "access/bufmask.h"
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "access/heapam_xlog.h"
 #include "access/hio.h"
 #include "access/multixact.h"
@@ -1361,6 +1362,10 @@ heap_getnext(TableScanDesc sscan, ScanDirection direction)
 {
 	HeapScanDesc scan = (HeapScanDesc) sscan;
 
+	if (likely(sscan->rs_rd->rd_tableam == GetParquetamTableAmRoutine())) {
+		return ParquetGetNext(sscan, direction);
+	}
+
 	/*
 	 * This is still widely used directly, without going through table AM, so
 	 * add a safety check.  It's possible we should, at a later point,
@@ -1964,6 +1969,12 @@ void
 heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 			int options, BulkInsertState bistate, TransactionId xid)
 {
+	if (!IsBootstrapProcessingMode())
+	{
+		simple_parquet_insert_cache(relation, tup);
+		return;
+	}
+
 	HeapTuple	heaptup;
 	Buffer		buffer;
 	Buffer		vmbuffer = InvalidBuffer;
@@ -1971,6 +1982,8 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 	bool		needwal;
 
 	needwal = !(options & HEAP_INSERT_SKIP_WAL) && RelationNeedsWAL(relation);
+	// SDB not need wal
+	needwal = false;
 	gp_expand_protect_catalog_changes(relation);
 
 #ifdef FAULT_INJECTOR
@@ -2234,6 +2247,8 @@ heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 	AssertArg(!(options & HEAP_INSERT_NO_LOGICAL));
 
 	needwal = !(options & HEAP_INSERT_SKIP_WAL) && RelationNeedsWAL(relation);
+	// SDB not need wal
+	needwal = false;
 	saveFreeSpace = RelationGetTargetPageFreeSpace(relation,
 												   HEAP_DEFAULT_FILLFACTOR);
 
@@ -2577,6 +2592,8 @@ heap_delete(Relation relation, ItemPointer tid,
 			CommandId cid, Snapshot crosscheck, bool wait,
 			TM_FailureData *tmfd, bool changingPart)
 {
+	return ParquetDelete(relation, tid, cid, crosscheck, wait,tmfd, changingPart);
+
 	TM_Result	result;
 	TransactionId xid = GetCurrentTransactionId();
 	ItemId		lp;
@@ -3224,7 +3241,7 @@ l2:
 	if (result == TM_Invisible)
 	{
 		UnlockReleaseBuffer(buffer);
-		ereport(ERROR,
+		ereport(PANIC,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("attempted to update invisible tuple")));
 	}

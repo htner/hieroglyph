@@ -370,7 +370,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		if (gp_log_optimization_time)
 			INSTR_TIME_SET_CURRENT(starttime);
 
-		result = optimize_query(parse, cursorOptions, boundParams);
+		result = optimize_query(parse, cursorOptions, boundParams, NULL);
 
 		/* decide jit state */
 		if (result)

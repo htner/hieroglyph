@@ -336,7 +336,7 @@ btbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	 * not the case, big trouble's what we have.
 	 */
 	if (RelationGetNumberOfBlocks(index) != 0)
-		elog(ERROR, "index \"%s\" already contains data",
+		elog(PANIC, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
 	reltuples = _bt_spools_heapscan(heap, index, &buildstate, indexInfo);
@@ -583,7 +583,10 @@ _bt_leafbuild(BTSpool *btspool, BTSpool *btspool2)
 	 * We need to log index creation in WAL iff WAL archiving/streaming is
 	 * enabled UNLESS the index isn't WAL-logged anyway.
 	 */
+	wstate.btws_use_wal = false;
+#ifdef SDB_NOUSE
 	wstate.btws_use_wal = XLogIsNeeded() && RelationNeedsWAL(wstate.index);
+#endif
 
 	/* reserve the metapage */
 	wstate.btws_pages_alloced = BTREE_METAPAGE + 1;

@@ -3134,6 +3134,22 @@ DropRelFileNodeBuffers(RelFileNodeBackend rnode, ForkNumber forkNum,
 	}
 }
 
+void
+DropOidBuffers(Oid oid)
+{
+	int			i;
+
+	for (i = 0; i < NBuffers; i++)
+	{
+		BufferDesc *bufHdr = GetBufferDescriptor(i);
+
+		if (bufHdr->tag.rnode.relNode != oid)
+			continue;
+
+		InvalidateBuffer(bufHdr);	/* releases spinlock */
+	}
+}
+
 /* ---------------------------------------------------------------------
  *		DropRelFileNodesAllBuffers
  *

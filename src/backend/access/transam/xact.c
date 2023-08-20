@@ -93,6 +93,7 @@
 #include "utils/vmem_tracker.h"
 #include "cdb/cdbdisp.h"
 #include "postmaster/autovacuum.h"
+#include "access/parquetam.h"
 
 /*
  *	User-tweakable parameters
@@ -368,7 +369,9 @@ static void AtCleanup_Memory(void);
 static void AtAbort_ResourceOwner(void);
 static void AtCCI_LocalCache(void);
 static void AtCommit_Memory(void);
+#ifdef SDB_NOUSE
 static void AtStart_Cache(void);
+#endif
 static void AtStart_Memory(void);
 static void AtStart_ResourceOwner(void);
 static void CallXactCallbacks(XactEvent event);
@@ -397,7 +400,9 @@ static void AtSubCommit_Memory(void);
 static void AtSubStart_Memory(void);
 static void AtSubStart_ResourceOwner(void);
 
+#ifdef SDB_NOUSE
 static void EndLocalDistribXact(bool isCommit);
+#endif
 static void ShowTransactionState(const char *str);
 static void ShowTransactionStateRec(const char *str, TransactionState state);
 static const char *BlockStateAsString(TBlockState blockState);
@@ -656,6 +661,7 @@ GetStableLatestTransactionId(void)
 static void
 AssignTransactionId(TransactionState s)
 {
+	return;
 	bool		isSubXact = (s->parent != NULL);
 	ResourceOwner currentOwner;
 	bool		log_unknown_top = false;
@@ -960,6 +966,9 @@ SetCurrentTransactionStopTimestamp(void)
 int
 GetCurrentTransactionNestLevel(void)
 {
+	/* SDB NO USE*/
+	return 0;
+
 	TransactionState s = CurrentTransactionState;
 
 	return s->nestingLevel;
@@ -1326,6 +1335,7 @@ ForceSyncCommit(void)
  * ----------------------------------------------------------------
  */
 
+#ifdef SDB_NOUSE
 /*
  *	AtStart_Cache
  */
@@ -1334,6 +1344,7 @@ AtStart_Cache(void)
 {
 	AcceptInvalidationMessages();
 }
+#endif
 
 /*
  *	AtStart_Memory
@@ -1461,6 +1472,7 @@ AtSubStart_ResourceOwner(void)
  * ----------------------------------------------------------------
  */
 
+#ifdef SDB_NOUSE
 /*
  *	RecordTransactionCommit
  *
@@ -1783,6 +1795,7 @@ cleanup:
 
 	return latestXid;
 }
+#endif
 
 /*
  *	RecordDistributedForgetCommitted
@@ -2656,9 +2669,11 @@ StartTransaction(void)
 	/*
 	 * initialize other subsystems for new transaction
 	 */
+#ifdef SDB_NOUSE
 	AtStart_GUC();
 	AtStart_Cache();
 	AfterTriggerBeginXact();
+#endif
 
 	/*
 	 * done with start processing, set current transaction state to "in
@@ -2676,8 +2691,11 @@ StartTransaction(void)
 	 * database be selected. In such case, we disallow updating the snapshot
 	 * of segments configuration.
 	 */
+	/*
+	FIXME_SDB sdb not need?
 	if (Gp_role == GP_ROLE_DISPATCH && OidIsValid(MyDatabaseId))
 		cdbcomponent_updateCdbComponents();
+	*/
 
 	/*
 	 * Acquire a resource group slot.
@@ -2698,7 +2716,9 @@ StartTransaction(void)
 	if (ShouldAssignResGroupOnMaster())
 		AssignResGroupOnMaster();
 
+#ifdef SDB_NOUSE
 	initialize_wal_bytes_written();
+#endif
 	ShowTransactionState("StartTransaction");
 
 	ereportif(Debug_print_full_dtm, LOG,
@@ -2718,14 +2738,16 @@ static void
 CommitTransaction(void)
 {
 	TransactionState s = CurrentTransactionState;
-	TransactionId latestXid;
+	// TransactionId latestXid;
 	bool		is_parallel_worker;
 
 	is_parallel_worker = (s->blockState == TBLOCK_PARALLEL_INPROGRESS);
 
 	/* Enforce parallel mode restrictions during parallel worker commit. */
+#ifdef SDB_NOUSE
 	if (is_parallel_worker)
 		EnterParallelMode();
+#endif
 
 	ShowTransactionState("CommitTransaction");
 
@@ -2770,6 +2792,7 @@ CommitTransaction(void)
 	 * the transaction-abort path.
 	 */
 
+#ifdef SDB_NOUSE
 	CallXactCallbacks(is_parallel_worker ? XACT_EVENT_PARALLEL_PRE_COMMIT
 					  : XACT_EVENT_PRE_COMMIT);
 
@@ -2899,7 +2922,8 @@ CommitTransaction(void)
 	 */
 	ProcArrayEndTransaction(MyProc, latestXid);
 
-	EndLocalDistribXact(true);
+	/* FIXMD_SDB not need transaction*/
+	// EndLocalDistribXact(true);
 
 	/*
 	 * This is all post-commit cleanup.  Note that if an error is raised here,
@@ -2995,6 +3019,10 @@ CommitTransaction(void)
 	AtEOXact_WorkFile();
 	pgstat_report_xact_timestamp(0);
 
+#endif
+	/* Prevent cancel/die interrupt while cleaning up */
+	HOLD_INTERRUPTS();
+
 	CurrentResourceOwner = NULL;
 	ResourceOwnerDelete(TopTransactionResourceOwner);
 	s->curTransactionOwner = NULL;
@@ -3003,12 +3031,14 @@ CommitTransaction(void)
 
 	AtCommit_Memory();
 
+	/*
 	finishDistributedTransactionContext("CommitTransaction", false);
 
 	if (gp_local_distributed_cache_stats)
 	{
 		LocalDistribXactCache_ShowStats("CommitTransaction");
 	}
+	*/
 
 	s->fullTransactionId = InvalidFullTransactionId;
 	s->subTransactionId = InvalidSubTransactionId;
@@ -3527,7 +3557,9 @@ AbortTransaction(void)
 	 * Do abort to all QE. NOTE: we don't process
 	 * signals to prevent recursion until we've notified the QEs.
 	 */
+#ifdef SDB_NOUSE
 	rollbackDtxTransaction();
+#endif
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
@@ -3536,7 +3568,9 @@ AbortTransaction(void)
 	 */
 	ProcArrayEndTransaction(MyProc, latestXid);
 
+#ifdef SDB_NOUSE
 	EndLocalDistribXact(false);
+#endif
 
 	SIMPLE_FAULT_INJECTOR("abort_after_procarray_end");
 	/*
@@ -3855,6 +3889,11 @@ RestoreTransactionCharacteristics(void)
 	XactDeferrable = save_XactDeferrable;
 }
 
+void
+Upload()
+{
+	simple_parquet_uploadall();
+}
 
 /*
  *	CommitTransactionCommand
@@ -3863,6 +3902,7 @@ void
 CommitTransactionCommand(void)
 {
 	TransactionState s = CurrentTransactionState;
+	// simple_parquet_uploadall();
 
 	if (Gp_role == GP_ROLE_EXECUTE && !Gp_is_writer)
 		elog(DEBUG1,"CommitTransactionCommand: called as segment Reader in state %s",
@@ -6671,6 +6711,7 @@ TransStateAsString(TransState state)
 	return "UNRECOGNIZED";
 }
 
+#ifdef SDB_NOUSE
 /*
  * EndLocalDistribXact
  */
@@ -6717,6 +6758,7 @@ EndLocalDistribXact(bool isCommit)
 			break;
 	}
 }
+#endif
 
 /*
  * IsoLevelAsUpperString

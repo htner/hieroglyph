@@ -1,0 +1,96 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = true;
+option go_package="./sdb";
+
+import  "workerinfo.proto";
+import  "task.proto";
+import  "kvpair.proto";
+
+// The greeting service definition.
+// Sends a greeting
+service Worker {
+  rpc Prepare(PrepareTaskRequest) returns (PrepareTaskReply) {}
+  rpc Start(StartTaskRequest) returns (StartTaskReply) {}
+  rpc StartStream(MotionStreamRequest) returns (MotionStreamReply) {}
+}
+
+// The request message containing the user's name.
+message PrepareTaskRequest {
+  TaskIdentify task_identify = 1;
+
+  uint64 sessionid = 4;
+  uint64 uid = 5;
+  uint64 dbid = 6;
+  uint64 worker_id = 7;
+
+  uint64 read_xid = 8;
+  uint64 commit_xid = 9;
+
+  string sql = 10;
+  bytes query_info = 11;
+  bytes plan_info = 12;
+  bytes plan_info_dxl = 13;
+  bytes plan_params = 14;
+
+  uint64 guc_version = 20;
+  //repeated LakeRelVersion versions = 21;
+  //repeated WorkerInfo workers = 22;
+  repeated RelFiles catalog_list = 21;
+  repeated RelFiles user_rel_list = 22;
+
+  PBSliceTable slice_table = 23;
+
+  map<int32, WorkerInfo> workers = 24;  // worker id -> info
+  string result_dir = 25;
+
+  LakeSpaceDetail db_space = 26;
+  LakeSpaceDetail result_space = 27;
+}
+
+// The response message containing the greetings
+message PrepareTaskReply {
+  string message = 1;
+}
+
+message StartTaskRequest {
+  TaskIdentify task_identify = 1;
+}
+
+message StartTaskReply {
+}
+
+message MotionStreamRequest {
+  TaskIdentify to_task_identify = 1;
+  int32 motion_id = 2;
+  int32 from_slice = 3;
+  int32 to_slice = 4;
+  int32 from_segindex = 5;
+  int32 to_segindex = 6;
+  int32 from_route= 7;
+  int32 to_route = 8;
+}
+
+message MotionStreamReply {
+  bool succ = 1;
+  string message = 2;
+}

@@ -36,6 +36,7 @@ ifneq ($(with_uuid),no)
 endif
 	$(MAKE) -C gpMgmt all
 	$(MAKE) -C gpcontrib all
+	$(MAKE) -C gosrv all
 	+@echo "All of Greenplum Database successfully made. Ready to install."
 
 docs:
@@ -82,6 +83,7 @@ ifneq ($(with_uuid),no)
 endif
 	$(MAKE) -C gpMgmt $@
 	$(MAKE) -C gpcontrib $@
+	$(MAKE) -C gosrv $@
 	+@echo "Greenplum Database installation complete."
 
 install-docs:
@@ -124,6 +126,7 @@ distclean maintainer-clean:
 	$(MAKE) -C config $@
 	$(MAKE) -C gpMgmt $@
 	$(MAKE) -C src $@
+	$(MAKE) -C gosrv $@
 	rm -rf tmp_install/
 # Garbage from autoconf:
 	@rm -rf autom4te.cache/

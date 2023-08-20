@@ -2116,6 +2116,7 @@ RemoveFromWaitQueue(PGPROC *proc, uint32 hashcode)
 bool
 LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 {
+	return true;
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
 	LockMethod	lockMethodTable;
 	LOCALLOCKTAG localtag;
@@ -2343,6 +2344,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 void
 LockSetHoldTillEndXact(const LOCKTAG *locktag)
 {
+	return;
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
 	LockMethod	lockMethodTable;
 	LOCALLOCKTAG localtag;
@@ -2400,6 +2402,7 @@ LockSetHoldTillEndXact(const LOCKTAG *locktag)
 void
 LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 {
+	return;
 	HASH_SEQ_STATUS status;
 	LockMethod	lockMethodTable;
 	int			i,

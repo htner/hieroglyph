@@ -94,12 +94,15 @@
 #include "utils/syscache.h"
 
 #include "access/transam.h"
+#include "access/relation.h"
 #include "catalog/gp_distribution_policy.h"         /* GpPolicy */
 #include "catalog/heap.h"
 #include "catalog/index.h"
 #include "cdb/cdbtm.h"
 #include "cdb/cdbvars.h"        /* Gp_role */
 #include "cdb/cdbsreh.h"
+#include "storage/md.h"
+#include "sdb/reload_cache.h"
 
 
 #define RELCACHE_INIT_FILEMAGIC		0x773266	/* version ID value */
@@ -360,7 +363,7 @@ ScanPgRelation(Oid targetRelId, bool indexOK, bool force_non_historic)
 	 * it probably means a relcache entry that needs to be nailed isn't.
 	 */
 	if (!OidIsValid(MyDatabaseId))
-		elog(FATAL, "cannot read pg_class without having selected a database");
+		elog(PANIC, "cannot read pg_class without having selected a database");
 
 	/*
 	 * form a scan key
@@ -1136,6 +1139,7 @@ retry:
 		MemoryContextSwitchTo(oldcxt);
 		MemoryContextDelete(tmpcxt);
 #endif
+		elog(WARNING, "%d target table not found", targetRelId);
 		Assert(in_progress_offset + 1 == in_progress_list_len);
 		in_progress_list_len--;
 		return NULL;
@@ -1853,12 +1857,16 @@ LookupOpclassInfo(Oid operatorClassOid,
 static void
 InitTableAmRoutine(Relation relation)
 {
-	relation->rd_tableam = GetTableAmRoutine(relation->rd_amhandler);
+	if (relation->rd_amhandler == PARQUET_TABLE_AM_HANDLER_OID)
+		relation->rd_tableam = GetParquetamTableAmRoutine();
+	else
+		relation->rd_tableam = GetTableAmRoutine(relation->rd_amhandler);
 }
 
 /*
  * Initialize table access method support for a table like relation
  */
+extern bool not_initdb;
 void
 RelationInitTableAccessMethod(Relation relation)
 {
@@ -1873,17 +1881,27 @@ RelationInitTableAccessMethod(Relation relation)
 		 * here.
 		 */
 		relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+		elog(WARNING, "relation init table access");
 	}
 	else if (IsCatalogRelation(relation))
 	{
 		/*
 		 * Avoid doing a syscache lookup for catalog tables.
 		 */
-		Assert(relation->rd_rel->relam == HEAP_TABLE_AM_OID);
-		relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+		if (Gp_role == GP_ROLE_EXECUTE || Gp_role == GP_ROLE_DISPATCH || not_initdb) {
+			//elog(WARNING, "relation init table access 1");
+			Assert(relation->rd_rel->relam == PARQUET_TABLE_AM_OID); 
+			relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
+		} else {
+			//elog(PANIC, "relation init table access 2");
+			Assert(relation->rd_rel->relam == HEAP_TABLE_AM_OID);
+			relation->rd_amhandler = HEAP_TABLE_AM_HANDLER_OID;
+			//relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
+		}
 	}
 	else
 	{
+		elog(WARNING, "relation init table access 3");
 		/*
 		 * Look up the table access method, save the OID of its handler
 		 * function.
@@ -1895,7 +1913,8 @@ RelationInitTableAccessMethod(Relation relation)
 			elog(ERROR, "cache lookup failed for access method %u",
 				 relation->rd_rel->relam);
 		aform = (Form_pg_am) GETSTRUCT(tuple);
-		relation->rd_amhandler = aform->amhandler;
+		//relation->rd_amhandler = aform->amhandler;
+		relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;
 		ReleaseSysCache(tuple);
 		/*
 		 * Greenplum: append-optimized relations should not have a valid
@@ -1996,7 +2015,7 @@ formrdesc(const char *relationName, Oid relationReltype,
 	relation->rd_rel->relallvisible = 0;
 	relation->rd_rel->relkind = RELKIND_RELATION;
 	relation->rd_rel->relnatts = (int16) natts;
-	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
+	relation->rd_rel->relam = PARQUET_TABLE_AM_OID;
 
 	/*
 	 * initialize attribute tuple form
@@ -2067,8 +2086,8 @@ formrdesc(const char *relationName, Oid relationReltype,
 	/*
 	 * initialize the table am handler
 	 */
-	relation->rd_rel->relam = HEAP_TABLE_AM_OID;
-	relation->rd_tableam = GetHeapamTableAmRoutine();
+	relation->rd_rel->relam = PARQUET_TABLE_AM_OID;
+	relation->rd_tableam = GetParquetamTableAmRoutine();
 
 	/*
 	 * initialize the rel-has-index flag, using hardwired knowledge
@@ -2199,7 +2218,29 @@ RelationIdGetRelation(Oid relationId)
 	 * no reldesc in the cache, so have RelationBuildDesc() build one and add
 	 * it.
 	 */
-	rd = RelationBuildDesc(relationId, true);
+	if (relationId == RelationRelationId) 
+	{
+		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
+				  Natts_pg_class, Desc_pg_class);
+		formrdesc("pg_attribute", AttributeRelation_Rowtype_Id, false,
+				  Natts_pg_attribute, Desc_pg_attribute);
+		formrdesc("pg_proc", ProcedureRelation_Rowtype_Id, false,
+				  Natts_pg_proc, Desc_pg_proc);
+		formrdesc("pg_type", TypeRelation_Rowtype_Id, false,
+				  Natts_pg_type, Desc_pg_type);
+		elog(WARNING, "type to open relation pg_class, add to cache");
+		return RelationIdGetRelation(relationId);
+			/*
+		rd = GetPgClassRelation(); 	
+		if (RelationIsValid(rd))
+			RelationIncrementReferenceCount(rd);
+			*/
+	} 
+	else 
+	{
+		rd = RelationBuildDesc(relationId, true);
+		elog(WARNING, "type to open relation pg_class %d != %d ()", relationId, RelationRelationId);
+	}
 	if (RelationIsValid(rd))
 		RelationIncrementReferenceCount(rd);
 	return rd;
@@ -3939,10 +3980,11 @@ RelationCacheInitializePhase2(void)
 {
 	MemoryContext oldcxt;
 
+	elog(WARNING, "RelationCacheInitializePhase2 1");
 	/*
 	 * relation mapper needs initialized too
 	 */
-	RelationMapInitializePhase2();
+	// RelationMapInitializePhase2();
 
 	/*
 	 * In bootstrap mode, the shared catalogs aren't there yet anyway, so do
@@ -3960,8 +4002,10 @@ RelationCacheInitializePhase2(void)
 	 * Try to load the shared relcache cache file.  If unsuccessful, bootstrap
 	 * the cache with pre-made descriptors for the critical shared catalogs.
 	 */
+	elog(WARNING, "RelationCacheInitializePhase2 3");
 	if (!load_relcache_init_file(true))
 	{
+		elog(WARNING, "RelationCacheInitializePhase2 4");
 		formrdesc("pg_database", DatabaseRelation_Rowtype_Id, true,
 				  Natts_pg_database, Desc_pg_database);
 		formrdesc("pg_authid", AuthIdRelation_Rowtype_Id, true,
@@ -3974,11 +4018,50 @@ RelationCacheInitializePhase2(void)
 				  Natts_pg_subscription, Desc_pg_subscription);
 		formrdesc("pg_auth_time_constraint", AuthTimeConstraint_Rowtype_Id, true,
 				  Natts_pg_auth_time_constraint, Desc_pg_auth_time_constraint_members);
+		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
+				  Natts_pg_class, Desc_pg_class);
+		formrdesc("pg_attribute", AttributeRelation_Rowtype_Id, false,
+				  Natts_pg_attribute, Desc_pg_attribute);
+		formrdesc("pg_proc", ProcedureRelation_Rowtype_Id, false,
+				  Natts_pg_proc, Desc_pg_proc);
+		formrdesc("pg_type", TypeRelation_Rowtype_Id, false,
+				  Natts_pg_type, Desc_pg_type);
+
+
 
 #define NUM_CRITICAL_SHARED_RELS	6	/* fix if you change list above */
 	}
 
 	MemoryContextSwitchTo(oldcxt);
+}
+
+void
+unlink_oid(Oid rel_id, bool global)
+{
+	RelFileNodeBackend rnode;
+	char	   *path;
+	int			ret;
+	
+	rnode.backend = InvalidBackendId;
+	if (global)
+	{
+		rnode.node.spcNode = GLOBALTABLESPACE_OID;
+		rnode.node.dbNode = 0;
+	}
+	else
+	{
+		rnode.node.spcNode = DEFAULTTABLESPACE_OID;
+		rnode.node.dbNode = MyDatabaseId;
+	}
+
+	rnode.node.relNode = rel_id;
+
+	path = relpath(rnode, MAIN_FORKNUM);
+	ret = unlink(path);
+	if (ret < 0 && errno != ENOENT)
+		ereport(WARNING,
+				(errcode_for_file_access(),
+					errmsg("could not remove file \"%s\": %m", path)));	
 }
 
 /*
@@ -3995,9 +4078,12 @@ RelationCacheInitializePhase2(void)
  *		open any system catalog or use any catcache.  The last step is to
  *		rewrite the cache files if needed.
  */
+int kInitIndex;
+
 void
 RelationCacheInitializePhase3(void)
 {
+	elog(WARNING, "RelationCacheInitializePhase3 1");
 	HASH_SEQ_STATUS status;
 	RelIdCacheEnt *idhentry;
 	MemoryContext oldcxt;
@@ -4010,10 +4096,12 @@ RelationCacheInitializePhase3(void)
 	if (!EnableHotStandby && !IsBootstrapProcessingMode() && RecoveryInProgress())
 		elog(ERROR, "relation cache initialization during recovery or non-bootstrap processes.");
 
+#ifdef SDB_NO_USE
 	/*
 	 * relation mapper needs initialized too
 	 */
-	RelationMapInitializePhase3();
+ 	RelationMapInitializePhase3();
+#endif
 
 	/*
 	 * switch to cache memory context
@@ -4025,9 +4113,11 @@ RelationCacheInitializePhase3(void)
 	 * the cache with pre-made descriptors for the critical "nailed-in" system
 	 * catalogs.
 	 */
+	elog(WARNING, "RelationCacheInitializePhase3 2");
 	if (IsBootstrapProcessingMode() ||
 		!load_relcache_init_file(false))
 	{
+		elog(WARNING, "RelationCacheInitializePhase3 3");
 		needNewCacheFile = true;
 
 		formrdesc("pg_class", RelationRelation_Rowtype_Id, false,
@@ -4047,6 +4137,7 @@ RelationCacheInitializePhase3(void)
 	/* In bootstrap mode, the faked-up formrdesc info is all we'll have */
 	if (IsBootstrapProcessingMode())
 		return;
+	elog(WARNING, "RelationCacheInitializePhase3 4");
 
 	/*
 	 * If we didn't get the critical system indexes loaded into relcache, do
@@ -4073,6 +4164,155 @@ RelationCacheInitializePhase3(void)
 	 * relcache load when a rel does have rules or triggers, so we choose to
 	 * nail them for performance reasons.
 	 */
+	if (false && Gp_role == GP_ROLE_EXECUTE) {
+			elog(WARNING, "try to reindex ---------------------------------");
+			//Oid relid = 1259; // pg_class
+			//Oid indexid = 2610; // pg_index
+			Relation rel;	
+			Relation rel_index;	
+			SysScanDesc scan;
+			HeapTuple tuple;
+
+			Oid* index_to_rels = palloc0(10000*sizeof(Oid));
+			Oid* catalog_index = palloc0(1000*sizeof(Oid));
+			size_t curr_index_size = 0;
+
+			Oid* pg_type_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_type_index_size = 0;
+
+			Oid* pg_class_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_class_index_size = 0;
+
+			Oid* pg_attribute_index = palloc0(20*sizeof(Oid));
+			size_t curr_pg_attribute_index_size = 0;
+			
+
+			rel = relation_open(RelationRelationId, AccessShareLock);		
+			scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+			while((tuple = systable_getnext(scan)) != NULL) {
+				Datum		datum_am;
+				Datum		datum_oid;
+				bool		isnull;
+				datum_am = heap_getattr(tuple, Anum_pg_class_relam,//7,
+						 RelationGetDescr(rel), &isnull);
+				datum_oid = heap_getattr(tuple, Anum_pg_class_oid,
+						 RelationGetDescr(rel), &isnull);
+				elog(WARNING, "reindex index %d -> am %d----------------------------------", DatumGetObjectId(datum_oid), DatumGetObjectId(datum_am));
+				if (DatumGetObjectId(datum_am) == 403) {
+					catalog_index[curr_index_size] = DatumGetObjectId(datum_oid);
+					++curr_index_size;
+
+			/*
+					ScanKeyData skey;
+					ScanKeyInit(&skey,
+				 Anum_pg_index_indexrelid,
+				 BTEqualStrategyNumber, F_OIDEQ,
+					datum_oid);
+
+				SysScanDesc sscan = systable_beginscan(rel_index, InvalidOid, false,
+							   NULL, 1, &skey);
+						HeapTuple index_tuple = systable_getnext(sscan);
+					if (!HeapTupleIsValid(index_tuple))
+						elog(ERROR, "could not find tuple for index %u", DatumGetObjectId(datum_oid));
+
+					Datum datum_relid = heap_getattr(index_tuple, 2,
+						 RelationGetDescr(rel_index), &isnull);
+					//relation_close(rel_index, AccessShareLock);
+
+					//force_reindex_index(DatumGetObjectId(datum_oid), DatumGetObjectId(datum_relid), true, RELPERSISTENCE_PERMANENT, 0);
+				//
+						 */
+				}
+				//simple_parquet_insert(rel, tuple);
+			}
+			relation_close(rel, AccessShareLock);
+
+			rel_index = relation_open(IndexRelationId, AccessShareLock);		
+			SysScanDesc iscan = systable_beginscan(rel_index, InvalidOid, false, NULL, 0, NULL);
+			HeapTuple index_tuple;
+			bool isnull;
+			while((index_tuple = systable_getnext(iscan)) != NULL) {
+				Datum datum_indexrelid = heap_getattr(index_tuple, Anum_pg_index_indexrelid,//1,
+									 RelationGetDescr(rel_index), &isnull);
+				Datum datum_relid = heap_getattr(index_tuple, Anum_pg_index_indrelid, //2,
+									 RelationGetDescr(rel_index), &isnull);
+
+				elog(WARNING, "index %d -> rel %d----------------------------------", DatumGetObjectId(datum_indexrelid), DatumGetObjectId(datum_relid));
+				if (DatumGetObjectId(datum_relid) == RelationRelationId) {
+					pg_class_index[curr_pg_class_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_class_index_size;
+				} else if (DatumGetObjectId(datum_relid) == TypeRelationId) {
+					pg_type_index[curr_pg_type_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_type_index_size;
+
+				} else if (DatumGetObjectId(datum_relid) == AttributeRelationId) {
+					pg_attribute_index[curr_pg_attribute_index_size] = DatumGetObjectId(datum_indexrelid);	
+					++curr_pg_attribute_index_size;
+				} else {
+					index_to_rels[DatumGetObjectId(datum_indexrelid)] = DatumGetObjectId(datum_relid);
+				}
+			}
+			relation_close(rel_index, AccessShareLock);
+
+			for (size_t i = 0; i < curr_pg_type_index_size; ++i) {
+				elog(WARNING, "QQTEST reindex pg_type %d -> rel %d", pg_type_index[i], TypeRelationId);
+				unlink_oid(pg_type_index[i], false);
+				force_reindex_index(pg_type_index[i], TypeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_TYPE;
+
+			for (size_t i = 0; i < curr_pg_class_index_size; ++i) {
+				elog(WARNING, "QQTEST reindex pg_class %d -> rel %d", pg_class_index[i], RelationRelationId);
+				unlink_oid(pg_class_index[i], false);
+				force_reindex_index(pg_class_index[i], RelationRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_CLASS;
+
+			for (size_t i = 0; i < curr_pg_attribute_index_size; ++i) {
+				elog(WARNING, "QQTEST reindex pg_attribute %d -> rel %d", pg_attribute_index[i], AttributeRelationId);
+				unlink_oid(pg_attribute_index[i], false);
+				force_reindex_index(pg_attribute_index[i], AttributeRelationId, true, RELPERSISTENCE_PERMANENT, 0);
+			}
+			kInitIndex = IIState_PG_ATTR;
+
+			for (size_t i = 0; i < curr_index_size; ++i) {
+				Oid indexid = catalog_index[i];
+				Oid relid = index_to_rels[indexid];
+				elog(WARNING, "QQTest reindex pg_catalog %d -> rel %d", indexid, relid);
+				if (relid != InvalidOid) {
+					unlink_oid(indexid, true);
+					unlink_oid(indexid, false);
+					force_reindex_index(indexid, relid, true, RELPERSISTENCE_PERMANENT, 0);
+				}
+			}
+			kInitIndex = IIState_FINISH;
+			//CurrentResourceOwner = ResourceOwnerCreate(NULL, "reindex test");
+			/*
+			reindex_index(2651, true, true, 0);
+			reindex_index(2652, true, true, 0);
+			reindex_index(2653, true, true, 0);
+			reindex_index(2654, true, true, 0);
+			reindex_index(2656, true, true, 0);
+			reindex_index(2655, true, true, 0);
+			reindex_index(2657, true, true, 0);
+
+			reindex_index(2703, true, true, 0);
+			reindex_index(2704, true, true, 0);
+			*/
+
+			pfree(index_to_rels);
+			pfree(catalog_index);
+
+			pfree(pg_type_index);
+			pfree(pg_class_index);
+
+			pfree(pg_attribute_index);
+		
+	}
+
+	if (true || Gp_role == GP_ROLE_EXECUTE)
+		ReloadAllCatalogCacheIndex();
+
 	if (!criticalRelcachesBuilt)
 	{
 		load_critical_index(ClassOidIndexId,
@@ -4094,6 +4334,7 @@ RelationCacheInitializePhase3(void)
 
 		criticalRelcachesBuilt = true;
 	}
+	elog(WARNING, "RelationCacheInitializePhase3 5");
 
 	/*
 	 * Process critical shared indexes too.
@@ -4130,6 +4371,7 @@ RelationCacheInitializePhase3(void)
 
 		criticalSharedRelcachesBuilt = true;
 	}
+	elog(WARNING, "RelationCacheInitializePhase3 6");
 
 	/*
 	 * Now, scan all the relcache entries and update anything that might be
@@ -4387,7 +4629,7 @@ BuildHardcodedDescriptor(int natts, const FormData_pg_attribute *attrs)
 	return result;
 }
 
-static TupleDesc
+TupleDesc
 GetPgClassDescriptor(void)
 {
 	static TupleDesc pgclassdesc = NULL;
@@ -6490,3 +6732,5 @@ unlink_initfile(const char *initfilename, int elevel)
 							initfilename)));
 	}
 }
+
+

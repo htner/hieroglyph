@@ -87,7 +87,7 @@ regprocin(PG_FUNCTION_ARGS)
 	 * have been resolved by genbki.pl.
 	 */
 	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regproc values must be OIDs in bootstrap mode");
+		elog(PANIC, "regproc values must be OIDs in bootstrap mode");
 
 	/*
 	 * Normal case: parse the name into components and see if it matches any

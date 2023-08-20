@@ -2922,10 +2922,11 @@ index_update_stats(Relation rel,
 	{
 		/* normal case, use syscache */
 		tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+		elog(WARNING, "get from relation %u", relid);
 	}
 
 	if (!HeapTupleIsValid(tuple))
-		elog(ERROR, "could not find tuple for relation %u", relid);
+		elog(PANIC, "could not find tuple for relation %u", relid);
 	rd_rel = (Form_pg_class) GETSTRUCT(tuple);
 
 	/* Should this be a more comprehensive test? */
@@ -2978,7 +2979,7 @@ index_update_stats(Relation rel,
 	 */
 	if (dirty)
 	{
-		heap_inplace_update(pg_class, tuple);
+		// heap_inplace_update(pg_class, tuple);
 		/* the above sends a cache inval message */
 	}
 	else
@@ -3893,6 +3894,296 @@ reindex_index(Oid indexId, bool skip_constraint_checks, char persistence,
 	if (progress)
 		pgstat_progress_end_command();
 }
+
+/*
+ * force_reindex_index - This routine is used to recreate a single index
+ */
+void
+force_reindex_index(Oid indexId, Oid heapId, bool skip_constraint_checks, char persistence,
+			  int options)
+{
+	Relation	iRel,
+				heapRelation;
+	//Oid			heapId;
+	Oid			save_userid;
+	int			save_sec_context;
+	int			save_nestlevel;
+	IndexInfo  *indexInfo;
+	Oid			namespaceId;
+	volatile bool skipped_constraint = false;
+	PGRUsage	ru0;
+	bool		progress = (options & REINDEXOPT_REPORT_PROGRESS) != 0;
+
+	pg_rusage_init(&ru0);
+
+	Assert(OidIsValid(indexId));
+
+	/*
+	 * Open and lock the parent heap relation.  ShareLock is sufficient since
+	 * we only need to be sure no schema or data changes are going on.
+	 */
+	//heapId = IndexGetRelation(indexId, false);
+	heapRelation = table_open(heapId, ShareLock);
+
+	/*
+	 * Switch to the table owner's userid, so that any index functions are run
+	 * as that user.  Also lock down security-restricted operations and
+	 * arrange to make GUC variable changes local to this command.
+	 */
+	GetUserIdAndSecContext(&save_userid, &save_sec_context);
+	SetUserIdAndSecContext(heapRelation->rd_rel->relowner,
+						   save_sec_context | SECURITY_RESTRICTED_OPERATION);
+	save_nestlevel = NewGUCNestLevel();
+
+	if (progress)
+	{
+		pgstat_progress_start_command(PROGRESS_COMMAND_CREATE_INDEX,
+									  heapId);
+		pgstat_progress_update_param(PROGRESS_CREATEIDX_COMMAND,
+									 PROGRESS_CREATEIDX_COMMAND_REINDEX);
+		pgstat_progress_update_param(PROGRESS_CREATEIDX_INDEX_OID,
+									 indexId);
+	}
+
+	namespaceId = RelationGetNamespace(heapRelation);
+
+	/*
+	 * Open the target index relation and get an exclusive lock on it, to
+	 * ensure that no one else is touching this particular index.
+	 */
+	iRel = index_open(indexId, AccessExclusiveLock);
+
+	if (progress)
+		pgstat_progress_update_param(PROGRESS_CREATEIDX_ACCESS_METHOD_OID,
+									 iRel->rd_rel->relam);
+
+	/*
+	 * Partitioned indexes should never get processed here, as they have no
+	 * physical storage.
+	 */
+	if (iRel->rd_rel->relkind == RELKIND_PARTITIONED_INDEX)
+		elog(ERROR, "cannot reindex partitioned index \"%s.%s\"",
+			 get_namespace_name(RelationGetNamespace(iRel)),
+			 RelationGetRelationName(iRel));
+
+	/*
+	 * Don't allow reindex on temp tables of other backends ... their local
+	 * buffer manager is not going to cope.
+	 */
+	if (RELATION_IS_OTHER_TEMP(iRel))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("cannot reindex temporary tables of other sessions")));
+
+	/*
+	 * Two-phase commit is not supported for transactions that change
+	 * relfilenode mappings. We can get away without two-phase commit, if
+	 * we're not already running in a transaction block, but if we are,
+	 * we won't be able to commit. To get a more descriptive error message,
+	 * check for that now, rather than let the COMMIT fail.
+	 */
+#ifdef SDB_NO_USE
+	if (Gp_role == GP_ROLE_DISPATCH && RelationIsMapped(heapRelation))
+		PreventInTransactionBlock(true, "REINDEX of a catalog table");
+	/*
+	 * Don't allow reindex of an invalid index on TOAST table.  This is a
+	 * leftover from a failed REINDEX CONCURRENTLY, and if rebuilt it would
+	 * not be possible to drop it anymore.
+	 */
+	if (IsToastNamespace(RelationGetNamespace(iRel)) &&
+		!get_index_isvalid(indexId))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("cannot reindex invalid index on TOAST table")));
+
+	/*
+	 * Also check for active uses of the index in the current transaction; we
+	 * don't want to reindex underneath an open indexscan.
+	 */
+	CheckTableNotInUse(iRel, "REINDEX INDEX");
+
+	/*
+	 * All predicate locks on the index are about to be made invalid. Promote
+	 * them to relation locks on the heap.
+	 */
+	TransferPredicateLocksToHeapRelation(iRel);
+#endif
+
+	/* Fetch info needed for index_build */
+	indexInfo = BuildIndexInfo(iRel);
+
+	elog(WARNING, "#################### create storage %d/%d;", iRel->rd_node.dbNode, iRel->rd_node.relNode);
+	RelationCreateStorage(iRel->rd_node, persistence, SMGR_MD);
+
+	/* If requested, skip checking uniqueness/exclusion constraints */
+	if (skip_constraint_checks)
+	{
+		if (indexInfo->ii_Unique || indexInfo->ii_ExclusionOps != NULL)
+			skipped_constraint = true;
+		indexInfo->ii_Unique = false;
+		indexInfo->ii_ExclusionOps = NULL;
+		indexInfo->ii_ExclusionProcs = NULL;
+		indexInfo->ii_ExclusionStrats = NULL;
+	}
+
+	/* Suppress use of the target index while rebuilding it */
+	SetReindexProcessing(heapId, indexId);
+
+	/* Create a new physical relation for the index */
+#ifdef SDB_NO_USE
+	RelationSetNewRelfilenode(iRel, persistence);
+#endif
+
+	/* Initialize the index and rebuild */
+	/* Note: we do not need to re-establish pkey setting */
+	index_build(heapRelation, iRel, indexInfo, true, true);
+
+	/* Re-allow use of target index */
+	ResetReindexProcessing();
+
+	/*
+	 * If the index is marked invalid/not-ready/dead (ie, it's from a failed
+	 * CREATE INDEX CONCURRENTLY, or a DROP INDEX CONCURRENTLY failed midway),
+	 * and we didn't skip a uniqueness check, we can now mark it valid.  This
+	 * allows REINDEX to be used to clean up in such cases.
+	 *
+	 * We can also reset indcheckxmin, because we have now done a
+	 * non-concurrent index build, *except* in the case where index_build
+	 * found some still-broken HOT chains. If it did, and we don't have to
+	 * change any of the other flags, we just leave indcheckxmin alone (note
+	 * that index_build won't have changed it, because this is a reindex).
+	 * This is okay and desirable because not updating the tuple leaves the
+	 * index's usability horizon (recorded as the tuple's xmin value) the same
+	 * as it was.
+	 *
+	 * But, if the index was invalid/not-ready/dead and there were broken HOT
+	 * chains, we had better force indcheckxmin true, because the normal
+	 * argument that the HOT chains couldn't conflict with the index is
+	 * suspect for an invalid index.  (A conflict is definitely possible if
+	 * the index was dead.  It probably shouldn't happen otherwise, but let's
+	 * be conservative.)  In this case advancing the usability horizon is
+	 * appropriate.
+	 *
+	 * Another reason for avoiding unnecessary updates here is that while
+	 * reindexing pg_index itself, we must not try to update tuples in it.
+	 * pg_index's indexes should always have these flags in their clean state,
+	 * so that won't happen.
+	 *
+	 * If early pruning/vacuuming is enabled for the heap relation, the
+	 * usability horizon must be advanced to the current transaction on every
+	 * build or rebuild.  pg_index is OK in this regard because catalog tables
+	 * are not subject to early cleanup.
+	 */
+	if (!skipped_constraint)
+	{
+		Relation	pg_index;
+		HeapTuple	indexTuple;
+		Form_pg_index indexForm;
+		bool		index_bad;
+		bool		early_pruning_enabled = EarlyPruningEnabled(heapRelation);
+
+		pg_index = table_open(IndexRelationId, RowExclusiveLock);
+
+		indexTuple = SearchSysCacheCopy1(INDEXRELID,
+										 ObjectIdGetDatum(indexId));
+		if (!HeapTupleIsValid(indexTuple))
+			elog(ERROR, "cache lookup failed for index %u", indexId);
+		indexForm = (Form_pg_index) GETSTRUCT(indexTuple);
+
+		index_bad = (!indexForm->indisvalid ||
+					 !indexForm->indisready ||
+					 !indexForm->indislive);
+		if (index_bad ||
+			(indexForm->indcheckxmin && !indexInfo->ii_BrokenHotChain) ||
+			early_pruning_enabled)
+		{
+			if (!indexInfo->ii_BrokenHotChain && !early_pruning_enabled)
+				indexForm->indcheckxmin = false;
+			else if (index_bad || early_pruning_enabled)
+				indexForm->indcheckxmin = true;
+			indexForm->indisvalid = true;
+			indexForm->indisready = true;
+			indexForm->indislive = true;
+			CatalogTupleUpdate(pg_index, &indexTuple->t_self, indexTuple);
+
+			/*
+			 * Invalidate the relcache for the table, so that after we commit
+			 * all sessions will refresh the table's index list.  This ensures
+			 * that if anyone misses seeing the pg_index row during this
+			 * update, they'll refresh their list before attempting any update
+			 * on the table.
+			 */
+			CacheInvalidateRelcache(heapRelation);
+		}
+
+		table_close(pg_index, RowExclusiveLock);
+	}
+
+#ifdef SDB_NO_USE
+	if (Gp_role == GP_ROLE_DISPATCH)
+	{
+		bool	 doIt	= true;
+		char	*subtyp = "REINDEX";
+
+		/* MPP-7576: don't track internal namespace tables */
+		switch (namespaceId) 
+		{
+			case PG_CATALOG_NAMESPACE:
+				/* MPP-7773: don't track objects in system namespace
+				 * if modifying system tables (eg during upgrade)  
+				 */
+				if (allowSystemTableMods)
+					doIt = false;
+				break;
+
+			case PG_TOAST_NAMESPACE:
+			case PG_BITMAPINDEX_NAMESPACE:
+			case PG_AOSEGMENT_NAMESPACE:
+				doIt = false;
+				break;
+			default:
+				break;
+		}
+
+		if (doIt)
+			doIt = (!(isAnyTempNamespace(namespaceId)));
+
+		/* MPP-6929: metadata tracking */
+		/* MPP-7587: treat as a VACUUM operation, since the index is
+		 * rebuilt */
+		if (doIt)
+			MetaTrackUpdObject(RelationRelationId,
+							   indexId,
+							   GetUserId(), /* not ownerid */
+							   "VACUUM", subtyp
+					);
+	}
+
+#endif
+
+	/* Log what we did */
+	if (options & REINDEXOPT_VERBOSE)
+		ereport(INFO,
+				(errmsg("index \"%s\" was reindexed",
+						get_rel_name(indexId)),
+				 errdetail_internal("%s",
+									pg_rusage_show(&ru0))));
+
+	/* Roll back any GUC changes executed by index functions */
+	AtEOXact_GUC(false, save_nestlevel);
+
+	/* Restore userid and security context */
+	SetUserIdAndSecContext(save_userid, save_sec_context);
+
+	/* Close rels, but keep locks */
+	index_close(iRel, NoLock);
+	table_close(heapRelation, NoLock);
+
+	if (progress)
+		pgstat_progress_end_command();
+}
+
+
 
 /*
  * reindex_relation - This routine is used to recreate all indexes

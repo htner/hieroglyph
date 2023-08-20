@@ -140,6 +140,9 @@ FORCE			{ yylval.kw = "FORCE"; return XFORCE; }
 NOT				{ yylval.kw = "NOT"; return XNOT; }
 NULL			{ yylval.kw = "NULL"; return XNULL; }
 
+COPYTOPARQUET { yylval.kw = "COPYTOPARQUET"; return XCOPYTOPARQUET; }
+UPLOADALL { yylval.kw = "UPLOADALL"; return XUPLOADALL; }
+
 {id}			{
 					yylval.str = scanstr(yytext);
 					return ID;

@@ -952,7 +952,7 @@ DefineIndex(Oid relationId,
 		}
 
 		if (!HeapTupleIsValid(tuple))
-			ereport(ERROR,
+			ereport(PANIC,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("access method \"%s\" does not exist",
 							accessMethodName)));

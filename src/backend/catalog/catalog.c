@@ -691,7 +691,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 			backend = InvalidBackendId;
 			break;
 		default:
-			elog(ERROR, "invalid relpersistence: %c", relpersistence);
+			elog(PANIC, "invalid relpersistence: %c", relpersistence);
 			return InvalidOid;	/* placate compiler */
 	}
 

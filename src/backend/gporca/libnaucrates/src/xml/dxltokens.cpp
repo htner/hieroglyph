@@ -528,6 +528,7 @@ CDXLTokens::Init(CMemoryPool *mp)
 
 		{EdxltokenRelStorageType, GPOS_WSZ_LIT("StorageType")},
 		{EdxltokenRelStorageHeap, GPOS_WSZ_LIT("Heap")},
+		{EdxltokenRelStorageParquet, GPOS_WSZ_LIT("Parquet")},
 		{EdxltokenRelStorageAppendOnlyCols,
 		 GPOS_WSZ_LIT("AppendOnly, Column-oriented")},
 		{EdxltokenRelStorageAppendOnlyRows,

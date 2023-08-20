@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package sdb;
+
+option cc_generic_services = true;
+option go_package="./sdb";
+
+message WorkerInfo {
+  string addr = 1;
+  int64 id = 2; // global id
+  int32 segid = 3;  // loacl id for query
+}
+
+message WorkerDetailInfo {
+    WorkerInfo base_info = 1;
+}
+
+message WorkerSliceInfo {
+    WorkerInfo worker_info = 1;
+    int32 sliceid = 2;
+}

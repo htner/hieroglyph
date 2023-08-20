@@ -1378,11 +1378,10 @@ PG_TRY();
 	}
 
 	/* Clean up the interconnect. */
-	if (queryDesc && queryDesc->estate && queryDesc->estate->es_interconnect_is_setup)
+	if (queryDesc && queryDesc->estate && queryDesc->estate->es_brpcstream_is_setup)
 	{
-		TeardownInterconnect(queryDesc->estate->interconnect_context, false); /* following success on QD */
-		queryDesc->estate->interconnect_context = NULL;
-		queryDesc->estate->es_interconnect_is_setup = false;
+		TeardownInterconnect(queryDesc->estate, false); /* following success on QD */
+		queryDesc->estate->es_brpcstream_is_setup = false;
 	}
 
 	/*
@@ -1441,11 +1440,10 @@ PG_CATCH();
 	 * Clean up the interconnect.
 	 * CDB TODO: Is this needed following failure on QD?
 	 */
-	if (queryDesc && queryDesc->estate && queryDesc->estate->es_interconnect_is_setup)
+	if (queryDesc && queryDesc->estate && queryDesc->estate->es_brpcstream_is_setup)
 	{
-		TeardownInterconnect(queryDesc->estate->interconnect_context, true);
-		queryDesc->estate->interconnect_context = NULL;
-		queryDesc->estate->es_interconnect_is_setup = false;
+		TeardownInterconnect(queryDesc->estate, true);
+		queryDesc->estate->es_brpcstream_is_setup = false;
 	}
 
 	/*

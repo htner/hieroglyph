@@ -610,6 +610,7 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
 {
 	for (;;)
 	{
+		elog(WARNING, "index-getndex 1");
 		if (!scan->xs_heap_continue)
 		{
 			ItemPointer tid;
@@ -618,8 +619,10 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
 			tid = index_getnext_tid(scan, direction);
 
 			/* If we're out of index entries, we're done */
-			if (tid == NULL)
+			if (tid == NULL) {
+				elog(WARNING, "index-getndex 2, failrue");
 				break;
+			}
 
 			Assert(ItemPointerEquals(tid, &scan->xs_heaptid));
 		}
@@ -630,8 +633,11 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
 		 * the index.
 		 */
 		Assert(ItemPointerIsValid(&scan->xs_heaptid));
-		if (index_fetch_heap(scan, slot))
+		elog(WARNING, "index-getndex 3");
+		if (index_fetch_heap(scan, slot)) {
+			elog(WARNING, "index-getndex 4 ok");
 			return true;
+		}
 	}
 
 	return false;

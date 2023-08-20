@@ -457,6 +457,8 @@ typedef struct MotionNodeEntry
 	uint64          stat_tuples_available;  /* Total tuples awaiting receive. */
 	uint64          stat_tuples_available_hwm;              /* High-water-mark of this
 		* value. */
+
+	TupleRemapper   *remapper;
 }       MotionNodeEntry;
 
 
