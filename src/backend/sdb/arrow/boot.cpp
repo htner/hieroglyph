@@ -1,6 +1,6 @@
 #include "include/utils/fmgroids.h"
 #include "include/catalog/pg_collation_d.h"
-#include "backend/new_executor/arrow/boot.hpp"
+#include "backend/sdb/arrow/boot.hpp"
 #include "backend/sdb/common/pg_export.hpp"
 
 #include <butil/logging.h>

@@ -1,7 +1,7 @@
-#include "backend/new_executor/arrow/recordbatch_builder.hpp"
+#include "backend/sdb/arrow/recordbatch_builder.hpp"
 #include <butil/logging.h>
 
-namespace pdb {
+namespace sdb {
 
 RecordBatchBuilder::RecordBatchBuilder(Oid rel, TupleDesc tuple_desc) {
 	tuple_desc_ = CreateTupleDescCopy(tuple_desc);
@@ -12,7 +12,7 @@ RecordBatchBuilder::RecordBatchBuilder(Oid rel, TupleDesc tuple_desc) {
 		if (att->atttypid == 0) {
 			LOG(ERROR) << "typid == 0";
 		}
-		auto builder = std::make_unique<ColumnBuilder>(rel, att);
+		auto builder = std::make_unique<ArrayBuilder>(rel, att);
 
 		auto array_builder = builder->GetArrayBuilder();
 		std::shared_ptr<arrow::Field> field = 

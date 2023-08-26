@@ -1,4 +1,4 @@
-#include "backend/new_executor/arrow/recordbatch_exchanger.hpp"
+#include "backend/sdb/arrow/recordbatch_slot_exchanger.hpp"
 #include "backend/sdb/common/pg_export.hpp"
 //#include "access/tupdesc.h"
 #include <brpc/server.h>
@@ -6,9 +6,9 @@
 #include <butil/iobuf.h>
 #include <butil/logging.h>
 
-namespace pdb {
+namespace sdb {
 
-RecordBatchExchanger::RecordBatchExchanger(Oid rel, TupleDesc tuple_desc,
+RecordBatchSlotExchanger::RecordBatchSlotExchanger(Oid rel, TupleDesc tuple_desc,
 						 	const std::vector<bool>& fetched_col) {
   slot_ = MakeSingleTupleTableSlot(tuple_desc, &TTSOpsVirtual);
   tuple_desc_ = CreateTupleDescCopy(tuple_desc);
@@ -19,7 +19,8 @@ RecordBatchExchanger::RecordBatchExchanger(Oid rel, TupleDesc tuple_desc,
 	if (fetched_col[i]) {
 		Form_pg_attribute att = TupleDescAttr(tuple_desc_, i);        
 		// std::shared_ptr<DataType> data_type = TypeMapping(att);
-		auto column_exchanger = std::make_shared<ColumnExchanger>(rel, att); 
+		auto column_exchanger = std::make_shared<ArraySalarExchanger>(rel, att); 
+		column_exchanger->SetName(NameStr(att->attname));
 		column_exchangers_.push_back(column_exchanger);
 	} else {
 		column_exchangers_.push_back(nullptr);
@@ -28,21 +29,24 @@ RecordBatchExchanger::RecordBatchExchanger(Oid rel, TupleDesc tuple_desc,
   //LOG(ERROR) << "2 -- ------------------ rel %d natts :%d"<< rel << " " << tuple_desc->natts;
 }
 
-RecordBatchExchanger::~RecordBatchExchanger() {
+RecordBatchSlotExchanger::~RecordBatchSlotExchanger() {
 	FreeTupleDesc(tuple_desc_);
 }
 
-void RecordBatchExchanger::SetRecordBatch(std::shared_ptr<arrow::RecordBatch> batch) {
+void RecordBatchSlotExchanger::SetRecordBatch(std::shared_ptr<arrow::RecordBatch> batch) {
 	batch_ = batch;
+	// reset index
 	index_ = 0;
 	for (size_t i = 0; i < column_exchangers_.size(); ++i) {
-		if (column_exchangers_[i] != nullptr) {
-			column_exchangers_[i]->SetArray(batch_->column(i));
+		auto e = column_exchangers_[i];
+		if (e != nullptr) {
+			auto array = batch->GetColumnByName(e->Name());
+			e->SetArray(array);
 		}
 	}
 }
 
-arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchNextTuple() {
+arrow::Result<TupleTableSlot*> RecordBatchSlotExchanger::FetchNextTuple() {
 	ExecClearTuple(slot_);
 	for (int i = 0; i < tuple_desc_->natts; ++i) {
 		if (!column_exchangers_[i]) {
@@ -63,7 +67,7 @@ arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchNextTuple() {
 	return ExecStoreVirtualTuple(slot_);
 }
 
-arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchTuple(uint32 index) {
+arrow::Result<TupleTableSlot*> RecordBatchSlotExchanger::FetchTuple(uint32 index) {
 	ExecClearTuple(slot_);
 	for (int i = 0; i < tuple_desc_->natts; ++i) {
 		if (!column_exchangers_[i]) {
@@ -74,12 +78,12 @@ arrow::Result<TupleTableSlot*> RecordBatchExchanger::FetchTuple(uint32 index) {
 		Datum* datum = &(slot_->tts_values[i]);	
 		arrow::Status status = column_exchangers_[i]->GetDatumByIndex(index, datum, isnull);
 		if (!status.ok()) {
-			LOG(ERROR) << "fetch next tuple finish error, index: " << index_ << ", natt:" << i;
+			LOG(ERROR) << "fetch next tuple finish error, index: " << index << ", natt:" << i;
 			return status;
 		}
 	}
 	//elog(WARNING, "fetch tuple, index %d", index);
-	ItemPointerSetOffsetNumber(&(slot_->tts_tid), (uint16_t)index);
+	ItemPointerSetOffsetNumber(&(slot_->tts_tid), (uint32_t)index);
 	return ExecStoreVirtualTuple(slot_);
 }
 
