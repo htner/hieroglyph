@@ -6,9 +6,9 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/htner/sdb/gosrv/pkg/account"
 	"github.com/spf13/cobra"
@@ -24,6 +24,9 @@ var password string
 
 var destinationTable string
 var sourceTable string
+
+var sourceDatabase string
+var sourceOrganization string
 
 var SDBCmd = &cobra.Command{
 	Use:   "help",
@@ -53,6 +56,19 @@ var CreateDatabaseCmd = &cobra.Command{
 	Long:  `The utility is used to create the SDB CloudDB Database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		db, err := account.CreateDatabase(organization, database)
+		if err != nil {
+			log.Printf("create database err: %s", err.Error())
+		}
+		log.Println("create database ", db)
+	},
+}
+
+var CloneDatabaseCmd = &cobra.Command{
+	Use:   "clonedb",
+	Short: "Clone CloudDB Database",
+	Long:  `The utility is used to clone the SDB CloudDB Database.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		db, err := account.CloneDatabase(organization, database, sourceOrganization, sourceDatabase)
 		if err != nil {
 			log.Printf("create database err: %s", err.Error())
 		}
@@ -103,6 +119,11 @@ func init() {
 	CreateDatabaseCmd.Flags().StringVarP(&organization, "organization", "o", "", "organizatio")
 	CreateDatabaseCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
 
+	CloneDatabaseCmd.Flags().StringVarP(&organization, "organization", "o", "", "organization")
+	CloneDatabaseCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
+	CloneDatabaseCmd.Flags().StringVarP(&sourceOrganization, "source_organization", "s", "", "source organization")
+	CloneDatabaseCmd.Flags().StringVarP(&sourceDatabase, "source_database", "b", "", "source database")
+
 	CopyTableCmd.Flags().StringVarP(&database, "database", "d", "", "database name")
 	CopyTableCmd.Flags().StringVarP(&sourceTable, "source", "s", "", "source table name")
 	CopyTableCmd.Flags().StringVarP(&destinationTable, "destination", "t", "", "destination table name")
@@ -118,6 +139,7 @@ func main() {
 	SDBCmd.AddCommand(CreateAccountCmd)
 	SDBCmd.AddCommand(CreateDatabaseCmd)
 	SDBCmd.AddCommand(CreateUserCmd)
+	SDBCmd.AddCommand(CloneDatabaseCmd)
 	//SDBCmd.AddCommand(CopyTableCmd)
 	err := SDBCmd.Execute()
 	if err != nil {

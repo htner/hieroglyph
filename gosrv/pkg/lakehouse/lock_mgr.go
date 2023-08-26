@@ -22,6 +22,40 @@ func GetFunctionName(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
+func (L *LockMgr) TryLock(dbid uint64, sid uint64, rel uint64) error {
+  db, err := fdb.OpenDefault()
+  if err != nil {
+    return err
+  }
+
+  var fdblock keys.Lock
+  fdblock.Database = dbid
+  fdblock.Relation = rel
+  fdblock.LockType = keys.UpdateLock
+  fdblock.Sid = sid
+
+  log.Println("pre lock", fdblock)
+
+  retryNum := 10
+  for i := 0; i < retryNum; i++ {
+    _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+      e := L.Lock(tr, &fdblock)
+      if e != nil {
+        return nil, e
+      }
+      return nil, nil
+    })
+
+    if err == ErrorRetry {
+      log.Printf("pre lock and retry %d", i)
+      continue
+    } else {
+      break
+    }
+  }
+  return err
+}
+
 func (L *LockMgr) PreLock(dbid uint64, sid uint64, updates []uint64) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
