@@ -93,7 +93,7 @@ func registerService(caddr, name string, port int) error {
 		Name:    name,
 		ID:      name + "-service-" + fmt.Sprintf("%d", port),
 		Port:    port,
-		Address: "localhost",
+		Address: "127.0.0.1",
 		Tags:    []string{"public"},
 	}
 

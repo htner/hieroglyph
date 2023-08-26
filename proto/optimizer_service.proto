@@ -52,7 +52,7 @@ message OptimizeRequest {
   uint64 dbid = 5;
   uint64 commandid = 7;
 
-  LakeSpaceDetail db_space = 8;
+  LakeSpace db_space = 8;
 
   repeated RelFiles catalog_list = 9;
   //repeated LakeRelVersion versions = 21;

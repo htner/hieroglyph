@@ -27,7 +27,7 @@ func rungRPC(done chan bool, port int) error {
 	}
 
 	s := grpc.NewServer()
-	sdb.RegisterLakeServer(s, &LakeServer{port: port})
+	sdb.RegisterAccountServer(s, &AccountServer{port: port})
 	reflection.Register(s)
 
 	go stopWhenDone(done, s)
@@ -61,10 +61,10 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 
-	port := 10001
+	port := 10006
 	done := make(chan bool, 1)
 	go rungRPC(done, port)
-	registerService("127.0.0.1:8500", service.LakeName(), port)
+	registerService("127.0.0.1:8500", service.AccountName(), port)
 	<-c
 }
 
@@ -82,7 +82,7 @@ func registerService(caddr, name string, port int) error {
 		Name:    name,
 		ID:      name + "-service-" + fmt.Sprintf("%d", port),
 		Port:    port,
-		Address: "127.0.0.1",
+		Address: "localhost",
 		Tags:    []string{"public"},
 	}
 
@@ -92,5 +92,4 @@ func registerService(caddr, name string, port int) error {
 	}
 
 	return nil
-
 }

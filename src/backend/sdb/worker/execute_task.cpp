@@ -58,19 +58,19 @@ void ExecuteTask::Prepare() {
 	sessionid = request_.sessionid();
 	query_id = request_.task_identify().query_id();
 
-	kDBBucket = request_.db_space().base().bucket();
-	kDBS3User = request_.db_space().detail().user();
-	kDBS3Password = request_.db_space().detail().password();
-	kDBS3Region = request_.db_space().detail().region();
-	kDBS3Endpoint = request_.db_space().detail().endpoint();
-	kDBIsMinio = request_.db_space().detail().is_minio();
+	kDBBucket = request_.db_space().s3_info().bucket();
+	kDBS3User = request_.db_space().s3_info().user();
+	kDBS3Password = request_.db_space().s3_info().password();
+	kDBS3Region = request_.db_space().s3_info().region();
+	kDBS3Endpoint = request_.db_space().s3_info().endpoint();
+	kDBIsMinio = request_.db_space().s3_info().is_minio();
 
-	kResultBucket = request_.result_space().base().bucket();
-	kResultS3User = request_.result_space().detail().user();
-	kResultS3Password = request_.result_space().detail().password();
-	kResultS3Region = request_.result_space().detail().region();
-	kResultS3Endpoint = request_.result_space().detail().endpoint();
-	kResultIsMinio = request_.result_space().detail().is_minio();
+	kResultBucket = request_.result_space().s3_info().bucket();
+	kResultS3User = request_.result_space().s3_info().user();
+	kResultS3Password = request_.result_space().s3_info().password();
+	kResultS3Region = request_.result_space().s3_info().region();
+	kResultS3Endpoint = request_.result_space().s3_info().endpoint();
+	kResultIsMinio = request_.result_space().s3_info().is_minio();
 
 	GpIdentity.dbid = dbid;
 

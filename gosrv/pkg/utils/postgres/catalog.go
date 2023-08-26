@@ -1,6 +1,6 @@
 package postgres
 
-var CatalogNames map[uint32]string = map[uint32]string{
+var CatalogNames map[uint64]string = map[uint64]string{
 	2617: "pg_operator",
 	2753: "pg_opfamily",
 	2616: "pg_opclass",
@@ -39,4 +39,5 @@ var CatalogNames map[uint32]string = map[uint32]string{
 	1214: "pg_shdepend",
 	7142: "gp_distribution_policy",
 	6052: "pg_stat_last_operation",
+	2610: "pg_index",
 }

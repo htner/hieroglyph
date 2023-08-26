@@ -946,22 +946,22 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			 */
 			ereport(NOTICE, (errmsg("currect relation %s%s distribution policy forced set to %s",
 							 OidIsValid(accessMethodId) ? " with access method: " : "",
-							 OidIsValid(accessMethodId) ? amname: ""),
-							 type));
+							 OidIsValid(accessMethodId) ? amname: "",
+							 type)));
 		} else {
 			const char* type = GpPolicyTypeName(policySupport);
 			ereport(NOTICE, (errmsg("currect relation %s%s distribution policy set to %s",
 							 OidIsValid(accessMethodId) ? " with access method: " : "",
-							 OidIsValid(accessMethodId) ? amname: ""),
-							 type));
+							 OidIsValid(accessMethodId) ? amname: "",
+							 type)));
 		}
 		policy = policySupport;
 	}
 	const char* type = GpPolicyTypeName(policy);
 	ereport(WARNING, (errmsg("currect relation %s%s distribution policy set to %s",
 						 OidIsValid(accessMethodId) ? " with access method: " : "",
-						 OidIsValid(accessMethodId) ? amname: ""),
-						 type));
+						 OidIsValid(accessMethodId) ? amname: "",
+						 type)));
 	
 
 	if (partitioned && GpPolicyIsReplicated(policy))

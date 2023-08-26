@@ -232,7 +232,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 				}
 				xminState = uint32(state)
 			}
-			log.Println("xmin:", xminState, " xmax:", xmaxState)
+			log.Println("xmin state:", xminState, " xmax state:", xmaxState)
 
 			if file.Xmax != uint64(InvaildTranscaton) {
 				state, err := L.T.State(kvReader, uint64(file.Xmax))
@@ -243,7 +243,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 				xmaxState = uint32(state)
 			}
 
-			log.Println("xmin:", xminState, " xmax:", xmaxState)
+			log.Println("xmin state:", xminState, " xmax state:", xmaxState)
 
 			if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {
 				statifiesFiles = append(statifiesFiles, file)
@@ -265,7 +265,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 }
 
 func (L *LakeRelOperator) statifiesHash(rel uint64, files []*sdb.LakeFileDetail, segCount, segIndex uint64) ([]*sdb.LakeFileDetail, error) {
-	_, ok := postgres.CatalogNames[uint32(rel)]
+	_, ok := postgres.CatalogNames[rel]
 	if ok {
 		return files, nil
 	}
