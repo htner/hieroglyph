@@ -824,7 +824,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 		if (blockNum == P_NEW)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-					 errmsg("cannot extend relation %s beyond %u blocks",
+					 errmsg("cannot extend relation %s beyond %lu blocks",
 							relpath(smgr->smgr_rnode, forkNum),
 							P_NEW)));
 	}
@@ -911,7 +911,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 		bufBlock = isLocalBuf ? LocalBufHdrGetBlock(bufHdr) : BufHdrGetBlock(bufHdr);
 		if (!PageIsNew((Page) bufBlock))
 			ereport(ERROR,
-					(errmsg("unexpected data beyond EOF in block %u of relation %s",
+					(errmsg("unexpected data beyond EOF in block %lu of relation %s",
 							blockNum, relpath(smgr->smgr_rnode, forkNum)),
 					 errhint("This has been seen to occur with buggy kernels; consider updating your system.")));
 
@@ -1016,7 +1016,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				{
 					ereport(WARNING,
 							(errcode(ERRCODE_DATA_CORRUPTED),
-							 errmsg("invalid page in block %u of relation %s; zeroing out page",
+							 errmsg("invalid page in block %lu of relation %s; zeroing out page",
 									blockNum,
 									relpath(smgr->smgr_rnode, forkNum))));
 					MemSet((char *) bufBlock, 0, BLCKSZ);
@@ -1024,7 +1024,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				else
 					ereport(ERROR,
 							(errcode(ERRCODE_DATA_CORRUPTED),
-							 errmsg("invalid page in block %u of relation %s",
+							 errmsg("invalid page in block %lu of relation %s",
 									blockNum,
 									relpath(smgr->smgr_rnode, forkNum))));
 			}
@@ -1489,7 +1489,9 @@ InvalidateBuffer(BufferDesc *buf)
 	oldHash = BufTableHashCode(&oldTag);
 	oldPartitionLock = BufMappingPartitionLock(oldHash);
 
+#ifdef SDB_NOUSE
 retry:
+#endif
 
 	/*
 	 * Acquire exclusive mapping lock in preparation for changing the buffer's
@@ -2708,7 +2710,7 @@ PrintBufferLeakWarning(Buffer buffer)
 	buf_state = pg_atomic_read_u32(&buf->state);
 	elog(WARNING,
 		 "buffer refcount leak: [%03d] "
-		 "(rel=%s, blockNum=%u, flags=0x%x, refcount=%u %d)",
+		 "(rel=%s, blockNum=%lu, flags=0x%x, refcount=%u %d)",
 		 buffer, path,
 		 buf->tag.blockNum, buf_state & BUF_FLAG_MASK,
 		 BUF_STATE_GET_REFCOUNT(buf_state), loccount);
@@ -4276,7 +4278,7 @@ AbortBufferIO(void)
 				{
 					ereport(WARNING,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg("could not write block %u of %s",
+						 errmsg("could not write block %lu of %s",
 								buf->tag.blockNum, path),
 						 errdetail("Multiple failures --- write error is tolerable on this non-existent temporary table.")));
 
@@ -4287,7 +4289,7 @@ AbortBufferIO(void)
 
 				ereport(WARNING,
 						(errcode(ERRCODE_IO_ERROR),
-						 errmsg("could not write block %u of %s",
+						 errmsg("could not write block %lu of %s",
 								buf->tag.blockNum, path),
 						 errdetail("Multiple failures --- write error might be permanent.")));
 				pfree(path);
@@ -4314,7 +4316,7 @@ shared_buffer_write_error_callback(void *arg)
 										  TempRelBackendId : InvalidBackendId,
 										  bufHdr->tag.forkNum);
 
-		errcontext("writing block %u of relation %s",
+		errcontext("writing block %lu of relation %s",
 				   bufHdr->tag.blockNum, path);
 		pfree(path);
 	}
@@ -4333,7 +4335,7 @@ local_buffer_write_error_callback(void *arg)
 		char	   *path = relpathbackend(bufHdr->tag.rnode, MyBackendId,
 										  bufHdr->tag.forkNum);
 
-		errcontext("writing block %u of relation %s",
+		errcontext("writing block %lu of relation %s",
 				   bufHdr->tag.blockNum, path);
 		pfree(path);
 	}

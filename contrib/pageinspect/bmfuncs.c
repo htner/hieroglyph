@@ -90,7 +90,7 @@ bm_metap(PG_FUNCTION_ARGS)
 	values[j++] = psprintf("%d", metad->bm_version);
 	values[j++] = psprintf("%d", metad->bm_lov_heapId);
 	values[j++] = psprintf("%d", metad->bm_lov_indexId);
-	values[j] = psprintf("%d", metad->bm_lov_lastpage);
+	values[j] = psprintf("%ld", metad->bm_lov_lastpage);
 
 	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
 								   values);
@@ -173,8 +173,8 @@ bm_print_lov_item(FuncCallContext *fctx, Page page, OffsetNumber offset)
 
 	j = 0;
 	values[j++] = psprintf("%d", offset);
-	values[j++] = psprintf("%u", lovItem->bm_lov_head);
-	values[j++] = psprintf("%u", lovItem->bm_lov_tail);
+	values[j++] = psprintf("%lu", lovItem->bm_lov_head);
+	values[j++] = psprintf("%lu", lovItem->bm_lov_tail);
 	values[j++] = psprintf("%s", bm_get_word_text(&lovItem->bm_last_compword));
 	values[j++] = psprintf("%s", bm_get_word_text(&lovItem->bm_last_word));
 	values[j++] = psprintf("%lu", lovItem->bm_last_tid_location);
@@ -380,7 +380,7 @@ bm_bitmap_page_header(PG_FUNCTION_ARGS)
 
 	j = 0;
 	values[j++] = psprintf("%u", bm_opaque->bm_hrl_words_used);
-	values[j++] = psprintf("%u", bm_opaque->bm_bitmap_next);
+	values[j++] = psprintf("%lu", bm_opaque->bm_bitmap_next);
 	values[j] = psprintf("%lu", bm_opaque->bm_last_tid_location);
 
 	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),

@@ -1000,7 +1000,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 		UnlockReleaseBuffer(buffer);
 	}
 
-	elog(ERROR, "failed to re-find parent of a page in index \"%s\", block %u",
+	elog(ERROR, "failed to re-find parent of a page in index \"%s\", block %lu",
 		 RelationGetRelationName(r), child);
 	return NULL;				/* keep compiler quiet */
 }
@@ -1167,7 +1167,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 	Page		page;
 	List	   *splitinfo = NIL;
 
-	elog(LOG, "fixing incomplete split in index \"%s\", block %u",
+	elog(LOG, "fixing incomplete split in index \"%s\", block %lu",
 		 RelationGetRelationName(state->r), stack->blkno);
 
 	Assert(GistFollowRight(stack->page));

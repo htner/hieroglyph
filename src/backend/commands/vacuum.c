@@ -3044,7 +3044,7 @@ vac_update_relstats_from_list(VacuumStatsContext *stats_context)
 			 * Set the logging level to LOG as skipping sending stats here is not considered as
 			 * a real issue, displaying it in log may be helpful to hint.
 			 */
-			elog(LOG, "Vacuum update stats oid=%u pages=%d tuples=%f was skipped because "
+			elog(LOG, "Vacuum update stats oid=%u pages=%ld tuples=%f was skipped because "
 				 "collected segment number %d didn't match the expected %d.", stats->relid,
 				 stats->rel_pages, stats->rel_tuples, stats->count, stats_context->nsegs);
 		}

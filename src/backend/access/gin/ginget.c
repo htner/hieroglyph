@@ -692,7 +692,7 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
 		stepright = false;
 	}
 
-	elog(DEBUG2, "entryLoadMoreItems, %u/%u, skip: %d",
+	elog(DEBUG2, "entryLoadMoreItems, %lu/%u, skip: %d",
 		 GinItemPointerGetBlockNumber(&advancePast),
 		 GinItemPointerGetOffsetNumber(&advancePast),
 		 !stepright);

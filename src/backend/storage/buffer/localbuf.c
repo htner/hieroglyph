@@ -351,7 +351,7 @@ DropRelFileNodeLocalBuffers(RelFileNode rnode, ForkNumber forkNum,
 			bufHdr->tag.blockNum >= firstDelBlock)
 		{
 			if (LocalRefCount[i] != 0)
-				elog(ERROR, "block %u of %s is still referenced (local %u)",
+				elog(ERROR, "block %lu of %s is still referenced (local %u)",
 					 bufHdr->tag.blockNum,
 					 relpathbackend(bufHdr->tag.rnode, MyBackendId,
 									bufHdr->tag.forkNum),
@@ -395,7 +395,7 @@ DropRelFileNodeAllLocalBuffers(RelFileNode rnode)
 			RelFileNodeEquals(bufHdr->tag.rnode, rnode))
 		{
 			if (LocalRefCount[i] != 0)
-				elog(ERROR, "block %u of %s is still referenced (local %u)",
+				elog(ERROR, "block %lu of %s is still referenced (local %u)",
 					 bufHdr->tag.blockNum,
 					 relpathbackend(bufHdr->tag.rnode, MyBackendId,
 									bufHdr->tag.forkNum),

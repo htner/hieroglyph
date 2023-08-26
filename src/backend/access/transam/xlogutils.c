@@ -64,6 +64,7 @@ static void
 report_invalid_page(int elevel, RelFileNode node, ForkNumber forkno,
 					BlockNumber blkno, bool present)
 {
+#ifdef SDB_NOUSE_XLOG
 	char	   *path = relpathperm(node, forkno);
 
 	if (present)
@@ -73,6 +74,7 @@ report_invalid_page(int elevel, RelFileNode node, ForkNumber forkno,
 		elog(elevel, "page %u of relation %s does not exist",
 			 blkno, path);
 	pfree(path);
+#endif
 }
 
 /* Log a reference to an invalid page */
@@ -143,6 +145,7 @@ log_invalid_page(RelFileNode node, ForkNumber forkno, BlockNumber blkno,
 static void
 forget_invalid_pages(RelFileNode node, ForkNumber forkno, BlockNumber minblkno)
 {
+#ifdef SDB_NOUSE_XLOG
 	HASH_SEQ_STATUS status;
 	xl_invalid_page *hentry;
 
@@ -172,12 +175,14 @@ forget_invalid_pages(RelFileNode node, ForkNumber forkno, BlockNumber minblkno)
 				elog(ERROR, "hash table corrupted");
 		}
 	}
+#endif
 }
 
 /* Forget any invalid pages in a whole database */
 static void
 forget_invalid_pages_db(Oid dbid)
 {
+#ifdef SDB_NOUSE_XLOG
 	HASH_SEQ_STATUS status;
 	xl_invalid_page *hentry;
 
@@ -205,6 +210,7 @@ forget_invalid_pages_db(Oid dbid)
 				elog(ERROR, "hash table corrupted");
 		}
 	}
+#endif
 }
 
 /* Are there any unresolved references to invalid pages? */

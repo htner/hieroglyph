@@ -328,7 +328,7 @@ initscan_with_colinfo(AOCSScanDesc scan)
 	scan->cur_seg = -1;
 	scan->cur_seg_row = 0;
 
-	ItemPointerSet(&scan->cdb_fake_ctid, 0, 0);
+	ItemPointerSet(&scan->cdb_fake_ctid, (uint64)0, 0);
 
 	scan->totalBytesRead = 0;
 

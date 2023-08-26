@@ -187,7 +187,7 @@ updatesetbit(Relation rel, Buffer lovBuffer, OffsetNumber lovOffset,
 			if (Debug_bitmap_print_insert)
 				elog(LOG, "Bitmap Insert: updated a set bit in lovItem->bm_last_word"
 					 " pos %d"
-					 ", lovBlock=%d, lovOffset=%d"
+					 ", lovBlock=%ld, lovOffset=%d"
 					 ", tidnum=" INT64_FORMAT,
 					 insertingPos,
 					 BufferGetBlockNumber(lovBuffer),
@@ -217,7 +217,7 @@ updatesetbit(Relation rel, Buffer lovBuffer, OffsetNumber lovOffset,
 			if (Debug_bitmap_print_insert)
 				elog(LOG, "Bitmap Insert: updated a set bit in lovItem->bm_last_compword"
 					 " pos %d"
-					 ", lovBlock=%d, lovOffset=%d"
+					 ", lovBlock=%ld, lovOffset=%d"
 					 ", tidnum=" INT64_FORMAT,
 					 insertingPos,
 					 BufferGetBlockNumber(lovBuffer),
@@ -655,8 +655,8 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 	bitNo = 0;
 
 	if (Debug_bitmap_print_insert)
-		elog(LOG, "Bitmap Insert: updating a set bit in bitmap block %d, "
-			 "lovBlock=%d, lovOffset=%d"
+		elog(LOG, "Bitmap Insert: updating a set bit in bitmap block %ld, "
+			 "lovBlock=%ld, lovOffset=%d"
 			 ", firstTidNumber=" INT64_FORMAT
 			 ", bm_last_tid_location=" INT64_FORMAT
 			 ", tidnum=" INT64_FORMAT
@@ -691,7 +691,7 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
 				 errmsg("could not find bitmap word for tid " INT64_FORMAT
 						" in bitmap index %u"
-						" (relfilenode %u/%u/%u, bitmap block %d, LOV block %d, LOV offset %d)",
+						" (relfilenode %u/%u/%u, bitmap block %ld, LOV block %ld, LOV offset %d)",
 						tidnum, RelationGetRelid(rel),
 						rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode,
 						BufferGetBlockNumber(bitmapBuffer),
@@ -721,8 +721,8 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 		END_CRIT_SECTION();
 		
 		if (Debug_bitmap_print_insert)
-			elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %d, "
-				 "lovBlock=%d, lovOffset=%d"
+			elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %ld, "
+				 "lovBlock=%ld, lovOffset=%d"
 				 ", firstTidNumber=" INT64_FORMAT
 				 ", bm_last_tid_location=" INT64_FORMAT
 				 ", tidnum=" INT64_FORMAT
@@ -744,8 +744,8 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 	if (GET_FILL_BIT(word) == 1)
 	{
 		if (Debug_bitmap_print_insert)
-			elog(LOG, "Bitmap Insert: no update is needed in bitmap block %d, "
-				 "lovBlock=%d, lovOffset=%d"
+			elog(LOG, "Bitmap Insert: no update is needed in bitmap block %ld, "
+				 "lovBlock=%ld, lovOffset=%d"
 				 ", firstTidNumber=" INT64_FORMAT
 				 ", bm_last_tid_location=" INT64_FORMAT
 				 ", tidnum=" INT64_FORMAT
@@ -791,7 +791,7 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
 					 errmsg("incorrect header bit found in bitmap index %u; expected header bit 1"
-							" (relfilenode %u/%u/%u, bitmap block %d, LOV block %d, LOV offset %d)",
+							" (relfilenode %u/%u/%u, bitmap block %ld, LOV block %ld, LOV offset %d)",
 							RelationGetRelid(rel),
 							rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode,
 							BufferGetBlockNumber(bitmapBuffer),
@@ -806,8 +806,8 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 		END_CRIT_SECTION();
 
 		if (Debug_bitmap_print_insert)
-			elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %d, "
-				 "lovBlock=%d, lovOffset=%d"
+			elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %ld, "
+				 "lovBlock=%ld, lovOffset=%d"
 				 ", firstTidNumber=" INT64_FORMAT
 				 ", bm_last_tid_location=" INT64_FORMAT
 				 ", tidnum=" INT64_FORMAT
@@ -884,8 +884,8 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 	}
 
 	if (Debug_bitmap_print_insert)
-		elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %d, "
-			 "lovBlock=%d, lovOffset=%d"
+		elog(LOG, "Bitmap Insert: updated a set bit in bitmap block %ld, "
+			 "lovBlock=%ld, lovOffset=%d"
 			 ", firstTidNumber=" INT64_FORMAT
 			 ", bm_last_tid_location=" INT64_FORMAT
 			 ", tidnum=" INT64_FORMAT
@@ -911,7 +911,7 @@ updatesetbit_inpage(Relation rel, uint64 tidnum,
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
 					 errmsg("incorrect header bit found in bitmap index %u; expected header bit 1"
-							" (relfilenode %u/%u/%u, bitmap block %d, LOV block %d, LOV offset %d)",
+							" (relfilenode %u/%u/%u, bitmap block %ld, LOV block %ld, LOV offset %d)",
 							RelationGetRelid(rel),
 							rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode,
 							BufferGetBlockNumber(bitmapBuffer),
@@ -1049,7 +1049,7 @@ findbitmappage(Relation rel, BMLOVItem lovitem,
 			(errcode(ERRCODE_INDEX_CORRUPTED),
 			 errmsg("could not find bitmap page containing tid " INT64_FORMAT
 					" in bitmap index %u (relfilenode %u/%u/%u"
-					", next block %d, LOV head %d, LOV tail %d"
+					", next block %ld, LOV head %ld, LOV tail %ld"
 					", firstTidNumber " INT64_FORMAT
 					", bm_last_tid_location " INT64_FORMAT
 					", bm_last_setbit " INT64_FORMAT
@@ -1102,7 +1102,7 @@ verify_bitmappages(Relation rel, BMLOVItem lovitem)
 		if (bitmapOpaque->bm_last_tid_location != tidnum)
 		{
 			elog(ERROR, "unexpected bm_last_tid_location " INT64_FORMAT
-				 " found for bitmap block %d in bitmap index %u (relfilenode %u/%u/%u);"
+				 " found for bitmap block %ld in bitmap index %u (relfilenode %u/%u/%u);"
 				 " expected tid " INT64_FORMAT,
 				 bitmapOpaque->bm_last_tid_location, nextBlockNo, RelationGetRelid(rel),
 				 rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode, tidnum);
@@ -1314,7 +1314,7 @@ _bitmap_write_new_bitmapwords(Relation rel,
 
 			if (list_length(perpage_buffers) > MAX_BITMAP_PAGES_PER_INSERT)
 				elog(ERROR, "too many bitmap pages in one insert batch into bitmap index %u"
-					 " (relfilenode %u/%u/%u, LOV block %d, LOV offset %d)",
+					 " (relfilenode %u/%u/%u, LOV block %ld, LOV offset %d)",
 					 RelationGetRelid(rel),
 					 rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode,
 					 BufferGetBlockNumber(lovBuffer), lovOffset);
@@ -1442,7 +1442,7 @@ _bitmap_write_new_bitmapwords(Relation rel,
 	if (Debug_bitmap_print_insert)
 		elog(LOG, "Bitmap Insert: write bitmapwords: numwords=%d"
 			 ", last_tid=" INT64_FORMAT
-			 ", lov_blkno=%d, lov_offset=%d, lovItem->bm_last_setbit=" INT64_FORMAT
+			 ", lov_blkno=%ld, lov_offset=%d, lovItem->bm_last_setbit=" INT64_FORMAT
 			 ", lovItem->bm_last_tid_location=" INT64_FORMAT
 			 ", idxrelid=%u",
 			 (int) buf->curword, buf->last_tid,
@@ -1685,7 +1685,7 @@ create_lovitem(Relation rel, Buffer metabuf, uint64 tidnum,
 		ereport(ERROR,
 				(errcode(ERRCODE_INTERNAL_ERROR),
 				 errmsg("failed to add LOV item in bitmap index \"%s\""
-						" (relfilenode %u/%u/%u, LOV block %d, LOV offset %d)",
+						" (relfilenode %u/%u/%u, LOV block %ld, LOV offset %d)",
 						RelationGetRelationName(rel),
 						rel->rd_node.spcNode, rel->rd_node.dbNode, rel->rd_node.relNode,
 						*lovBlockP, *lovOffsetP)));
@@ -1719,7 +1719,7 @@ create_lovitem(Relation rel, Buffer metabuf, uint64 tidnum,
 
 	if (Debug_bitmap_print_insert)
 		elog(LOG, "Bitmap Insert: create a lov item: "
-			 "lovBlock=%d, lovOffset=%d, is_new_lovblock=%d, idxrelid=%u",
+			 "lovBlock=%ld, lovOffset=%d, is_new_lovblock=%d, idxrelid=%u",
 			 *lovBlockP, *lovOffsetP, is_new_lov_blkno, RelationGetRelid(rel));
 
 	pfree(lovitem);

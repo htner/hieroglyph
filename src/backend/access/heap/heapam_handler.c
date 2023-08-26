@@ -291,7 +291,7 @@ heapam_tuple_insert_speculative(Relation relation, TupleTableSlot *slot,
 	slot->tts_tableOid = RelationGetRelid(relation);
 	tuple->t_tableOid = slot->tts_tableOid;
 
-	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, specToken);
+	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, (uint64)specToken);
 	options |= HEAP_INSERT_SPECULATIVE;
 
 	/* Perform the insertion, and copy the resulting ItemPointer */
@@ -457,7 +457,7 @@ tuple_lock_retry:
 					if (TransactionIdIsValid(SnapshotDirty.xmin))
 						ereport(ERROR,
 								(errcode(ERRCODE_DATA_CORRUPTED),
-								 errmsg_internal("t_xmin %u is uncommitted in tuple (%u,%u) to be updated in table \"%s\"",
+								 errmsg_internal("t_xmin %u is uncommitted in tuple (%lu,%u) to be updated in table \"%s\"",
 												 SnapshotDirty.xmin,
 												 ItemPointerGetBlockNumber(&tuple->t_self),
 												 ItemPointerGetOffsetNumber(&tuple->t_self),
@@ -1740,7 +1740,7 @@ heapam_index_build_range_scan(Relation heapRelation,
 			if (!OffsetNumberIsValid(root_offsets[offnum - 1]))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATA_CORRUPTED),
-						 errmsg_internal("failed to find parent tuple for heap-only tuple at (%u,%u) in table \"%s\"",
+						 errmsg_internal("failed to find parent tuple for heap-only tuple at (%lu,%u) in table \"%s\"",
 										 ItemPointerGetBlockNumber(&heapTuple->t_self),
 										 offnum,
 										 RelationGetRelationName(heapRelation))));
@@ -1917,7 +1917,7 @@ heapam_index_validate_scan(Relation heapRelation,
 			if (!OffsetNumberIsValid(root_offnum))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATA_CORRUPTED),
-						 errmsg_internal("failed to find parent tuple for heap-only tuple at (%u,%u) in table \"%s\"",
+						 errmsg_internal("failed to find parent tuple for heap-only tuple at (%lu,%u) in table \"%s\"",
 										 ItemPointerGetBlockNumber(heapcursor),
 										 ItemPointerGetOffsetNumber(heapcursor),
 										 RelationGetRelationName(heapRelation))));

@@ -315,7 +315,7 @@ retry:
 	if (attempts == NUM_RETRIES)
 	{
 		ereport(WARNING,
-				(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch at blockno %d, gave up after %d retries",
+				(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch at blockno %ld, gave up after %d retries",
 						get_relation_type_data(rentry->relam, rentry->relkind).name,
 						primaryfilepath, mirrorfilepath, rentry->relname, blockno, attempts)));
 		return false;
@@ -401,14 +401,14 @@ retry:
 										WAIT_EVENT_DATA_FILE_READ);
 		if (primaryFileBytesRead < 0)
 		{
-			elog(NOTICE, "could not read from file \"%s\", block %u: %m", primaryfilepath, blockno);
+			elog(NOTICE, "could not read from file \"%s\", block %lu: %m", primaryfilepath, blockno);
 			goto retry;
 		}
 		mirrorFileBytesRead = FileRead(mirrorFile, mirrorFileBuf, sizeof(mirrorFileBuf), offset,
 									   WAIT_EVENT_DATA_FILE_READ);
 		if (mirrorFileBytesRead < 0)
 		{
-			elog(NOTICE, "could not read from file \"%s\", block %u: %m", mirrorfilepath, blockno);
+			elog(NOTICE, "could not read from file \"%s\", block %lu: %m", mirrorfilepath, blockno);
 			goto retry;
 		}
 
@@ -416,7 +416,7 @@ retry:
 		{
 			/* length mismatch */
 			ereport(NOTICE,
-					(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch at blockno %u, primary length: %i, mirror length: %i",
+					(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch at blockno %lu, primary length: %i, mirror length: %i",
 							get_relation_type_data(rentry->relam, rentry->relkind).name,
 							primaryfilepath, mirrorfilepath, rentry->relname, blockno,
 							primaryFileBytesRead, mirrorFileBytesRead)));
@@ -430,7 +430,7 @@ retry:
 		{
 			if (primaryFileBytesRead != BLCKSZ)
 			{
-				elog(NOTICE, "short read of %d bytes from heap file \"%s\", block %u: %m", primaryFileBytesRead, primaryfilepath, blockno);
+				elog(NOTICE, "short read of %d bytes from heap file \"%s\", block %lu: %m", primaryFileBytesRead, primaryfilepath, blockno);
 				goto retry;
 			}
 			/*
@@ -440,12 +440,12 @@ retry:
 			 */
 			if (!PageIsVerified(primaryFileBuf, blockno))
 			{
-				elog(NOTICE, "invalid page header or checksum in heap file \"%s\", block %u", primaryfilepath, blockno);
+				elog(NOTICE, "invalid page header or checksum in heap file \"%s\", block %lu", primaryfilepath, blockno);
 				goto retry;
 			}
 			if (!PageIsVerified(mirrorFileBuf, blockno))
 			{
-				elog(NOTICE, "invalid page header or checksum in heap file \"%s\", block %u", mirrorfilepath, blockno);
+				elog(NOTICE, "invalid page header or checksum in heap file \"%s\", block %lu", mirrorfilepath, blockno);
 				goto retry;
 			}
 
@@ -467,7 +467,7 @@ retry:
 		{
 			/* different contents */
 			ereport(NOTICE,
-					(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch by %i at blockno %u",
+					(errmsg("%s files \"%s\" and \"%s\" for relation \"%s\" mismatch by %i at blockno %lu",
 							get_relation_type_data(rentry->relam, rentry->relkind).name,
 							primaryfilepath, mirrorfilepath, rentry->relname,
 							diff, blockno)));

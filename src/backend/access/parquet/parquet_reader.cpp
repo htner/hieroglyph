@@ -204,7 +204,7 @@ class DefaultParquetReader : public ParquetReader {
     }
 	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
 	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
-	ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint32_t)fileid_);
+	ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint64_t)fileid_);
 	ExecCopySlot(slot, *result);
 	ItemPointerCopy(&((*result)->tts_tid), &(slot->tts_tid));
 
@@ -257,7 +257,7 @@ class DefaultParquetReader : public ParquetReader {
 		if (!result.status().ok()) {
 			return false;
 		}
-		ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint32_t)fileid_);
+		ItemPointerSetBlockNumber(&((*result)->tts_tid), (uint64_t)fileid_);
 		ExecCopySlot(slot, *result);
 		ItemPointerCopy(&(slot->tts_tid), &((*result)->tts_tid));
 	//	ItemPointerSetBlockNumber(&(slot->tts_tid), (uint32_t)fileid_);

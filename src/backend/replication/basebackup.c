@@ -1734,7 +1734,7 @@ sendFile(const char *readfilename, const char *tarfilename, struct stat *statbuf
 		{
 			ereport(WARNING,
 					(errmsg("could not verify checksum in file \"%s\", block "
-							"%d: read buffer size %d and page size %d "
+							"%ld: read buffer size %d and page size %d "
 							"differ",
 							readfilename, blkno, (int) cnt, BLCKSZ)));
 			verify_checksum = false;
@@ -1799,7 +1799,7 @@ sendFile(const char *readfilename, const char *tarfilename, struct stat *statbuf
 
 								ereport(ERROR,
 										(errcode_for_file_access(),
-										 errmsg("could not reread block %d of file \"%s\": %m",
+										 errmsg("could not reread block %ld of file \"%s\": %m",
 												blkno, readfilename)));
 							}
 
@@ -1824,7 +1824,7 @@ sendFile(const char *readfilename, const char *tarfilename, struct stat *statbuf
 						if (checksum_failures <= 5)
 							ereport(WARNING,
 									(errmsg("checksum verification failed in "
-											"file \"%s\", block %d: calculated "
+											"file \"%s\", block %ld: calculated "
 											"%X but expected %X",
 											readfilename, blkno, checksum,
 											phdr->pd_checksum)));

@@ -88,9 +88,6 @@ extern int PostPortNumber;
 
 PlannedStmt *utility_optimizer(Query *query);
 void prepare_catalog(Oid *oid_arr, int size);
-
-void FetchRelationOidFromQuery(Query *query, List **read_list, List **insert_list, List **update_lsit, List **delete_list);
-
 }
 
 #pragma GCC diagnostic pop

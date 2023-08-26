@@ -399,7 +399,7 @@ typedef struct PredicateLockData
 #define SET_PREDICATELOCKTARGETTAG_RELATION(locktag,dboid,reloid) \
 	((locktag).locktag_field1 = (dboid), \
 	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = InvalidBlockNumber, \
+	 (locktag).locktag_field3 = InvalidBlockNumber_FORLOCK, \
 	 (locktag).locktag_field4 = InvalidOffsetNumber)
 
 #define SET_PREDICATELOCKTARGETTAG_PAGE(locktag,dboid,reloid,blocknum) \
@@ -424,7 +424,7 @@ typedef struct PredicateLockData
 	((OffsetNumber) (locktag).locktag_field4)
 #define GET_PREDICATELOCKTARGETTAG_TYPE(locktag)							 \
 	(((locktag).locktag_field4 != InvalidOffsetNumber) ? PREDLOCKTAG_TUPLE : \
-	 (((locktag).locktag_field3 != InvalidBlockNumber) ? PREDLOCKTAG_PAGE :   \
+	 (((locktag).locktag_field3 != InvalidBlockNumber_FORLOCK) ? PREDLOCKTAG_PAGE :   \
 	  PREDLOCKTAG_RELATION))
 
 /*

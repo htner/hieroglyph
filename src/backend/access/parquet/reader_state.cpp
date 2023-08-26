@@ -85,10 +85,15 @@ private:
 		 						tuple_desc, fetched_col_);
         r->SetRowgroupsList(it->second.rowgroups);
         r->SetOptions(use_threads, use_mmap);
-        if (s3_client)
-            r->Open(dirname.c_str(), s3_client);
-        else
-            r->Open();
+		arrow::Status st;
+        if (s3_client) {
+            st = r->Open(dirname.c_str(), s3_client);
+		} else {
+            st = r->Open();
+		}
+		if (!st.ok()) {
+			return nullptr;
+		}
 
         return r;
     }
@@ -158,10 +163,14 @@ public:
         r = CreateParquetReader(rel_, it->second.fileid_, it->second.filename.c_str(), tuple_desc, fetched_col_);
         r->SetRowgroupsList(it->second.rowgroups);
         r->SetOptions(use_threads, use_mmap);
+		arrow::Status st;
         if (s3_client)
-            r->Open(dirname.c_str(), s3_client);
+            st = r->Open(dirname.c_str(), s3_client);
         else
-            r->Open();
+            st = r->Open();
+		if (!st.ok()) {
+			return false;
+		}
 
         reader = r;
 		return reader->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);

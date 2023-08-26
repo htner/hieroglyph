@@ -1084,7 +1084,7 @@ copy_table_data(Oid OIDNewHeap, Oid OIDOldHeap, Oid OIDOldIndex, bool verbose,
 
 	/* Log what we did */
 	ereport(elevel,
-			(errmsg("\"%s\": found %.0f removable, %.0f nonremovable row versions in %u pages",
+			(errmsg("\"%s\": found %.0f removable, %.0f nonremovable row versions in %lu pages",
 					RelationGetRelationName(OldHeap),
 					tups_vacuumed, num_tuples,
 					RelationGetNumberOfBlocks(OldHeap)),

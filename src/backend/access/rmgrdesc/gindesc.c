@@ -98,7 +98,7 @@ gin_desc(StringInfo buf, XLogReaderState *record)
 					payload += sizeof(BlockIdData);
 					rightChildBlkno = BlockIdGetBlockNumber((BlockId) payload);
 					payload += sizeof(BlockNumber);
-					appendStringInfo(buf, " children: %u/%u",
+					appendStringInfo(buf, " children: %lu/%lu",
 									 leftChildBlkno, rightChildBlkno);
 				}
 				if (XLogRecHasBlockImage(record, 0))
@@ -122,7 +122,7 @@ gin_desc(StringInfo buf, XLogReaderState *record)
 						ginxlogInsertDataInternal *insertData =
 						(ginxlogInsertDataInternal *) payload;
 
-						appendStringInfo(buf, " pitem: %u-%u/%u",
+						appendStringInfo(buf, " pitem: %lu-%lu/%u",
 										 PostingItemGetBlockNumber(&insertData->newitem),
 										 ItemPointerGetBlockNumber(&insertData->newitem.key),
 										 ItemPointerGetOffsetNumber(&insertData->newitem.key));

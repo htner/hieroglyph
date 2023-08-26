@@ -210,7 +210,7 @@ brininsert(Relation idxRel, Datum *values, bool *nulls,
 				if (!recorded)
 					ereport(LOG,
 							(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-							 errmsg("request for BRIN range summarization for index \"%s\" page %u was not recorded",
+							 errmsg("request for BRIN range summarization for index \"%s\" page %lu was not recorded",
 									RelationGetRelationName(idxRel),
 									lastPageRange)));
 			}
