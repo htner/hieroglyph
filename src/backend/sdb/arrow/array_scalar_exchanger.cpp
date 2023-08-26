@@ -1,5 +1,6 @@
-#include "backend/new_executor/arrow/column_exchanger.hpp"
-#include "backend/new_executor/arrow/boot.hpp"
+#include "backend/sdb/arrow/array_scalar_exchanger.hpp"
+#include "backend/sdb/arrow/boot.hpp"
+
 extern "C" {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wregister"
@@ -10,12 +11,13 @@ extern "C" {
 #include "funcapi.h"
 #pragma GCC diagnostic pop
 }
+
 #include "backend/sdb/common/pg_export.hpp"
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
 #include <butil/logging.h>
-#include "backend/new_executor/arrow/boot.hpp"
+#include "backend/sdb/arrow/boot.hpp"
 
 bool NeedForwardLookupFromPgType(Oid id) {
 	if (id == TypeRelationId || id == ProcedureRelationId ||
@@ -24,7 +26,7 @@ bool NeedForwardLookupFromPgType(Oid id) {
 	return true;
 }
 
-namespace pdb {
+namespace sdb {
 
 template <class TYPE_CLASS>
 auto GetValue(const arrow::Array* a, int64_t i) {
@@ -61,7 +63,7 @@ arrow::Status GetFixStringToDatum(const arrow::Array* a,
   return arrow::Status::OK();
 }
 
-GetDatumFunc GetGetFixStringToDatumFunc(size_t len) {
+ArrowToPgDatumConverter GetGetFixStringToDatumFunc(size_t len) {
   return std::bind(GetFixStringToDatum<arrow::FixedSizeBinaryType>, std::placeholders::_1,
                    len, std::placeholders::_2, std::placeholders::_3);
 }
@@ -207,7 +209,7 @@ arrow::Status GetDatum<TIMESTAMPTZOID>(const arrow::Array* array,
 template <>
 arrow::Status GetDatum<DATEOID>(const arrow::Array* array,
 								int64_t i, Datum* datum) {
-  auto value = GetValue<arrow::Time32Type>(array, i);
+  auto value = GetValue<arrow::Date32Type>(array, i);
   *datum = DateADTGetDatum(value);
   return arrow::Status::OK();
 }
@@ -233,7 +235,7 @@ arrow::Status GetDatum<NUMERICOID>(const arrow::Array* a,
   return arrow::Status::OK();
 }
 
-arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type,
+arrow::Status GetArray(ArrowToPgDatumConverter sub_func, Oid sub_type,
 					   int32_t elmlen, bool elmbyval,
 					   char elmalign, const arrow::Array* a,
 					   int64_t i, Datum* datum) {
@@ -276,7 +278,7 @@ arrow::Status GetArray(GetDatumFunc sub_func, Oid sub_type,
   return arrow::Status::OK();
 }
 
-arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs, 
+arrow::Status GetStruct(std::vector<ArrowToPgDatumConverter> sub_funcs, 
 						Oid typid, std::vector<Oid> sub_types, 
 						const arrow::Array* array,
                         int64_t i, Datum* d) {
@@ -309,7 +311,7 @@ arrow::Status GetStruct(std::vector<GetDatumFunc> sub_funcs,
   return arrow::Status::OK();
 }
 
-ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
+ArraySalarExchanger::ArraySalarExchanger(Oid rel, Form_pg_attribute attr) {
 	//LOG(ERROR) << "get boot type " << rel << " " << attr->atttypid;
 	func_ = GetFunction(rel, attr);
 	if (func_ == nullptr) {
@@ -319,7 +321,7 @@ ColumnExchanger::ColumnExchanger(Oid rel, Form_pg_attribute attr) {
 	}
 }
 
-ColumnExchanger::ColumnExchanger(Oid rel, int16_t typid) { 
+ArraySalarExchanger::ArraySalarExchanger(Oid rel, int16_t typid) { 
 	func_ = GetFunction(rel, typid);
 }
 
@@ -328,7 +330,7 @@ ColumnExchanger::ColumnExchanger(Oid rel, int16_t typid) {
     return GetDatum<oid>; \
  }
 
-GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
+ArrowToPgDatumConverter ArraySalarExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
   HeapTuple tup;
   Form_pg_type elem_type;
   auto atttypid = attr->atttypid;
@@ -385,7 +387,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Form_pg_attribute attr) {
                      attelem, attrelid);
 }
 
-GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid) {
+ArrowToPgDatumConverter ArraySalarExchanger::GetFunction(Oid rel, Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
 
@@ -454,7 +456,7 @@ extern void GetElmInfo(Oid rel, Oid typid, int32_t* typmod,
 						 char* typtype, int* typlen,
 						 bool* elmbyval, char* elmalign);
 
-GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool typbyval,
+ArrowToPgDatumConverter ArraySalarExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool typbyval,
                                           char typalign, char typtype,
                                           int32_t typemod, Oid typelem,
                                           Oid typrelid) {
@@ -490,7 +492,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
   if (typtype == TYPTYPE_COMPOSITE && typrelid != 0) {
     Relation relation;
 	LOG(ERROR) << "get composite function";
-    std::vector<GetDatumFunc> sub_funcs;
+    std::vector<ArrowToPgDatumConverter> sub_funcs;
     std::vector<Oid> sub_types;
 
     relation = relation_open(typrelid, AccessShareLock);
@@ -565,7 +567,7 @@ GetDatumFunc ColumnExchanger::GetFunction(Oid rel, Oid typid, int typlen, bool t
   return nullptr;
 }
 
-arrow::Status ColumnExchanger::GetDatumByIndex(int64_t i, Datum* datum,
+arrow::Status ArraySalarExchanger::GetDatumByIndex(int64_t i, Datum* datum,
                                                bool* isnull) {
   //LOG(ERROR) << " get datum by index 1";
   if (array_ == nullptr) {

@@ -15,7 +15,7 @@
 #pragma once
 
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
-#include "backend/new_executor/arrow/recordbatch_builder.hpp"
+#include "backend/sdb/arrow/recordbatch_builder.hpp"
 #include "backend/access/parquet/common.hpp"
 
 #include <arrow/api.h>
@@ -104,7 +104,7 @@ class ParquetWriter {
   std::unordered_set<size_t> deletes_;
   /* schema of target file */
   std::shared_ptr<arrow::RecordBatch> record_batch_;
-  std::shared_ptr<pdb::RecordBatchBuilder> builder_;
+  std::shared_ptr<sdb::RecordBatchBuilder> builder_;
 
   Lake2PCState lake_2pc_state_;
 };

@@ -21,7 +21,7 @@ SUBDIRS = $(top_builddir)/proto access bootstrap catalog parser commands executo
 	main nodes optimizer partitioning port postmaster \
 	regex replication rewrite \
 	statistics storage tcop tsearch utils $(top_builddir)/src/timezone \
-	jit sdb new_executor
+	jit sdb
 
 SUBDIRS += fts cdb
 ifeq ($(enable_orca),yes)
