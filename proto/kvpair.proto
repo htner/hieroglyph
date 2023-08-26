@@ -28,7 +28,8 @@ option go_package="./sdb";
 import  "config.proto";
 
 message LakeFile {
-  uint64 file_id = 2;
+  uint64 file_id = 1;
+  uint32 space = 2;
 }
 
 // must be no side effects, for cache
@@ -74,25 +75,25 @@ message LakeFileDetail {
   bool is_shared = 8;
 } 
 
+message Relation {
+  uint64 dbid = 1;
+  uint64 rel = 2;
+}
+
 message LakeFileShared {
-  map<uint64, uint64> shared_rels = 2;
+  repeated Relation shared_rels = 2;
 }
 
-message LakeSpaceInfo {
+message LakeSpace {
  uint32 space_id = 1;
- string bucket = 2;
-}
-
-message LakeSpaceDetail {
- LakeSpaceInfo base = 1;
- S3Endpoint detail = 2;
+ S3Endpoint s3_info = 2;
 }
 
 message Database {
   uint64 dbid = 1;
   string dbname = 2;
   uint64 organization_id = 3;
-  LakeSpaceInfo space = 4;
+  LakeSpace space = 4;
 }
 
 message WorkerResultData {

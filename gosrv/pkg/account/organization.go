@@ -90,7 +90,7 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 	}
 	log.Printf("get organizationId : %d", organizationId.(uint64))
 
-	dbid := uint64(0)
+	// dbid := uint64(0)
 	sdbDatabase, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		kvOp := fdbkv.NewKvOperator(tr)
 
@@ -121,7 +121,7 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 		}
 
 		idPointer.Id = id
-		dbid = id
+		// dbid = id
 		err = kvOp.WritePB(key, idPointer)
 		if err != nil {
 			return nil, err
@@ -129,6 +129,7 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 		return sdbDatabase, err
 	})
 	if e == nil {
+    /*
 		sess, err := lakehouse.CreateSession(1, 1)
 		if err != nil {
 			return nil, err
@@ -139,9 +140,47 @@ func CreateDatabase(organization, dbname string) (*sdb.Database, error) {
 		tr.Start(true)
 		lakeop.Copy(sess.Dbid, uint64(dbid), sess.Id)
 		tr.Commit()
+    */
 		return sdbDatabase.(*sdb.Database), e
 	}
 	return nil, e
+}
+
+func GetOrganizationId(db fdb.Database, organization string) (uint64, error) {
+  id, err := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+		kvReader := fdbkv.NewKvReader(rtr)
+
+		key := &keys.OrganizationNameKey{Name: organization}
+		idPointer := new(sdb.IdPointer)
+		err := kvReader.ReadPB(key, idPointer)
+		if err != nil {
+			return uint64(0), err
+		}
+		return idPointer.Id, nil
+	})
+  return id.(uint64), err
+}
+
+func CloneDatabase(organization, dbname, sourceOrganization, sourceDbname string) (*sdb.Database, error) {
+  sourceDatabase, err := GetDatabase(sourceOrganization, sourceDbname)
+  if err != nil {
+    return nil, err
+  }
+  newDatabase, err := CreateDatabase(organization, dbname)
+  if err != nil {
+    return nil, err 
+  }
+
+  sess, err := lakehouse.CreateSession(sourceDatabase.Dbid, 1)
+  if err != nil {
+    return nil, err
+  }
+  lakeop := new(lakehouse.LakeOperator)
+  tr := lakehouse.NewTranscation(sess.Dbid, sess.Id)
+  tr.Start(false)
+  lakeop.Copy(newDatabase.Dbid, sess.Dbid, sess.Id)
+  tr.Commit()
+  return newDatabase, nil
 }
 
 func GetUser(organization, user, passwd string) (*sdb.User, error) {
