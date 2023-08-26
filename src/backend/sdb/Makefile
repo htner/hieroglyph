@@ -13,6 +13,6 @@ top_builddir = $(SDB_TOP_BUILD_PREFIX)
 
 include $(SDB_GLOBAL_MAKEFILE)
 
-SUBDIRS = optimizer worker common
+SUBDIRS = optimizer worker common arrow
 
 include $(SDB_COMMON_MK)

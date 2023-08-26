@@ -1,7 +1,7 @@
 
-#include "backend/new_executor/arrow/boot.hpp"
-#include "backend/new_executor/arrow/column_builder.hpp"
-#include "backend/new_executor/arrow/type_mapping.hpp"
+#include "backend/sdb/arrow/boot.hpp"
+#include "backend/sdb/arrow/array_builder.hpp"
+#include "backend/sdb/arrow/data_type_helper.hpp"
 
 #include <brpc/server.h>
 #include <brpc/channel.h>
@@ -11,11 +11,11 @@
 #include <arrow/status.h>
 #include <arrow/type_fwd.h>
 
-#include "backend/new_executor/arrow/boot.hpp"
+#include "backend/sdb/arrow/boot.hpp"
 
 extern bool NeedForwardLookupFromPgType(Oid id);
 
-namespace pdb {
+namespace sdb {
 
 template <class TYPE_CLASS, class Value>
 arrow::Status PutValue(arrow::ArrayBuilder* b, Value value, bool isnull) {
@@ -186,7 +186,7 @@ arrow::Status PutDatum<TIMESTAMPTZOID>(arrow::ArrayBuilder* builder,
 template <>
 arrow::Status PutDatum<DATEOID>(arrow::ArrayBuilder* builder, Datum datum,
                                 bool isnull) {
-  return PutValue<arrow::Time32Type>(builder, DatumGetDateADT(datum), isnull);
+  return PutValue<arrow::Date32Type>(builder, DatumGetDateADT(datum), isnull);
 }
 
 template <>
@@ -297,7 +297,7 @@ arrow::Status PutStruct(std::vector<PutDatumFunc> sub_funcs, Oid typid,
     break;                                                           \
   }
 
-ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
+ArrayBuilder::ArrayBuilder(Oid rel, Form_pg_attribute attr) {
   rel_ = rel;
   auto typid = attr->atttypid;
   auto typmod = attr->atttypmod;
@@ -346,7 +346,7 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
       GetPutValueFunction(typid, typlen, typtype, typmod,
                           attelem, attrelid);
 
-  arrow_type_ = TypeMapping::GetDataType(attr);
+  arrow_type_ = DataTypeHelper::GetDataType(attr);
 
   auto status =
       MakeBuilder(arrow::default_memory_pool(), arrow_type_, &array_builder_);
@@ -358,7 +358,7 @@ ColumnBuilder::ColumnBuilder(Oid rel, Form_pg_attribute attr) {
   case oid:                              \
     return PutDatum<oid>;
 
-PutDatumFunc ColumnBuilder::GetPutValueFunction(Form_pg_attribute attr) {
+PutDatumFunc ArrayBuilder::GetPutValueFunction(Form_pg_attribute attr) {
   auto atttypid = attr->atttypid;
   auto atttypmod = attr->atttypmod;
   int typlen = attr->attlen;
@@ -449,7 +449,7 @@ void GetElmInfo(Oid rel, Oid typid, int32_t* typmod,
   }
 }
 
-PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
+PutDatumFunc ArrayBuilder::GetPutValueFunction(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
   bool first = true;
@@ -503,7 +503,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid) {
                              attrelid);
 }
 
-PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
+PutDatumFunc ArrayBuilder::GetPutValueFunction(Oid typid, int typlen,
                                                 char typtype, int32_t typmod,
                                                 Oid typelem, Oid typrelid) {
   /*
@@ -620,7 +620,7 @@ PutDatumFunc ColumnBuilder::GetPutValueFunction(Oid typid, int typlen,
   return nullptr;
 }
 
-arrow::ArrayBuilder* ColumnBuilder::GetArrayBuilder() {
+arrow::ArrayBuilder* ArrayBuilder::GetArrayBuilder() {
   return array_builder_.get();
 }
 

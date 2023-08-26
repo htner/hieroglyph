@@ -62,7 +62,7 @@ ParquetWriter::ParquetWriter(Oid rel, const char *filename, TupleDesc tuple_desc
   is_delete_ = false;
   is_insert_ = false;
   lake_2pc_state_ = LAKE2PC_NULL;
-  builder_ = std::make_shared<pdb::RecordBatchBuilder>(rel, tuple_desc);
+  builder_ = std::make_shared<sdb::RecordBatchBuilder>(rel, tuple_desc);
   rel_id = rel;
   Assert(builder_ != nullptr);
 }
