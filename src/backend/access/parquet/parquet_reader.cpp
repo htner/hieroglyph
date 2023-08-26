@@ -14,7 +14,7 @@
 #include "backend/access/parquet/parquet_reader.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include "backend/access/parquet/common.hpp"
-#include "backend/new_executor/arrow/recordbatch_exchanger.hpp"
+#include "backend/sdb/arrow/recordbatch_slot_exchanger.hpp"
 
 #include <list>
 
@@ -56,7 +56,7 @@ class DefaultParquetReader : public ParquetReader {
  private:
   /* Current row group */
   std::shared_ptr<arrow::Table> table_;
-  std::shared_ptr<pdb::RecordBatchExchanger> exchanger_;
+  std::shared_ptr<sdb::RecordBatchSlotExchanger> exchanger_;
 
   /*
    * Plain pointers to inner the structures of row group. It's needed to
@@ -77,7 +77,7 @@ class DefaultParquetReader : public ParquetReader {
                 TupleDesc tuple_desc, const std::vector<bool> &fetched_col)
       : ParquetReader(), row_group_(-1), num_rows_(0) {
     exchanger_ =
-	 	std::make_shared<pdb::RecordBatchExchanger>(rel, tuple_desc, fetched_col);
+	 	std::make_shared<sdb::RecordBatchSlotExchanger>(rel, tuple_desc, fetched_col);
     filename_ = filename;
     fileid_ = fileid;
     initialized_ = false;

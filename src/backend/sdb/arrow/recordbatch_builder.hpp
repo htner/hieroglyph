@@ -1,6 +1,6 @@
 #pragma once
 
-#include "backend/new_executor/pg.hpp"
+#include "backend/sdb/common/pg_export.hpp"
 
 #include <memory>
 #include <vector>
@@ -8,9 +8,9 @@
 #include <arrow/status.h>
 #include <arrow/record_batch.h>
 
-#include "backend/new_executor/arrow/column_builder.hpp"
+#include "backend/sdb/arrow/array_builder.hpp"
 
-namespace pdb
+namespace sdb
 {
 
 class RecordBatchBuilder {
@@ -35,7 +35,7 @@ public:
 private:
   Oid rel_;
   std::shared_ptr<arrow::Schema> schema_;
-  std::vector<std::unique_ptr<ColumnBuilder> > builders_; 
+  std::vector<std::unique_ptr<ArrayBuilder> > builders_; 
   TupleDesc tuple_desc_;
 };
 

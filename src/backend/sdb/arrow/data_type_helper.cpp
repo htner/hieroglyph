@@ -1,12 +1,13 @@
 #include <assert.h>
-#include "backend/new_executor/arrow/type_mapping.hpp"
+#include "backend/sdb/arrow/data_type_helper.hpp"
 
 extern "C" {
 #include "access/relation.h"
 }
 
-namespace pdb {
+namespace sdb {
 
+// copy from PG-Storm
 // bool -> bool
 // numeric -> Decimal
 // bytea -> Binary
@@ -18,7 +19,7 @@ namespace pdb {
 // Struct -> compatible composite
 // char(n) -> FixedSizeBinary(byteWidth)
 //
-std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
+std::shared_ptr<arrow::DataType> DataTypeHelper::GetBaseDataType(Oid typid,
                                                               int32_t typlen,
                                                               int32_t typmod) {
   const char* tzn = nullptr;
@@ -56,7 +57,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
       tzn = show_timezone();
       return arrow::timestamp(arrow::TimeUnit::MICRO, tzn);
     case DATEOID:
-      return arrow::date64();
+      return arrow::date32();
     case NUMERICOID:
       if (typmod >= (int32)(VARHDRSZ)) {
         typmod -= VARHDRSZ;
@@ -102,7 +103,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetBaseDataType(Oid typid,
   return nullptr;
 }
 
-std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
+std::shared_ptr<arrow::DataType> DataTypeHelper::GetDataType(
     Form_pg_attribute attr) {
   Oid atttypid = attr->atttypid;
   auto typmod = attr->atttypmod;
@@ -136,7 +137,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
                      typlen, typmod, typtype);
 }
 
-std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
+std::shared_ptr<arrow::DataType> DataTypeHelper::GetDataType(Oid typid) {
   HeapTuple tup;
   Form_pg_type elem_type;
   int32_t typmod = -1;
@@ -174,7 +175,7 @@ std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(Oid typid) {
   return nullptr;
 }
 
-std::shared_ptr<arrow::DataType> TypeMapping::GetDataType(
+std::shared_ptr<arrow::DataType> DataTypeHelper::GetDataType(
     Oid typid, Oid typelem, Oid typrelid, int32_t typlen, int32_t typmod,
     char typtype) {
   /* array type */

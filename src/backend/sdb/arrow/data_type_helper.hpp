@@ -1,17 +1,16 @@
 #pragma once
 
 #include <memory>
-
 #include <arrow/type.h>
 
-#include "backend/new_executor/pg.hpp" 
+#include "backend/sdb/common/pg_export.hpp" 
 
-namespace pdb
+namespace sdb
 {
 
-class TypeMapping {
+class DataTypeHelper {
 public:	
-  TypeMapping() = default;
+  DataTypeHelper() = default;
 
   static std::shared_ptr<arrow::DataType> GetBaseDataType(Oid typid, 
                                                    int32_t typlen,
@@ -25,6 +24,7 @@ public:
                                                char typtype);
 
   static std::shared_ptr<arrow::DataType> GetDataType(Form_pg_attribute);
+
   static std::shared_ptr<arrow::DataType> GetDataType(Oid typid);
 };
 

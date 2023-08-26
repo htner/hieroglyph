@@ -1,4 +1,4 @@
-#include "backend/new_executor/pg.hpp"
+#include "backend/sdb/common/pg_export.hpp"
 #include <stdint.h>
 
 extern bool GetBootTypeInfo(Oid typid, int32_t* typmod, 
