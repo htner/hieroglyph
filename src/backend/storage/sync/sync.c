@@ -349,7 +349,7 @@ ProcessSyncRequests(void)
 						 entry->tag.rnode.spcNode, entry->tag.rnode.dbNode,
 						 entry->tag.rnode.relNode);
 				else
-					elog(LOG, "checkpoint performing fsync for %d/%d/%d.%d",
+					elog(LOG, "checkpoint performing fsync for %d/%d/%d.%ld",
 						 entry->tag.rnode.spcNode, entry->tag.rnode.dbNode,
 						 entry->tag.rnode.relNode, entry->tag.segno);
 			}
@@ -363,7 +363,7 @@ ProcessSyncRequests(void)
 						 entry->tag.rnode.relNode);
 				else
 					elog(level, "non checkpoint process trying to fsync "
-						 "%d/%d/%d.%d when fsync_counter fault is set",
+						 "%d/%d/%d.%ld when fsync_counter fault is set",
 						 entry->tag.rnode.spcNode, entry->tag.rnode.dbNode,
 						 entry->tag.rnode.relNode, entry->tag.segno);
 			}

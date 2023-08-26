@@ -174,7 +174,7 @@ vacuumLeafPage(spgBulkDeleteState *bds, Relation index, Buffer buffer,
 				if (lt->nextOffset < FirstOffsetNumber ||
 					lt->nextOffset > max ||
 					predecessor[lt->nextOffset] != InvalidOffsetNumber)
-					elog(ERROR, "inconsistent tuple chain links in page %u of index \"%s\"",
+					elog(ERROR, "inconsistent tuple chain links in page %lu of index \"%s\"",
 						 BufferGetBlockNumber(buffer),
 						 RelationGetRelationName(index));
 				predecessor[lt->nextOffset] = i;

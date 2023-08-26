@@ -210,7 +210,7 @@ _hash_getnewbuf(Relation rel, BlockNumber blkno, ForkNumber forkNum)
 	{
 		buf = ReadBufferExtended(rel, forkNum, P_NEW, RBM_NORMAL, NULL);
 		if (BufferGetBlockNumber(buf) != blkno)
-			elog(ERROR, "unexpected hash relation size: %u, should be %u",
+			elog(ERROR, "unexpected hash relation size: %lu, should be %lu",
 				 BufferGetBlockNumber(buf), blkno);
 		LockBuffer(buf, HASH_WRITE);
 	}

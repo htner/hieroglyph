@@ -961,7 +961,7 @@ _bt_insertonpg(Relation rel,
 
 	/* The caller should've finished any incomplete splits already. */
 	if (P_INCOMPLETE_SPLIT(lpageop))
-		elog(ERROR, "cannot insert to incompletely split page %u",
+		elog(ERROR, "cannot insert to incompletely split page %lu",
 			 BufferGetBlockNumber(buf));
 
 	itemsz = IndexTupleSize(itup);
@@ -1069,14 +1069,14 @@ _bt_insertonpg(Relation rel,
 		 * offset.
 		 */
 		if (!P_ISLEAF(lpageop) && newitemoff == P_FIRSTDATAKEY(lpageop))
-			elog(ERROR, "cannot insert second negative infinity item in block %u of index \"%s\"",
+			elog(ERROR, "cannot insert second negative infinity item in block %lu of index \"%s\"",
 				 itup_blkno, RelationGetRelationName(rel));
 
 		/* Do the update.  No ereport(ERROR) until changes are logged */
 		START_CRIT_SECTION();
 
 		if (!_bt_pgaddtup(page, itemsz, itup, newitemoff))
-			elog(PANIC, "failed to add new item to block %u in index \"%s\"",
+			elog(PANIC, "failed to add new item to block %lu in index \"%s\"",
 				 itup_blkno, RelationGetRelationName(rel));
 
 		MarkBufferDirty(buf);
@@ -1397,7 +1397,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 	if (PageAddItem(leftpage, (Item) lefthikey, itemsz, leftoff,
 					false, false) == InvalidOffsetNumber)
 		elog(ERROR, "failed to add hikey to the left sibling"
-			 " while splitting block %u of index \"%s\"",
+			 " while splitting block %lu of index \"%s\"",
 			 origpagenumber, RelationGetRelationName(rel));
 	leftoff = OffsetNumberNext(leftoff);
 	/* be tidy */
@@ -1463,7 +1463,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 		{
 			memset(rightpage, 0, BufferGetPageSize(rbuf));
 			elog(ERROR, "failed to add hikey to the right sibling"
-				 " while splitting block %u of index \"%s\"",
+				 " while splitting block %lu of index \"%s\"",
 				 origpagenumber, RelationGetRelationName(rel));
 		}
 		rightoff = OffsetNumberNext(rightoff);
@@ -1494,7 +1494,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 				{
 					memset(rightpage, 0, BufferGetPageSize(rbuf));
 					elog(ERROR, "failed to add new item to the left sibling"
-						 " while splitting block %u of index \"%s\"",
+						 " while splitting block %lu of index \"%s\"",
 						 origpagenumber, RelationGetRelationName(rel));
 				}
 				leftoff = OffsetNumberNext(leftoff);
@@ -1506,7 +1506,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 				{
 					memset(rightpage, 0, BufferGetPageSize(rbuf));
 					elog(ERROR, "failed to add new item to the right sibling"
-						 " while splitting block %u of index \"%s\"",
+						 " while splitting block %lu of index \"%s\"",
 						 origpagenumber, RelationGetRelationName(rel));
 				}
 				rightoff = OffsetNumberNext(rightoff);
@@ -1520,7 +1520,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 			{
 				memset(rightpage, 0, BufferGetPageSize(rbuf));
 				elog(ERROR, "failed to add old item to the left sibling"
-					 " while splitting block %u of index \"%s\"",
+					 " while splitting block %lu of index \"%s\"",
 					 origpagenumber, RelationGetRelationName(rel));
 			}
 			leftoff = OffsetNumberNext(leftoff);
@@ -1531,7 +1531,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 			{
 				memset(rightpage, 0, BufferGetPageSize(rbuf));
 				elog(ERROR, "failed to add old item to the right sibling"
-					 " while splitting block %u of index \"%s\"",
+					 " while splitting block %lu of index \"%s\"",
 					 origpagenumber, RelationGetRelationName(rel));
 			}
 			rightoff = OffsetNumberNext(rightoff);
@@ -1551,7 +1551,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 		{
 			memset(rightpage, 0, BufferGetPageSize(rbuf));
 			elog(ERROR, "failed to add new item to the right sibling"
-				 " while splitting block %u of index \"%s\"",
+				 " while splitting block %lu of index \"%s\"",
 				 origpagenumber, RelationGetRelationName(rel));
 		}
 		rightoff = OffsetNumberNext(rightoff);
@@ -1573,7 +1573,7 @@ _bt_split(Relation rel, BTScanInsert itup_key, Buffer buf, Buffer cbuf,
 		{
 			memset(rightpage, 0, BufferGetPageSize(rbuf));
 			elog(ERROR, "right sibling's left-link doesn't match: "
-				 "block %u links to %u instead of expected %u in index \"%s\"",
+				 "block %lu links to %lu instead of expected %lu in index \"%s\"",
 				 oopaque->btpo_next, sopaque->btpo_prev, origpagenumber,
 				 RelationGetRelationName(rel));
 		}
@@ -1831,7 +1831,7 @@ _bt_insert_parent(Relation rel,
 		_bt_relbuf(rel, rbuf);
 
 		if (pbuf == InvalidBuffer)
-			elog(ERROR, "failed to re-find parent key in index \"%s\" for split pages %u/%u",
+			elog(ERROR, "failed to re-find parent key in index \"%s\" for split pages %lu/%lu",
 				 RelationGetRelationName(rel), bknum, rbknum);
 
 		/* Recursively update the parent */
@@ -1894,7 +1894,7 @@ _bt_finish_split(Relation rel, Buffer lbuf, BTStack stack)
 	/* Was this the only page on the level before split? */
 	was_only = (P_LEFTMOST(lpageop) && P_RIGHTMOST(rpageop));
 
-	elog(DEBUG1, "finishing incomplete split of %u/%u",
+	elog(DEBUG1, "finishing incomplete split of %lu/%lu",
 		 BufferGetBlockNumber(lbuf), BufferGetBlockNumber(rbuf));
 
 	_bt_insert_parent(rel, lbuf, rbuf, stack, was_root, was_only);
@@ -2125,7 +2125,7 @@ _bt_newroot(Relation rel, Buffer lbuf, Buffer rbuf)
 	if (PageAddItem(rootpage, (Item) left_item, left_item_sz, P_HIKEY,
 					false, false) == InvalidOffsetNumber)
 		elog(PANIC, "failed to add leftkey to new root page"
-			 " while splitting block %u of index \"%s\"",
+			 " while splitting block %lu of index \"%s\"",
 			 BufferGetBlockNumber(lbuf), RelationGetRelationName(rel));
 
 	/*
@@ -2137,7 +2137,7 @@ _bt_newroot(Relation rel, Buffer lbuf, Buffer rbuf)
 	if (PageAddItem(rootpage, (Item) right_item, right_item_sz, P_FIRSTKEY,
 					false, false) == InvalidOffsetNumber)
 		elog(PANIC, "failed to add rightkey to new root page"
-			 " while splitting block %u of index \"%s\"",
+			 " while splitting block %lu of index \"%s\"",
 			 BufferGetBlockNumber(lbuf), RelationGetRelationName(rel));
 
 	/* Clear the incomplete-split flag in the left child */

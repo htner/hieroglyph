@@ -115,7 +115,7 @@ tidout(PG_FUNCTION_ARGS)
 	offsetNumber = ItemPointerGetOffsetNumberNoCheck(itemPtr);
 
 	/* Perhaps someday we should output this as a record. */
-	snprintf(buf, sizeof(buf), "(%u,%u)", blockNumber, offsetNumber);
+	snprintf(buf, sizeof(buf), "(%lu,%u)", blockNumber, offsetNumber);
 
 	PG_RETURN_CSTRING(pstrdup(buf));
 }

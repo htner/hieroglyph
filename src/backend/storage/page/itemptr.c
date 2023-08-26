@@ -32,7 +32,7 @@ ItemPointerEquals(ItemPointer pointer1, ItemPointer pointer2)
 	 * We really want ItemPointerData to be exactly 6 bytes.  This is rather a
 	 * random place to check, but there is no better place.
 	 */
-	StaticAssertStmt(sizeof(ItemPointerData) == 3 * sizeof(uint16),
+	StaticAssertStmt(sizeof(ItemPointerData) == 3 * sizeof(uint32),
 					 "ItemPointerData struct is improperly padded");
 
 	if (ItemPointerGetBlockNumber(pointer1) ==
@@ -80,7 +80,7 @@ ItemPointerToBuffer(char *buffer, ItemPointer tid)
 	OffsetNumber offsetNumber = tid->ip_posid;
 	
 	sprintf(buffer,
-		    "(%u,%u)",
+		    "(%lu,%u)",
 		    blockNumber, 
 		    offsetNumber);
 

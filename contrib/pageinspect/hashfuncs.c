@@ -450,13 +450,13 @@ hash_bitmap_info(PG_FUNCTION_ARGS)
 	if (ovflblkno == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid overflow block number %u",
+				 errmsg("invalid overflow block number %lu",
 						(BlockNumber) ovflblkno)));
 	for (i = 0; i < metap->hashm_nmaps; i++)
 		if (metap->hashm_mapp[i] == ovflblkno)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("invalid overflow block number %u",
+					 errmsg("invalid overflow block number %lu",
 							(BlockNumber) ovflblkno)));
 
 	/*
@@ -471,7 +471,7 @@ hash_bitmap_info(PG_FUNCTION_ARGS)
 	if (bitmappage >= metap->hashm_nmaps)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid overflow block number %u",
+				 errmsg("invalid overflow block number %lu",
 						(BlockNumber) ovflblkno)));
 
 	bitmapblkno = metap->hashm_mapp[bitmappage];

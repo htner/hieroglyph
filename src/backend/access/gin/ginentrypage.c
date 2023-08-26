@@ -91,7 +91,7 @@ GinFormTuple(GinState *ginstate,
 
 	newsize = SHORTALIGN(newsize);
 
-	GinSetPostingOffset(itup, newsize);
+	GinSetPostingOffset(itup, (uint64)newsize);
 	GinSetNPosting(itup, nipd);
 
 	/*

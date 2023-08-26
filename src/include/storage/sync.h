@@ -48,7 +48,7 @@ typedef struct FileTag
 	int16		handler;		/* SyncRequestHandler value, saving space */
 	int16		forknum;		/* ForkNumber, saving space */
 	RelFileNode rnode;
-	uint32		segno;
+	uint64		segno;
 } FileTag;
 
 #define INIT_FILETAG(a,xx_rnode,xx_forknum,xx_segno,xx_handler)	\

@@ -122,7 +122,7 @@ datapagemap_print(datapagemap_t *map)
 
 	iter = datapagemap_iterate(map);
 	while (datapagemap_next(iter, &blocknum))
-		pg_log_debug("block %u", blocknum);
+		pg_log_debug("block %lu", blocknum);
 
 	pg_free(iter);
 }

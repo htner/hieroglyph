@@ -2804,7 +2804,8 @@ _outRelOptInfo(StringInfo str, const RelOptInfo *node)
 	WRITE_BITMAPSET_FIELD(lateral_referencers);
 	WRITE_NODE_FIELD(indexlist);
 	WRITE_NODE_FIELD(statlist);
-	WRITE_UINT_FIELD(pages);
+	// SDB UINT64, we not Read RelOptInfo
+	WRITE_UINT64_FIELD(pages);
 	WRITE_FLOAT_FIELD(tuples, "%.0f");
 	WRITE_FLOAT_FIELD(allvisfrac, "%.6f");
 	WRITE_NODE_FIELD(subroot);
@@ -2833,7 +2834,8 @@ _outIndexOptInfo(StringInfo str, const IndexOptInfo *node)
 	/* NB: this isn't a complete set of fields */
 	WRITE_OID_FIELD(indexoid);
 	/* Do NOT print rel field, else infinite recursion */
-	WRITE_UINT_FIELD(pages);
+	// SDB UINT64, we not Read IndexOptInfo
+	WRITE_UINT64_FIELD(pages);
 	WRITE_FLOAT_FIELD(tuples, "%.0f");
 	WRITE_INT_FIELD(tree_height);
 	WRITE_INT_FIELD(ncolumns);

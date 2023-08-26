@@ -935,7 +935,7 @@ blkdir_entry_exists(AppendOnlyBlockDirectory *blockDirectory,
 		BlockNumber blockNumber = ItemPointerGetBlockNumberNoCheck(&tuple->t_self);
 		OffsetNumber offsetNumber = ItemPointerGetOffsetNumberNoCheck(&tuple->t_self);
 		elogif(Debug_appendonly_print_blockdirectory, LOG,
-			   "For segno = %d, rownum = %ld, tid returned: (%u,%u) "
+			   "For segno = %d, rownum = %ld, tid returned: (%lu,%u) "
 			   "tuple (xmin, xmax) = (%lu, %lu), snaptype = %d",
 			   segmentFileNum, rowNum, blockNumber, offsetNumber,
 			   (unsigned long) HeapTupleHeaderGetRawXmin(tuple->t_data),

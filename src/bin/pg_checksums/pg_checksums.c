@@ -219,10 +219,10 @@ scan_file(const char *fn, BlockNumber segmentno)
 		if (r != BLCKSZ)
 		{
 			if (r < 0)
-				pg_log_error("could not read block %u in file \"%s\": %m",
+				pg_log_error("could not read block %lu in file \"%s\": %m",
 							 blockno, fn);
 			else
-				pg_log_error("could not read block %u in file \"%s\": read %d of %d",
+				pg_log_error("could not read block %lu in file \"%s\": read %d of %d",
 							 blockno, fn, r, BLCKSZ);
 			exit(1);
 		}
@@ -246,7 +246,7 @@ scan_file(const char *fn, BlockNumber segmentno)
 			if (csum != header->pd_checksum)
 			{
 				if (ControlFile->data_checksum_version == PG_DATA_CHECKSUM_VERSION)
-					pg_log_error("checksum verification failed in file \"%s\", block %u: calculated checksum %X but block contains %X",
+					pg_log_error("checksum verification failed in file \"%s\", block %lu: calculated checksum %X but block contains %X",
 								 fn, blockno, csum, header->pd_checksum);
 				badblocks++;
 			}
@@ -261,7 +261,7 @@ scan_file(const char *fn, BlockNumber segmentno)
 			/* Seek back to beginning of block */
 			if (lseek(f, -BLCKSZ, SEEK_CUR) < 0)
 			{
-				pg_log_error("seek failed for block %u in file \"%s\": %m", blockno, fn);
+				pg_log_error("seek failed for block %lu in file \"%s\": %m", blockno, fn);
 				exit(1);
 			}
 
@@ -270,10 +270,10 @@ scan_file(const char *fn, BlockNumber segmentno)
 			if (w != BLCKSZ)
 			{
 				if (w < 0)
-					pg_log_error("could not write block %u in file \"%s\": %m",
+					pg_log_error("could not write block %lu in file \"%s\": %m",
 								 blockno, fn);
 				else
-					pg_log_error("could not write block %u in file \"%s\": wrote %d of %d",
+					pg_log_error("could not write block %lu in file \"%s\": wrote %d of %d",
 								 blockno, fn, w, BLCKSZ);
 				exit(1);
 			}
@@ -367,7 +367,7 @@ scan_directory(const char *basedir, const char *subdir, bool sizeonly)
 				segmentno = atoi(segmentpath);
 				if (segmentno == 0)
 				{
-					pg_log_error("invalid segment number %d in file name \"%s\"",
+					pg_log_error("invalid segment number %ld in file name \"%s\"",
 								 segmentno, fn);
 					exit(1);
 				}

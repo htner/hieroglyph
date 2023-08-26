@@ -1025,7 +1025,7 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
 				 * derived in selfuncs.c using the base table statistics.
 				 */
 				estimatedIndexPages = acquire_index_number_of_blocks(Irel[ind], onerel);
-				elog(elevel, "ANALYZE estimated relpages=%u for index %s",
+				elog(elevel, "ANALYZE estimated relpages=%lu for index %s",
 					 estimatedIndexPages, RelationGetRelationName(Irel[ind]));
 			}
 
@@ -1605,7 +1605,7 @@ acquire_sample_rows(Relation onerel, int elevel,
 	 * Emit some interesting relation info
 	 */
 	ereport(elevel,
-		(errmsg("\"%s\": scanned %d of %u pages, "
+		(errmsg("\"%s\": scanned %d of %lu pages, "
 				"containing %.0f live rows and %.0f dead rows; "
 				"%d rows in sample, %.0f estimated total rows",
 				RelationGetRelationName(onerel),

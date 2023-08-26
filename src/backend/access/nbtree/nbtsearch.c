@@ -2047,7 +2047,7 @@ _bt_walk_left(Relation rel, Buffer buf, Snapshot snapshot)
 			 * into an infinite loop if there's anything wrong.
 			 */
 			if (opaque->btpo_prev == lblkno)
-				elog(ERROR, "could not find left sibling of block %u in index \"%s\"",
+				elog(ERROR, "could not find left sibling of block %lu in index \"%s\"",
 					 obknum, RelationGetRelationName(rel));
 			/* Okay to try again with new lblkno value */
 		}

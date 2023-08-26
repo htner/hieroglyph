@@ -68,7 +68,7 @@ typedef ItemPointerData *ItemPointer;
  * When a tuple is moved to a different partition by UPDATE, the t_ctid of
  * the old tuple version is set to this magic value.
  */
-#define MovedPartitionsOffsetNumber 0xfffd
+#define MovedPartitionsOffsetNumber 0xfffffffd
 #define MovedPartitionsBlockNumber	InvalidBlockNumber
 
 

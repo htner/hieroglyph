@@ -642,7 +642,7 @@ HeapTuple CatalogCache::MakeCatTuple(int cache_id, const std::string& value) {
 	tuple->t_data = (HeapTupleHeader) palloc(tuple->t_len);
 	memcpy(tuple->t_data, value.data(), tuple->t_len);
 	// we use t_self store cache id
-	BlockIdSet(&tuple->t_self.ip_blkid, cache_id);
+	BlockIdSet(&tuple->t_self.ip_blkid, (uint64)cache_id);
 	tuple->t_tableOid = catalog_cache_[cache_id].reloid;
 	MemoryContextSwitchTo(oldcxt);
 	return tuple;
@@ -680,7 +680,7 @@ TupleDesc CatalogCache::GetCacheTupleDesc(int cache_id) {
 	// We only insert one cache after init. We also not clear relation info
 	Assert(cache.tupdesc != nullptr);
 
-	return catalog_cache_[cache_id].tupdesc;
+	return cache.tupdesc;
 }
 
 uint32 CatalogCache::GetCacheHashValue(int cache_id, Datum key1, Datum key2,
@@ -933,7 +933,7 @@ HeapTuple CatalogCache::SyncFromCatalogRelation(int cache_id,
 		MemoryContextSwitchTo(oldcxt);
 
 		// we use t_self store cache id
-		BlockIdSet(&cache_tp->t_self.ip_blkid, cache_id);
+		BlockIdSet(&cache_tp->t_self.ip_blkid, (uint64)cache_id);
 		this->Insert(cache_id, arguments, size, cache_tp, cxt);
 		cache_tp->t_tableOid = catalog_cache_[cache_id].reloid;
 		break;					/* assume only one match */

@@ -28,11 +28,14 @@
  * more or less the only pieces of code that should be accessing disk
  * blocks directly.
  */
-typedef uint32 BlockNumber;
+typedef uint64 BlockNumber;
 
-#define InvalidBlockNumber		((BlockNumber) 0xFFFFFFFF)
+// SDB_NOUSE only for build
+#define InvalidBlockNumber_FORLOCK		((uint32) 0xFFFFFFFF)
 
-#define MaxBlockNumber			((BlockNumber) 0xFFFFFFFE)
+#define InvalidBlockNumber		((BlockNumber) 0xFFFFFFFFFFFFFFFF)
+
+#define MaxBlockNumber			((BlockNumber) 0xFFFFFFFFFFFFFFFE)
 
 /*
  * BlockId:
@@ -52,8 +55,8 @@ typedef uint32 BlockNumber;
  */
 typedef struct BlockIdData
 {
-	uint16		bi_hi;
-	uint16		bi_lo;
+	uint32		bi_hi;
+	uint32		bi_lo;
 } BlockIdData;
 
 typedef BlockIdData *BlockId;	/* block identifier */
@@ -84,8 +87,8 @@ typedef BlockIdData *BlockId;	/* block identifier */
 #define BlockIdSet(blockId, blockNumber) \
 ( \
 	AssertMacro(PointerIsValid(blockId)), \
-	(blockId)->bi_hi = (blockNumber) >> 16, \
-	(blockId)->bi_lo = (blockNumber) & 0xffff \
+	(blockId)->bi_hi = (blockNumber) >> 32, \
+	(blockId)->bi_lo = (blockNumber) & 0xffffffff \
 )
 
 /*
@@ -115,7 +118,7 @@ typedef BlockIdData *BlockId;	/* block identifier */
 #define BlockIdGetBlockNumber(blockId) \
 ( \
 	AssertMacro(BlockIdIsValid(blockId)), \
-	((((BlockNumber) (blockId)->bi_hi) << 16) | ((BlockNumber) (blockId)->bi_lo)) \
+	((((BlockNumber) (blockId)->bi_hi) << 32) | ((BlockNumber) (blockId)->bi_lo)) \
 )
 
 #endif							/* BLOCK_H */

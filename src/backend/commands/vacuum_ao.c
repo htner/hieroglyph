@@ -638,12 +638,12 @@ vacuum_appendonly_index(Relation indexRelation,
 							true /* isvacuum */);
 
 	ereport(elevel,
-			(errmsg("index \"%s\" now contains %.0f row versions in %u pages",
+			(errmsg("index \"%s\" now contains %.0f row versions in %lu pages",
 					RelationGetRelationName(indexRelation),
 					stats->num_index_tuples,
 					stats->num_pages),
 			 errdetail("%.0f index row versions were removed.\n"
-			 "%u index pages have been deleted, %u are currently reusable.\n"
+			 "%lu index pages have been deleted, %lu are currently reusable.\n"
 					   "%s.",
 					   stats->tuples_removed,
 					   stats->pages_deleted, stats->pages_free,
@@ -728,7 +728,7 @@ vacuum_appendonly_fill_stats(Relation aorel, Snapshot snapshot, int elevel,
 	if (Debug_appendonly_print_compaction)
 		elog(LOG,
 			 "Gather statistics after vacuum for append-only relation %s: "
-			 "page count %d, tuple count %f",
+			 "page count %ld, tuple count %f",
 			 relname,
 			 nblocks, num_tuples);
 
@@ -738,7 +738,7 @@ vacuum_appendonly_fill_stats(Relation aorel, Snapshot snapshot, int elevel,
 	*relhasindex = aorel->rd_rel->relhasindex;
 
 	ereport(elevel,
-			(errmsg("\"%s\": found %.0f rows in %u pages.",
+			(errmsg("\"%s\": found %.0f rows in %lu pages.",
 					relname, num_tuples, nblocks)));
 	pfree(fstotal);
 }
@@ -808,11 +808,11 @@ scan_index(Relation indrel, Relation aorel, int elevel, BufferAccessStrategy vac
 							true /* isvacuum */);
 
 	ereport(elevel,
-			(errmsg("index \"%s\" now contains %.0f row versions in %u pages",
+			(errmsg("index \"%s\" now contains %.0f row versions in %lu pages",
 					RelationGetRelationName(indrel),
 					stats->num_index_tuples,
 					stats->num_pages),
-	errdetail("%u index pages have been deleted, %u are currently reusable.\n"
+	errdetail("%lu index pages have been deleted, %lu are currently reusable.\n"
 			  "%s.",
 			  stats->pages_deleted, stats->pages_free,
 			  pg_rusage_show(&ru0))));

@@ -27,14 +27,14 @@ brin_desc(StringInfo buf, XLogReaderState *record)
 	{
 		xl_brin_createidx *xlrec = (xl_brin_createidx *) rec;
 
-		appendStringInfo(buf, "v%d pagesPerRange %u",
+		appendStringInfo(buf, "v%d pagesPerRange %lu",
 						 xlrec->version, xlrec->pagesPerRange);
 	}
 	else if (info == XLOG_BRIN_INSERT)
 	{
 		xl_brin_insert *xlrec = (xl_brin_insert *) rec;
 
-		appendStringInfo(buf, "heapBlk %u pagesPerRange %u offnum %u",
+		appendStringInfo(buf, "heapBlk %lu pagesPerRange %lu offnum %u",
 						 xlrec->heapBlk,
 						 xlrec->pagesPerRange,
 						 xlrec->offnum);
@@ -43,7 +43,7 @@ brin_desc(StringInfo buf, XLogReaderState *record)
 	{
 		xl_brin_update *xlrec = (xl_brin_update *) rec;
 
-		appendStringInfo(buf, "heapBlk %u pagesPerRange %u old offnum %u, new offnum %u",
+		appendStringInfo(buf, "heapBlk %lu pagesPerRange %lu old offnum %u, new offnum %u",
 						 xlrec->insert.heapBlk,
 						 xlrec->insert.pagesPerRange,
 						 xlrec->oldOffnum,
@@ -59,13 +59,13 @@ brin_desc(StringInfo buf, XLogReaderState *record)
 	{
 		xl_brin_revmap_extend *xlrec = (xl_brin_revmap_extend *) rec;
 
-		appendStringInfo(buf, "targetBlk %u", xlrec->targetBlk);
+		appendStringInfo(buf, "targetBlk %lu", xlrec->targetBlk);
 	}
 	else if (info == XLOG_BRIN_DESUMMARIZE)
 	{
 		xl_brin_desummarize *xlrec = (xl_brin_desummarize *) rec;
 
-		appendStringInfo(buf, "pagesPerRange %u, heapBlk %u, page offset %u",
+		appendStringInfo(buf, "pagesPerRange %lu, heapBlk %lu, page offset %u",
 						 xlrec->pagesPerRange, xlrec->heapBlk, xlrec->regOffset);
 	}
 }

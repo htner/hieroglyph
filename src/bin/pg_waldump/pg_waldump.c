@@ -568,13 +568,13 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 
 			XLogRecGetBlockTag(record, block_id, &rnode, &forknum, &blk);
 			if (forknum != MAIN_FORKNUM)
-				printf(", blkref #%u: rel %u/%u/%u fork %s blk %u",
+				printf(", blkref #%u: rel %u/%u/%u fork %s blk %lu",
 					   block_id,
 					   rnode.spcNode, rnode.dbNode, rnode.relNode,
 					   forkNames[forknum],
 					   blk);
 			else
-				printf(", blkref #%u: rel %u/%u/%u blk %u",
+				printf(", blkref #%u: rel %u/%u/%u blk %lu",
 					   block_id,
 					   rnode.spcNode, rnode.dbNode, rnode.relNode,
 					   blk);
@@ -598,7 +598,7 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 				continue;
 
 			XLogRecGetBlockTag(record, block_id, &rnode, &forknum, &blk);
-			printf("\tblkref #%u: rel %u/%u/%u fork %s blk %u",
+			printf("\tblkref #%u: rel %u/%u/%u fork %s blk %lu",
 				   block_id,
 				   rnode.spcNode, rnode.dbNode, rnode.relNode,
 				   forkNames[forknum],
