@@ -363,6 +363,8 @@ PerformAuthentication(Port *port)
 static void
 CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connections)
 {
+	return;
+#ifdef SDB_NOUSE
 	HeapTuple	tup;
 	Form_pg_database dbform;
 	char	   *collate;
@@ -472,6 +474,7 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
 	check_strxfrm_bug();
 
 	ReleaseSysCache(tup);
+#endif
 }
 
 
@@ -1136,6 +1139,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 */
 	if (!bootstrap)
 	{
+		/*
 		HeapTuple	tuple;
 
 		tuple = GetDatabaseTuple(dbname);
@@ -1146,6 +1150,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 					(errcode(ERRCODE_UNDEFINED_DATABASE),
 					 errmsg("database \"%s\" does not exist", dbname),
 					 errdetail("It seems to have just been dropped or renamed.")));
+					 */
 	}
 
 	/*

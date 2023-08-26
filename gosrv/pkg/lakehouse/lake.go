@@ -75,6 +75,7 @@ func (L *LakeRelOperator) PrepareFiles(rel uint64, count uint64) (files []*sdb.L
 				file.Xmax = uint64(InvaildTranscaton)
 				file.XminState = uint32(XS_START)
 				file.XmaxState = uint32(XS_NULL)
+        file.IsShared = false 
 
 				log.Println("insert file:", file)
 				err = kvOp.WritePB(&key, &file)
