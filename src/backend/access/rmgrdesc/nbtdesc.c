@@ -36,13 +36,13 @@ out_insert(StringInfo buf, uint8 info, XLogReaderState *record)
 
 	if (fullpage && info == XLOG_BTREE_INSERT_LEAF)
 	{
-		appendStringInfo(buf, "; page %u", blkno);
+		appendStringInfo(buf, "; page %lu", blkno);
 		return;					/* nothing to do */
 	}
 
 	if (!fullpage)
 	{
-		appendStringInfo(buf, "; add length %d item at offset %d in page %u",
+		appendStringInfo(buf, "; add length %d item at offset %d in page %lu",
 						 (int) datalen, xlrec->offnum, blkno);
 	}
 
@@ -50,7 +50,7 @@ out_insert(StringInfo buf, uint8 info, XLogReaderState *record)
 	{
 		ptr = XLogRecGetBlockData(record, 2, NULL);
 		md = (xl_btree_metadata *)ptr;
-		appendStringInfo(buf, "; restore metadata page 0 (root page value %u, level %d, fastroot page value %u, fastlevel %d)",
+		appendStringInfo(buf, "; restore metadata page 0 (root page value %lu, level %d, fastroot page value %lu, fastlevel %d)",
 						 md->root, 
 						 md->level,
 						 md->fastroot, 
@@ -113,7 +113,7 @@ btree_desc(StringInfo buf, XLogReaderState *record)
 			{
 				xl_btree_vacuum *xlrec = (xl_btree_vacuum *) rec;
 
-				appendStringInfo(buf, "lastBlockVacuumed %u",
+				appendStringInfo(buf, "lastBlockVacuumed %lu",
 								 xlrec->lastBlockVacuumed);
 				break;
 			}
@@ -130,7 +130,7 @@ btree_desc(StringInfo buf, XLogReaderState *record)
 			{
 				xl_btree_mark_page_halfdead *xlrec = (xl_btree_mark_page_halfdead *) rec;
 
-				appendStringInfo(buf, "topparent %u; leaf %u; left %u; right %u",
+				appendStringInfo(buf, "topparent %lu; leaf %lu; left %lu; right %lu",
 								 xlrec->topparent, xlrec->leafblk, xlrec->leftblk, xlrec->rightblk);
 				break;
 			}
@@ -139,10 +139,10 @@ btree_desc(StringInfo buf, XLogReaderState *record)
 			{
 				xl_btree_unlink_page *xlrec = (xl_btree_unlink_page *) rec;
 
-				appendStringInfo(buf, "left %u; right %u; btpo_xact %u; ",
+				appendStringInfo(buf, "left %lu; right %lu; btpo_xact %u; ",
 								 xlrec->leftsib, xlrec->rightsib,
 								 xlrec->btpo_xact);
-				appendStringInfo(buf, "leafleft %u; leafright %u; topparent %u",
+				appendStringInfo(buf, "leafleft %lu; leafright %lu; topparent %lu",
 								 xlrec->leafleftsib, xlrec->leafrightsib,
 								 xlrec->topparent);
 				break;

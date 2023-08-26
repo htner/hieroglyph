@@ -820,7 +820,7 @@ ExecDelete(ModifyTableState *mtstate,
 	 */
 	if (segid != GpIdentity.segindex)
 		elog(ERROR,
-			 "distribution key of the tuple (%u, %u) doesn't belong to "
+			 "distribution key of the tuple (%lu, %u) doesn't belong to "
 			 "current segment (actually from seg%d)",
 			 BlockIdGetBlockNumber(&(tupleid->ip_blkid)),
 			 tupleid->ip_posid,
@@ -1259,7 +1259,7 @@ ExecUpdate(ModifyTableState *mtstate,
 	 */
 	if (segid != GpIdentity.segindex)
 		elog(ERROR,
-			 "distribution key of the tuple (%u, %u) doesn't belong to "
+			 "distribution key of the tuple (%lu, %u) doesn't belong to "
 			 "current segment (actually from seg%d)",
 			 BlockIdGetBlockNumber(&(tupleid->ip_blkid)),
 			 tupleid->ip_posid,

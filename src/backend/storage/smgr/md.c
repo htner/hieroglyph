@@ -415,7 +415,7 @@ mdunlinkfork(RelFileNodeBackend rnode, ForkNumber forkNum, bool isRedo)
 		 */
 		for (segno = 1;; segno++)
 		{
-			sprintf(segpath, "%s.%u", path, segno);
+			sprintf(segpath, "%s.%lu", path, segno);
 
 			if (!RelFileNodeBackendIsTemp(rnode))
 			{
@@ -480,7 +480,7 @@ mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	if (blocknum == InvalidBlockNumber)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("cannot extend file \"%s\" beyond %u blocks",
+				 errmsg("cannot extend file \"%s\" beyond %lu blocks",
 						relpath(reln->smgr_rnode, forknum),
 						InvalidBlockNumber)));
 
@@ -501,7 +501,7 @@ mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		/* short write: complain appropriately */
 		ereport(ERROR,
 				(errcode(ERRCODE_DISK_FULL),
-				 errmsg("could not extend file \"%s\": wrote only %d of %d bytes at block %u",
+				 errmsg("could not extend file \"%s\": wrote only %d of %d bytes at block %lu",
 						FilePathName(v->mdfd_vfd),
 						nbytes, BLCKSZ, blocknum),
 				 errhint("Check free disk space.")));
@@ -697,7 +697,7 @@ mdread(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		if (nbytes < 0)
 			ereport(ERROR,
 					(errcode_for_file_access(),
-					 errmsg("could not read block %u in file \"%s\": %m",
+					 errmsg("could not read block %lu in file \"%s\": %m",
 							blocknum, FilePathName(v->mdfd_vfd))));
 
 		/*
@@ -713,7 +713,7 @@ mdread(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		else
 			ereport(PANIC,
 					(errcode(ERRCODE_DATA_CORRUPTED),
-					 errmsg("could not read block %u in file \"%s\": read only %d of %d bytes",
+					 errmsg("could not read block %lu in file \"%s\": read only %d of %d bytes",
 							blocknum, FilePathName(v->mdfd_vfd),
 							nbytes, BLCKSZ)));
 	}
@@ -767,12 +767,12 @@ mdwrite(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		if (nbytes < 0)
 			ereport(ERROR,
 					(errcode_for_file_access(),
-					 errmsg("could not write block %u in file \"%s\": %m",
+					 errmsg("could not write block %lu in file \"%s\": %m",
 							blocknum, FilePathName(v->mdfd_vfd))));
 		/* short write: complain appropriately */
 		ereport(ERROR,
 				(errcode(ERRCODE_DISK_FULL),
-				 errmsg("could not write block %u in file \"%s\": wrote only %d of %d bytes",
+				 errmsg("could not write block %lu in file \"%s\": wrote only %d of %d bytes",
 						blocknum,
 						FilePathName(v->mdfd_vfd),
 						nbytes, BLCKSZ),
@@ -864,7 +864,7 @@ mdtruncate(SMgrRelation reln, ForkNumber forknum, BlockNumber nblocks)
 		if (InRecovery)
 			return;
 		ereport(ERROR,
-				(errmsg("could not truncate file \"%s\" to %u blocks: it's only %u blocks now",
+				(errmsg("could not truncate file \"%s\" to %lu blocks: it's only %lu blocks now",
 						relpath(reln->smgr_rnode, forknum),
 						nblocks, curnblk)));
 	}
@@ -920,7 +920,7 @@ mdtruncate(SMgrRelation reln, ForkNumber forknum, BlockNumber nblocks)
 			if (FileTruncate(v->mdfd_vfd, (off_t) lastsegblocks * BLCKSZ, WAIT_EVENT_DATA_FILE_TRUNCATE) < 0)
 				ereport(ERROR,
 						(errcode_for_file_access(),
-						 errmsg("could not truncate file \"%s\" to %u blocks: %m",
+						 errmsg("could not truncate file \"%s\" to %lu blocks: %m",
 								FilePathName(v->mdfd_vfd),
 								nblocks)));
 			if (!SmgrIsTemp(reln))
@@ -1181,7 +1181,7 @@ _mdfd_segpath(SMgrRelation reln, ForkNumber forknum, BlockNumber segno)
 
 	if (segno > 0)
 	{
-		fullpath = psprintf("%s.%u", path, segno);
+		fullpath = psprintf("%s.%lu", path, segno);
 		pfree(path);
 	}
 	else
@@ -1336,7 +1336,7 @@ _mdfd_getseg(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 
 			ereport(ERROR,
 					(errcode_for_file_access(),
-					 errmsg("could not open file \"%s\" (target block %u): previous segment is only %u blocks",
+					 errmsg("could not open file \"%s\" (target block %lu): previous segment is only %lu blocks",
 							_mdfd_segpath(reln, forknum, nextsegno),
 							blkno, nblocks)));
 		}
@@ -1350,7 +1350,7 @@ _mdfd_getseg(SMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 				return NULL;
 			ereport(ERROR,
 					(errcode_for_file_access(),
-					 errmsg("could not open file \"%s\" (target block %u): %m",
+					 errmsg("could not open file \"%s\" (target block %lu): %m",
 							_mdfd_segpath(reln, forknum, nextsegno),
 							blkno)));
 		}

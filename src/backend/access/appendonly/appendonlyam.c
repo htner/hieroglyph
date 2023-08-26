@@ -342,7 +342,7 @@ SetCurrentFileSegForWrite(AppendOnlyInsertDesc aoInsertDesc)
 
 	/* Never insert into a segment that is awaiting a drop */
 	if (aoInsertDesc->fsInfo->state == AOSEG_STATE_AWAITING_DROP)
-		elog(ERROR, "cannot insert into segno (%d) from AO relid %u that is in state AOSEG_STATE_AWAITING_DROP",
+		elog(ERROR, "cannot insert into segno (%ld) from AO relid %u that is in state AOSEG_STATE_AWAITING_DROP",
 			 aoInsertDesc->cur_segno, RelationGetRelid(aoInsertDesc->aoi_rel));
 
 	fsinfo = aoInsertDesc->fsInfo;
@@ -426,7 +426,7 @@ CloseWritableFileSeg(AppendOnlyInsertDesc aoInsertDesc)
 	aoInsertDesc->fsInfo = NULL;
 
 	elogif(Debug_appendonly_print_insert, LOG,
-		   "Append-only scan closed write file segment #%d for table %s "
+		   "Append-only scan closed write file segment #%ld for table %s "
 		   "(file length " INT64_FORMAT ", insert count " INT64_FORMAT ", VarBlock count " INT64_FORMAT,
 		   aoInsertDesc->cur_segno,
 		   NameStr(aoInsertDesc->aoi_rel->rd_rel->relname),
@@ -2597,7 +2597,7 @@ appendonly_insert_init(Relation rel, int segno, int64 num_rows)
 	aoInsertDesc->storageWrite.verifyWriteCompressionState = verifyCs;
 
 	elogif(Debug_appendonly_print_insert, LOG,
-		   "Append-only insert initialize for table '%s' segment file %u "
+		   "Append-only insert initialize for table '%s' segment file %lu "
 		   "(compression = %s, compression type %s, compression level %d)",
 		   NameStr(aoInsertDesc->aoi_rel->rd_rel->relname),
 		   aoInsertDesc->cur_segno,

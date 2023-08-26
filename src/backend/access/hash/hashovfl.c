@@ -84,7 +84,7 @@ _hash_ovflblkno_to_bitno(HashMetaPage metap, BlockNumber ovflblkno)
 
 	ereport(ERROR,
 			(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-			 errmsg("invalid overflow block number %u", ovflblkno)));
+			 errmsg("invalid overflow block number %lu", ovflblkno)));
 	return 0;					/* keep compiler quiet */
 }
 

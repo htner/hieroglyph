@@ -1012,7 +1012,7 @@ _bitmap_log_lovitem(Relation rel, ForkNumber fork, Buffer lovBuffer, OffsetNumbe
 
 	PageSetLSN(lovPage, recptr);
 
-	elog(DEBUG1, "Insert a new lovItem at (blockno, offset): (%d,%d)",
+	elog(DEBUG1, "Insert a new lovItem at (blockno, offset): (%ld,%d)",
 		 BufferGetBlockNumber(lovBuffer), offset);
 }
 
@@ -1125,7 +1125,7 @@ _bitmap_log_updateword(Relation rel, Buffer bitmapBuffer, int word_no)
 	xlBitmapWord.bm_hword = bitmap->hwords[word_no/BM_HRL_WORD_SIZE];
 
 	elog(DEBUG1, "_bitmap_log_updateword: (blkno, word_no, cword, hword)="
-		 "(%d, %d, " INT64_FORMAT ", " INT64_FORMAT ")", xlBitmapWord.bm_blkno,
+		 "(%ld, %d, " INT64_FORMAT ", " INT64_FORMAT ")", xlBitmapWord.bm_blkno,
 		 xlBitmapWord.bm_word_no, xlBitmapWord.bm_cword,
 		 xlBitmapWord.bm_hword);
 

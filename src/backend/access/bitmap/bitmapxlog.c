@@ -39,7 +39,7 @@ _bitmap_xlog_insert_lovitem(XLogRecPtr lsn, XLogReaderState *record)
 		if (PageIsNew(lovPage))
 			_bitmap_init_lovpage(NULL, lovBuffer);
 
-		elog(DEBUG1, "In redo, processing a lovItem: (blockno, offset)=(%d,%d)",
+		elog(DEBUG1, "In redo, processing a lovItem: (blockno, offset)=(%ld,%d)",
 				xlrec->bm_lov_blkno, xlrec->bm_lov_offset);
 
 		OffsetNumber	newOffset, itemSize;
@@ -63,7 +63,7 @@ _bitmap_xlog_insert_lovitem(XLogRecPtr lsn, XLogReaderState *record)
 		itemSize = sizeof(BMLOVItemData);
 		if (itemSize > PageGetFreeSpace(lovPage))
 			elog(PANIC,
-					"_bitmap_xlog_insert_lovitem: not enough space in LOV page %d",
+					"_bitmap_xlog_insert_lovitem: not enough space in LOV page %ld",
 					xlrec->bm_lov_blkno);
 
 		if (PageAddItem(lovPage, (Item)&(xlrec->bm_lovItem), itemSize,
@@ -344,7 +344,7 @@ _bitmap_xlog_updateword(XLogRecPtr lsn, XLogReaderState *record)
 	xlrec = (xl_bm_updateword *) XLogRecGetData(record);
 
 	elog(DEBUG1, "_bitmap_xlog_updateword: (blkno, word_no, cword, hword)="
-		 "(%d, %d, " INT64_FORMAT ", " INT64_FORMAT ")", xlrec->bm_blkno,
+		 "(%ld, %d, " INT64_FORMAT ", " INT64_FORMAT ")", xlrec->bm_blkno,
 		 xlrec->bm_word_no, xlrec->bm_cword,
 		 xlrec->bm_hword);
 
@@ -374,8 +374,8 @@ _bitmap_xlog_updatewords(XLogRecPtr lsn, XLogReaderState *record)
 
 	xlrec = (xl_bm_updatewords *) XLogRecGetData(record);
 	elog(DEBUG1, "_bitmap_xlog_updatewords: (first_blkno, num_cwords, last_tid, next_blkno)="
-			"(%d, " INT64_FORMAT ", " INT64_FORMAT ", %d), (second_blkno, num_cwords, last_tid, next_blkno)="
-			"(%d, " INT64_FORMAT ", " INT64_FORMAT ", %d)",
+			"(%ld, " INT64_FORMAT ", " INT64_FORMAT ", %ld), (second_blkno, num_cwords, last_tid, next_blkno)="
+			"(%ld, " INT64_FORMAT ", " INT64_FORMAT ", %ld)",
 			xlrec->bm_first_blkno, xlrec->bm_first_num_cwords, xlrec->bm_first_last_tid,
 			xlrec->bm_two_pages ? xlrec->bm_second_blkno : xlrec->bm_next_blkno,
 			xlrec->bm_second_blkno, xlrec->bm_second_num_cwords,

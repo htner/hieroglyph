@@ -85,7 +85,7 @@ hash_desc(StringInfo buf, XLogReaderState *record)
 			{
 				xl_hash_squeeze_page *xlrec = (xl_hash_squeeze_page *) rec;
 
-				appendStringInfo(buf, "prevblkno %u, nextblkno %u, ntups %d, is_primary %c",
+				appendStringInfo(buf, "prevblkno %lu, nextblkno %lu, ntups %d, is_primary %c",
 								 xlrec->prevblkno,
 								 xlrec->nextblkno,
 								 xlrec->ntups,

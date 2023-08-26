@@ -2581,7 +2581,7 @@ _bt_check_third_page(Relation rel, Relation heap, bool needheaptidspace,
 					needheaptidspace ? BTMaxItemSize(page) :
 					BTMaxItemSizeNoHeapTid(page),
 					RelationGetRelationName(rel)),
-			 errdetail("Index row references tuple (%u,%u) in relation \"%s\".",
+			 errdetail("Index row references tuple (%lu,%u) in relation \"%s\".",
 					   ItemPointerGetBlockNumber(&newtup->t_tid),
 					   ItemPointerGetOffsetNumber(&newtup->t_tid),
 					   RelationGetRelationName(heap)),

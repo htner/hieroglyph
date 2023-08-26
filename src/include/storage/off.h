@@ -21,12 +21,12 @@
  * this is a 1-based index into the linp (ItemIdData) array in the
  * header of each disk page.
  */
-typedef uint16 OffsetNumber;
+typedef uint32 OffsetNumber;
 
 #define InvalidOffsetNumber		((OffsetNumber) 0)
 #define FirstOffsetNumber		((OffsetNumber) 1)
 #define MaxOffsetNumber			((OffsetNumber) (BLCKSZ / sizeof(ItemIdData)))
-#define OffsetNumberMask		(0xffff)	/* valid uint16 bits */
+#define OffsetNumberMask		(0xffffffff)	/* valid uint16 bits */
 
 /* ----------------
  *		support macros

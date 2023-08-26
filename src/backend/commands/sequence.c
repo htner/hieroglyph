@@ -431,7 +431,7 @@ fill_seq_with_data(Relation rel, HeapTuple tuple)
 	HeapTupleHeaderSetCmin(tuple->t_data, FirstCommandId);
 	HeapTupleHeaderSetXmax(tuple->t_data, InvalidTransactionId);
 	tuple->t_data->t_infomask |= HEAP_XMAX_INVALID;
-	ItemPointerSet(&tuple->t_data->t_ctid, 0, FirstOffsetNumber);
+	ItemPointerSet(&tuple->t_data->t_ctid, (uint64)0, FirstOffsetNumber);
 
 	/* check the comment above nextval_internal()'s equivalent call. */
 	if (RelationNeedsWAL(rel))

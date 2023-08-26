@@ -155,7 +155,7 @@ get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 	if (blkno >= RelationGetNumberOfBlocksInFork(rel, forknum))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("block number %u is out of range for relation \"%s\"",
+				 errmsg("block number %lu is out of range for relation \"%s\"",
 						blkno, RelationGetRelationName(rel))));
 
 	/* Initialize buffer to copy to */

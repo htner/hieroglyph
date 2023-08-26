@@ -226,8 +226,8 @@ bt_page_stats(PG_FUNCTION_ARGS)
 	values[j++] = psprintf("%d", stat.avg_item_size);
 	values[j++] = psprintf("%d", stat.page_size);
 	values[j++] = psprintf("%d", stat.free_size);
-	values[j++] = psprintf("%d", stat.btpo_prev);
-	values[j++] = psprintf("%d", stat.btpo_next);
+	values[j++] = psprintf("%ld", stat.btpo_prev);
+	values[j++] = psprintf("%ld", stat.btpo_next);
 	values[j++] = psprintf("%d", (stat.type == 'd') ? stat.btpo.xact : stat.btpo.level);
 	values[j++] = psprintf("%d", stat.btpo_flags);
 
@@ -277,7 +277,7 @@ bt_page_print_tuples(FuncCallContext *fctx, Page page, OffsetNumber offset)
 
 	j = 0;
 	values[j++] = psprintf("%d", offset);
-	values[j++] = psprintf("(%u,%u)",
+	values[j++] = psprintf("(%lu,%u)",
 						   ItemPointerGetBlockNumberNoCheck(&itup->t_tid),
 						   ItemPointerGetOffsetNumberNoCheck(&itup->t_tid));
 	values[j++] = psprintf("%d", (int) IndexTupleSize(itup));
@@ -570,9 +570,9 @@ bt_metap(PG_FUNCTION_ARGS)
 	j = 0;
 	values[j++] = psprintf("%d", metad->btm_magic);
 	values[j++] = psprintf("%d", metad->btm_version);
-	values[j++] = psprintf("%d", metad->btm_root);
+	values[j++] = psprintf("%ld", metad->btm_root);
 	values[j++] = psprintf("%d", metad->btm_level);
-	values[j++] = psprintf("%d", metad->btm_fastroot);
+	values[j++] = psprintf("%ld", metad->btm_fastroot);
 	values[j++] = psprintf("%d", metad->btm_fastlevel);
 
 	/*

@@ -219,7 +219,7 @@ RelationAddExtraBlocks(Relation relation, BulkInsertState bistate)
 		page = BufferGetPage(buffer);
 
 		if (!PageIsNew(page))
-			elog(ERROR, "page %u of relation \"%s\" should be empty but is not",
+			elog(ERROR, "page %lu of relation \"%s\" should be empty but is not",
 				 BufferGetBlockNumber(buffer),
 				 RelationGetRelationName(relation));
 
@@ -605,7 +605,7 @@ loop:
 	page = BufferGetPage(buffer);
 
 	if (!PageIsNew(page))
-		elog(ERROR, "page %u of relation \"%s\" should be empty but is not",
+		elog(ERROR, "page %lu of relation \"%s\" should be empty but is not",
 			 BufferGetBlockNumber(buffer),
 			 RelationGetRelationName(relation));
 

@@ -142,7 +142,7 @@ _bitmap_next(IndexScanDesc scan, ScanDirection dir  pg_attribute_unused())
 
 	Assert((nextTid % BM_MAX_TUPLES_PER_PAGE) + 1 > 0);
 
-	ItemPointerSet(&(scan->xs_heaptid), BM_INT_GET_BLOCKNO(nextTid),
+	ItemPointerSet(&(scan->xs_heaptid), (uint64)(BM_INT_GET_BLOCKNO(nextTid)),
 				   BM_INT_GET_OFFSET(nextTid));
 	so->cur_pos_valid = true;
 

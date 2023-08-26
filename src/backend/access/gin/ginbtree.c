@@ -678,7 +678,7 @@ ginFinishSplit(GinBtree btree, GinBtreeStack *stack, bool freestack,
 	 * split is finished right after the initial insert.
 	 */
 	if (!freestack)
-		elog(DEBUG1, "finishing incomplete split of block %u in gin index \"%s\"",
+		elog(DEBUG1, "finishing incomplete split of block %lu in gin index \"%s\"",
 			 stack->blkno, RelationGetRelationName(btree->index));
 
 	/* this loop crawls up the stack until the insertion is complete */
