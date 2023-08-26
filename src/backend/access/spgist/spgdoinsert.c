@@ -2062,7 +2062,7 @@ spgdoinsert(Relation index, SpGistState *state,
 		/* should not arrive at a page of the wrong type */
 		if (isnull ? !SpGistPageStoresNulls(current.page) :
 			SpGistPageStoresNulls(current.page))
-			elog(ERROR, "SPGiST index page %u has wrong nulls flag",
+			elog(ERROR, "SPGiST index page %lu has wrong nulls flag",
 				 current.blkno);
 
 		if (SpGistPageIsLeaf(current.page))

@@ -1423,6 +1423,7 @@ ReserveXLogSwitch(XLogRecPtr *StartPos, XLogRecPtr *EndPos, XLogRecPtr *PrevPtr)
 static void
 checkXLogConsistency(XLogReaderState *record)
 {
+#ifdef SDB_NOUSE_XLOG
 	RmgrId		rmid = XLogRecGetRmid(record);
 	RelFileNode rnode;
 	ForkNumber	forknum;
@@ -1518,6 +1519,7 @@ checkXLogConsistency(XLogReaderState *record)
 				 forknum, blkno);
 		}
 	}
+#endif
 }
 
 /*

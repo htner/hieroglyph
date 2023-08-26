@@ -3334,7 +3334,7 @@ autovac_report_workitem(AutoVacuumWorkItem *workitem,
 	len = strlen(activity);
 
 	if (BlockNumberIsValid(workitem->avw_blockNumber))
-		snprintf(blk, sizeof(blk), " %u", workitem->avw_blockNumber);
+		snprintf(blk, sizeof(blk), " %lu", workitem->avw_blockNumber);
 	else
 		blk[0] = '\0';
 

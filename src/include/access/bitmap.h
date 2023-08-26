@@ -83,7 +83,7 @@ typedef BMMetaPageData *BMMetaPage;
  * we use the maximum possible offset number here.
  */
 #define BM_MAX_TUPLES_PER_PAGE \
-	(((((1 << (8 * sizeof(OffsetNumber))) - 1) / BM_HRL_WORD_SIZE) + 1) * \
+	((((((uint64)1 << (8 * sizeof(OffsetNumber))) - 1) / BM_HRL_WORD_SIZE) + 1) * \
 	BM_HRL_WORD_SIZE)
 
 /*

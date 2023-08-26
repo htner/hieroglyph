@@ -205,7 +205,7 @@ _bt_validate_tid(Relation irel, ItemPointer h_tid)
 			minoff,
 			offnum;
 
-	elog(DEBUG1, "validating tid (%d,%d) for index (%s)",
+	elog(DEBUG1, "validating tid (%ld,%d) for index (%s)",
 		 ItemPointerGetBlockNumber(h_tid), ItemPointerGetOffsetNumber(h_tid),
 		 RelationGetRelationName(irel));
 
@@ -238,13 +238,13 @@ _bt_validate_tid(Relation irel, ItemPointer h_tid)
 					{
 						key = DatumGetInt32(
 								index_getattr(itup, 1, RelationGetDescr(irel), &isnull));
-						elog(ERROR, "found tid (%d,%d), %s (%d) already in index (%s)",
+						elog(ERROR, "found tid (%ld,%d), %s (%d) already in index (%s)",
 							 ItemPointerGetBlockNumber(h_tid), ItemPointerGetOffsetNumber(h_tid),
 							 NameStr(key_att->attname), key, RelationGetRelationName(irel));
 					}
 					else
 					{
-						elog(ERROR, "found tid (%d,%d) already in index (%s)",
+						elog(ERROR, "found tid (%ld,%d) already in index (%s)",
 							 ItemPointerGetBlockNumber(h_tid), ItemPointerGetOffsetNumber(h_tid),
 							 RelationGetRelationName(irel));
 					}

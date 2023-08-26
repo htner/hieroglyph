@@ -464,7 +464,7 @@ _bt_getroot(Relation rel, int access)
 
 		/* Note: can't check btpo.level on deleted pages */
 		if (rootopaque->btpo.level != rootlevel)
-			elog(ERROR, "root page %u of index \"%s\" has level %u, expected %u",
+			elog(ERROR, "root page %lu of index \"%s\" has level %u, expected %u",
 				 rootblkno, RelationGetRelationName(rel),
 				 rootopaque->btpo.level, rootlevel);
 	}
@@ -568,7 +568,7 @@ _bt_gettrueroot(Relation rel)
 
 	/* Note: can't check btpo.level on deleted pages */
 	if (rootopaque->btpo.level != rootlevel)
-		elog(ERROR, "root page %u of index \"%s\" has level %u, expected %u",
+		elog(ERROR, "root page %lu of index \"%s\" has level %u, expected %u",
 			 rootblkno, RelationGetRelationName(rel),
 			 rootopaque->btpo.level, rootlevel);
 
@@ -706,7 +706,7 @@ _bt_checkpage(Relation rel, Buffer buf)
 	if (PageIsNew(page))
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-				 errmsg("index \"%s\" contains unexpected zero page at block %u",
+				 errmsg("index \"%s\" contains unexpected zero page at block %lu",
 						RelationGetRelationName(rel),
 						BufferGetBlockNumber(buf)),
 				 errhint("Please REINDEX it.")));
@@ -717,7 +717,7 @@ _bt_checkpage(Relation rel, Buffer buf)
 	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BTPageOpaqueData)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-				 errmsg("index \"%s\" contains corrupted page at block %u",
+				 errmsg("index \"%s\" contains corrupted page at block %lu",
 						RelationGetRelationName(rel),
 						BufferGetBlockNumber(buf)),
 				 errhint("Please REINDEX it.")));
@@ -1198,7 +1198,7 @@ _bt_lock_branch_parent(Relation rel, BlockNumber child, BTStack stack,
 	stack->bts_btentry = child;
 	pbuf = _bt_getstackbuf(rel, stack);
 	if (pbuf == InvalidBuffer)
-		elog(ERROR, "failed to re-find parent key in index \"%s\" for deletion target page %u",
+		elog(ERROR, "failed to re-find parent key in index \"%s\" for deletion target page %lu",
 			 RelationGetRelationName(rel), child);
 	parent = stack->bts_blkno;
 	poffset = stack->bts_offset;
@@ -1380,7 +1380,7 @@ _bt_pagedel(Relation rel, Buffer leafbuf, TransactionId *oldestBtpoXact)
 			if (P_ISDELETED(opaque))
 				ereport(LOG,
 						(errcode(ERRCODE_INDEX_CORRUPTED),
-						 errmsg_internal("found deleted block %u while following right link from block %u in index \"%s\"",
+						 errmsg_internal("found deleted block %lu while following right link from block %lu in index \"%s\"",
 										 BufferGetBlockNumber(leafbuf),
 										 scanblkno,
 										 RelationGetRelationName(rel))));
@@ -1617,7 +1617,7 @@ _bt_mark_page_halfdead(Relation rel, Buffer leafbuf, BTStack stack)
 	 */
 	if (_bt_is_page_halfdead(rel, leafrightsib))
 	{
-		elog(DEBUG1, "could not delete page %u because its right sibling %u is half-dead",
+		elog(DEBUG1, "could not delete page %lu because its right sibling %lu is half-dead",
 			 leafblkno, leafrightsib);
 		return false;
 	}
@@ -1669,7 +1669,7 @@ _bt_mark_page_halfdead(Relation rel, Buffer leafbuf, BTStack stack)
 	itemid = PageGetItemId(page, nextoffset);
 	itup = (IndexTuple) PageGetItem(page, itemid);
 	if (BTreeInnerTupleGetDownLink(itup) != rightsib)
-		elog(ERROR, "right sibling %u of block %u is not next child %u of block %u in index \"%s\"",
+		elog(ERROR, "right sibling %lu of block %lu is not next child %lu of block %lu in index \"%s\"",
 			 rightsib, target, BTreeInnerTupleGetDownLink(itup),
 			 BufferGetBlockNumber(topparent), RelationGetRelationName(rel));
 
@@ -1904,7 +1904,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 
 			if (leftsib == P_NONE)
 			{
-				elog(LOG, "no left sibling (concurrent deletion?) of block %u in \"%s\"",
+				elog(LOG, "no left sibling (concurrent deletion?) of block %lu in \"%s\"",
 					 target,
 					 RelationGetRelationName(rel));
 				if (target != leafblkno)
@@ -1944,18 +1944,18 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	 */
 	if (P_RIGHTMOST(opaque) || P_ISROOT(opaque) || P_ISDELETED(opaque))
 	{
-		elog(ERROR, "half-dead page changed status unexpectedly in block %u of index \"%s\"",
+		elog(ERROR, "half-dead page changed status unexpectedly in block %lu of index \"%s\"",
 			 target, RelationGetRelationName(rel));
 	}
 	if (opaque->btpo_prev != leftsib)
-		elog(ERROR, "left link changed unexpectedly in block %u of index \"%s\"",
+		elog(ERROR, "left link changed unexpectedly in block %lu of index \"%s\"",
 			 target, RelationGetRelationName(rel));
 
 	if (target == leafblkno)
 	{
 		if (P_FIRSTDATAKEY(opaque) <= PageGetMaxOffsetNumber(page) ||
 			!P_ISLEAF(opaque) || !P_ISHALFDEAD(opaque))
-			elog(ERROR, "half-dead page changed status unexpectedly in block %u of index \"%s\"",
+			elog(ERROR, "half-dead page changed status unexpectedly in block %lu of index \"%s\"",
 				 target, RelationGetRelationName(rel));
 		nextchild = InvalidBlockNumber;
 	}
@@ -1963,7 +1963,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	{
 		if (P_FIRSTDATAKEY(opaque) != PageGetMaxOffsetNumber(page) ||
 			P_ISLEAF(opaque))
-			elog(ERROR, "half-dead page changed status unexpectedly in block %u of index \"%s\"",
+			elog(ERROR, "half-dead page changed status unexpectedly in block %lu of index \"%s\"",
 				 target, RelationGetRelationName(rel));
 
 		/* remember the next non-leaf child down in the branch. */
@@ -1982,7 +1982,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	opaque = (BTPageOpaque) PageGetSpecialPointer(page);
 	if (opaque->btpo_prev != target)
 		elog(ERROR, "right sibling's left-link doesn't match: "
-			 "block %u links to %u instead of expected %u in index \"%s\"",
+			 "block %lu links to %lu instead of expected %lu in index \"%s\"",
 			 rightsib, opaque->btpo_prev, target,
 			 RelationGetRelationName(rel));
 	rightsib_is_rightmost = P_RIGHTMOST(opaque);

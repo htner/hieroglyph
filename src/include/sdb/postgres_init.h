@@ -24,4 +24,10 @@ void prepare_catalog(Oid *oid_arr, int size);
 
 PlannedStmt *utility_optimizer(Query *query);
 
+void FetchRelationOidFromQuery(Query *query, List **read_list, List **insert_list, List **update_lsit, List **delete_list);
+
+PlannedStmt *utility_optimizer(Query *query);
+
+void prepare_catalog(Oid *oid_arr, int size);
+
 #endif

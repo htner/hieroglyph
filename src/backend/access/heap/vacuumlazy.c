@@ -423,7 +423,7 @@ lazy_vacuum_rel_heap(Relation onerel, VacuumParams *params,
 							 get_namespace_name(RelationGetNamespace(onerel)),
 							 RelationGetRelationName(onerel),
 							 vacrelstats->num_index_scans);
-			appendStringInfo(&buf, _("pages: %u removed, %u remain, %u skipped due to pins, %u skipped frozen\n"),
+			appendStringInfo(&buf, _("pages: %lu removed, %lu remain, %lu skipped due to pins, %lu skipped frozen\n"),
 							 vacrelstats->pages_removed,
 							 vacrelstats->rel_pages,
 							 vacrelstats->pinskipped_pages,
@@ -1331,7 +1331,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 		else if (all_visible_according_to_vm && !PageIsAllVisible(page)
 				 && VM_ALL_VISIBLE(onerel, blkno, &vmbuffer))
 		{
-			elog(WARNING, "page is not marked all-visible but visibility map bit is set in relation \"%s\" page %u",
+			elog(WARNING, "page is not marked all-visible but visibility map bit is set in relation \"%s\" page %lu",
 				 relname, blkno);
 			visibilitymap_clear(onerel, blkno, vmbuffer,
 								VISIBILITYMAP_VALID_BITS);
@@ -1352,7 +1352,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 		 */
 		else if (PageIsAllVisible(page) && has_dead_tuples)
 		{
-			elog(WARNING, "page containing dead tuples is marked as all-visible in relation \"%s\" page %u",
+			elog(WARNING, "page containing dead tuples is marked as all-visible in relation \"%s\" page %lu",
 				 relname, blkno);
 			PageClearAllVisible(page);
 			MarkBufferDirty(buf);
@@ -1483,7 +1483,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 	/* If no indexes, make log report that lazy_vacuum_heap would've made */
 	if (vacuumed_pages)
 		ereport(elevel,
-				(errmsg("\"%s\": removed %.0f row versions in %u pages",
+				(errmsg("\"%s\": removed %.0f row versions in %lu pages",
 						RelationGetRelationName(onerel),
 						tups_vacuumed, vacuumed_pages)));
 
@@ -1497,22 +1497,22 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 					 nkeep, OldestXmin);
 	appendStringInfo(&buf, _("There were %.0f unused item identifiers.\n"),
 					 nunused);
-	appendStringInfo(&buf, ngettext("Skipped %u page due to buffer pins, ",
-									"Skipped %u pages due to buffer pins, ",
+	appendStringInfo(&buf, ngettext("Skipped %lu page due to buffer pins, ",
+									"Skipped %lu pages due to buffer pins, ",
 									vacrelstats->pinskipped_pages),
 					 vacrelstats->pinskipped_pages);
-	appendStringInfo(&buf, ngettext("%u frozen page.\n",
-									"%u frozen pages.\n",
+	appendStringInfo(&buf, ngettext("%lu frozen page.\n",
+									"%lu frozen pages.\n",
 									vacrelstats->frozenskipped_pages),
 					 vacrelstats->frozenskipped_pages);
-	appendStringInfo(&buf, ngettext("%u page is entirely empty.\n",
-									"%u pages are entirely empty.\n",
+	appendStringInfo(&buf, ngettext("%lu page is entirely empty.\n",
+									"%lu pages are entirely empty.\n",
 									empty_pages),
 					 empty_pages);
 	appendStringInfo(&buf, _("%s."), pg_rusage_show(&ru0));
 
 	ereport(elevel,
-			(errmsg("\"%s\": found %.0f removable, %.0f nonremovable row versions in %u out of %u pages",
+			(errmsg("\"%s\": found %.0f removable, %.0f nonremovable row versions in %lu out of %lu pages",
 					RelationGetRelationName(onerel),
 					tups_vacuumed, num_tuples,
 					vacrelstats->scanned_pages, nblocks),
@@ -1826,12 +1826,12 @@ lazy_cleanup_index(Relation indrel,
 							true /* isvacuum */);
 
 	ereport(elevel,
-			(errmsg("index \"%s\" now contains %.0f row versions in %u pages",
+			(errmsg("index \"%s\" now contains %.0f row versions in %lu pages",
 					RelationGetRelationName(indrel),
 					stats->num_index_tuples,
 					stats->num_pages),
 			 errdetail("%.0f index row versions were removed.\n"
-					   "%u index pages have been deleted, %u are currently reusable.\n"
+					   "%lu index pages have been deleted, %lu are currently reusable.\n"
 					   "%s.",
 					   stats->tuples_removed,
 					   stats->pages_deleted, stats->pages_free,
@@ -1994,7 +1994,7 @@ lazy_truncate_heap(Relation onerel, LVRelStats *vacrelstats)
 		vacrelstats->rel_pages = new_rel_pages;
 
 		ereport(elevel,
-				(errmsg("\"%s\": truncated %u to %u pages",
+				(errmsg("\"%s\": truncated %lu to %lu pages",
 						RelationGetRelationName(onerel),
 						old_rel_pages, new_rel_pages),
 				 errdetail_internal("%s",

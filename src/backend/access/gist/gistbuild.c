@@ -866,7 +866,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 		 * number.
 		 */
 		if (*parentblkno == InvalidBlockNumber)
-			elog(ERROR, "no parent buffer provided of child %d", childblkno);
+			elog(ERROR, "no parent buffer provided of child %ld", childblkno);
 		parent = *parentblkno;
 	}
 
@@ -910,7 +910,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 		}
 	}
 
-	elog(ERROR, "failed to re-find parent for block %u", childblkno);
+	elog(ERROR, "failed to re-find parent for block %lu", childblkno);
 	return InvalidBuffer;		/* keep compiler quiet */
 }
 
@@ -1199,7 +1199,7 @@ gistGetParent(GISTBuildState *buildstate, BlockNumber child)
 										   HASH_FIND,
 										   &found);
 	if (!found)
-		elog(ERROR, "could not find parent of block %d in lookup table", child);
+		elog(ERROR, "could not find parent of block %ld in lookup table", child);
 
 	return entry->parentblkno;
 }

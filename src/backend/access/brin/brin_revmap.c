@@ -512,7 +512,7 @@ revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk)
 	mapBlk = revmap_get_blkno(revmap, heapBlk);
 
 	if (mapBlk == InvalidBlockNumber)
-		elog(ERROR, "revmap does not cover heap block %u", heapBlk);
+		elog(ERROR, "revmap does not cover heap block %lu", heapBlk);
 
 	/* Ensure the buffer we got is in the expected range */
 	Assert(mapBlk != BRIN_METAPAGE_BLKNO &&
@@ -698,7 +698,7 @@ revmap_physical_extend(BrinRevmap *revmap)
 	if (!PageIsNew(page) && !BRIN_IS_REGULAR_PAGE(page))
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-				 errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %u",
+				 errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %lu",
 						BrinPageType(page),
 						RelationGetRelationName(irel),
 						BufferGetBlockNumber(buf))));

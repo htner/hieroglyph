@@ -126,7 +126,7 @@ spgAddStartItem(SpGistScanOpaque so, bool isnull)
 	spgAllocSearchItem(so, isnull, so->zeroDistances);
 
 	ItemPointerSet(&startEntry->heapPtr,
-				   isnull ? SPGIST_NULL_BLKNO : SPGIST_ROOT_BLKNO,
+				   isnull ? (uint64)SPGIST_NULL_BLKNO : (uint64)SPGIST_ROOT_BLKNO,
 				   FirstOffsetNumber);
 	startEntry->isLeaf = false;
 	startEntry->level = 0;

@@ -372,7 +372,7 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 									PIV_LOG_WARNING | PIV_REPORT_STAT))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATA_CORRUPTED),
-					 errmsg("invalid page in block %u of relation %s",
+					 errmsg("invalid page in block %lu of relation %s",
 							blkno,
 							relpathbackend(src->smgr_rnode.node,
 										   src->smgr_rnode.backend,

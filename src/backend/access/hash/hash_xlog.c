@@ -175,6 +175,7 @@ hash_xlog_insert(XLogReaderState *record)
 static void
 hash_xlog_add_ovfl_page(XLogReaderState *record)
 {
+#ifdef SDB_NOUSE_XLOG
 	XLogRecPtr	lsn = record->EndRecPtr;
 	xl_hash_add_ovfl_page *xlrec = (xl_hash_add_ovfl_page *) XLogRecGetData(record);
 	Buffer		leftbuf;
@@ -306,6 +307,7 @@ hash_xlog_add_ovfl_page(XLogReaderState *record)
 	}
 	if (BufferIsValid(metabuf))
 		UnlockReleaseBuffer(metabuf);
+#endif
 }
 
 /*

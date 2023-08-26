@@ -181,7 +181,7 @@ insert_or_update_fastsequence(Relation gp_fastsequence_rel,
 		heap_inplace_update(gp_fastsequence_rel, newTuple);
 
 		elogif(Debug_appendonly_print_insert_tuple, LOG,
-			   "In-place update to gp_fastsequence (ctid, rel, segno, last_sequence): ((%u, %u), %u, %ld, %ld)",
+			   "In-place update to gp_fastsequence (ctid, rel, segno, last_sequence): ((%lu, %u), %u, %ld, %ld)",
 			   ItemPointerGetBlockNumberNoCheck(&newTuple->t_data->t_ctid),
 			   ItemPointerGetOffsetNumberNoCheck(&newTuple->t_data->t_ctid),
 			   objid,
