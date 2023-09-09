@@ -50,7 +50,7 @@ func (s *AccountServer) UserLogin(ctx context.Context, req *sdb.UserLoginRequest
 		return resp, nil
 	}
 
-	sess, err := lakehouse.CreateSession(uint64(db.Dbid), user.Id)
+	sess, err := lakehouse.CreateSession(db.Dbid, user.Id)
 	if err != nil {
 		resp.Rescode = "28000"
 		resp.Msg = "invalid_authorization_specification"
@@ -61,8 +61,8 @@ func (s *AccountServer) UserLogin(ctx context.Context, req *sdb.UserLoginRequest
 	resp.OrganizationId = user.OrganizationId
 	resp.SessionId = uint64(sess.Id)
 	// TODO
-	//resp.Dbid = db.Dbid
-	resp.Dbid = 1
+	resp.Dbid = db.Dbid
+	//resp.Dbid = 1
 
 	resp.Rescode = "00000"
 	log.Printf("get user %d", user.Id)

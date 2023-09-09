@@ -16,7 +16,7 @@ ifeq ($(UNAME), Linux)
 XARGS += -r
 endif
 XARGS += rm -r
-PROGRAMS = proxy schedule lake account stool
+PROGRAMS = proxy schedule lake account stool lockmgr
 
 bins=$(patsubst %,bin/%,$(PROGRAMS) )
 

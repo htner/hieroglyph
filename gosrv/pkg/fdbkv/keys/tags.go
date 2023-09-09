@@ -12,6 +12,7 @@ const (
 	LakeFileTag                uint16 = 22
 	CLOGTag                    uint16 = 23
 	FileListVersionTag         uint16 = 24
+	PotentialLockTag           uint16 = 25
 
 	QueryStatusTag          uint16 = 30
 	QueryRequestTag         uint16 = 31

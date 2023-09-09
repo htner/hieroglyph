@@ -46,6 +46,10 @@ func (Q *QueryHandler) prelock() error {
 }
 
 func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
+	// NewQueryId
+	newQueryId := uint64(time.Now().UnixMilli())
+	Q.newQueryId = newQueryId
+
 	Q.request = req
 	Q.sliceTable = new(sdb.PBSliceTable)
 	log.Println("get request ", req)
@@ -53,7 +57,7 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 
 	// start transtion
 	tr := lakehouse.NewTranscation(req.Dbid, req.Sid)
-  err := tr.Start(true)
+  err := tr.NewQuery(Q.newQueryId)
   if err != nil && err != lakehouse.ErrTransactionStarted {
     return 0, nil
   }
@@ -70,20 +74,17 @@ func (Q *QueryHandler) run(req *sdb.ExecQueryRequest) (uint64, error) {
 		Q.catalogFiles = append(Q.catalogFiles, relLakeList)
 	}
 
-	// NewQueryId
-	newQueryId := uint64(time.Now().UnixMilli())
-	Q.newQueryId = newQueryId
 
 	mgr := schedule.NewQueryMgr(uint64(req.Dbid))
 	err = mgr.WriterQueryDetail(req, newQueryId)
 	if err != nil {
 		return 0, err
 	}
-  go Q.runReal()
+  go Q.runReal(tr)
   return Q.newQueryId, nil
 }
 
-func (Q *QueryHandler) runReal() error {
+func (Q *QueryHandler) runReal(tr *lakehouse.Transaction) error {
   mgr := schedule.NewQueryMgr(Q.request.Dbid)
 
   isProcessedByUtility, err := Q.processUtility()
@@ -94,6 +95,7 @@ func (Q *QueryHandler) runReal() error {
 	err = Q.optimize()
 	if err != nil {
     mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryError), 1, "")
+    tr.Rollback()
 		return err
 	}
 
@@ -101,6 +103,7 @@ func (Q *QueryHandler) runReal() error {
 	if err != nil {
 		log.Printf("lock result error: %v", err)
     mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryError), 1, "")
+    tr.Rollback()
 		return err
 	}
 
@@ -108,6 +111,7 @@ func (Q *QueryHandler) runReal() error {
 	if err != nil {
 		log.Printf("write optimize result error: %v", err)
     mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryError), 1, "")
+    tr.Rollback()
 		return err
 	}
 
@@ -115,6 +119,7 @@ func (Q *QueryHandler) runReal() error {
 	if err != nil {
 		log.Printf("prepareSliceTable error: %v", err)
     mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryError), 1, "")
+    tr.Rollback()
 		return err
 	}
 
@@ -123,6 +128,7 @@ func (Q *QueryHandler) runReal() error {
 	err = mgr.WriterWorkerInfo(Q.baseWorkerQuery)
 	if err != nil {
     mgr.InitQueryResult(Q.newQueryId, uint32(sdb.QueryStates_QueryError), 1, "")
+    tr.Rollback()
 		return err
 	}
 

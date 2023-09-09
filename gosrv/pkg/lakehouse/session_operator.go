@@ -36,6 +36,8 @@ func CreateSession(dbid uint64, uid uint64) (*sdb.Session, error) {
 		}
 		sess.Id = sessionid
 		sess.State = keys.SessionTransactionIdle
+    sess.AutoCommit = true
+    sess.QueryId = 0
 		op := NewSessionOperator(tr, sess.Id)
 		return nil, op.Write(&sess)
 	})

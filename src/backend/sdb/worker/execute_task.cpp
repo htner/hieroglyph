@@ -292,11 +292,12 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 }
 
 void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
+	std::unique_lock<std::mutex> mlock(task_mutex_);
 	if (recv_streams_.size() < (size_t)motion_id) {
 		recv_streams_.resize(count);
-		mutexs_.clear();
-		conds_.clear();
-		for (int i = 0; i < count; ++i) {
+		//mutexs_.clear();
+		//conds_.clear();
+		for (int i = mutexs_.size(); i < count; ++i) {
 			mutexs_.push_back(std::make_unique<std::mutex>());
 			conds_.push_back(std::make_unique<std::condition_variable>());
 		}

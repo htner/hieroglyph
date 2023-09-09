@@ -8,7 +8,7 @@ import (
 const (
 	SessionTransactionInvaild int32 = -1
 	SessionTransactionIdle    int32 = 2
-	SessionTransactionStart   int32 = 2
+	SessionTransactionStart   int32 = 3
 	SessionTransactionCommit  int32 = 4
 )
 
