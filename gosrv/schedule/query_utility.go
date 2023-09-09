@@ -38,7 +38,7 @@ func (Q *QueryHandler) processUtility() (bool, error) {
     case *tree.BeginTransaction:
       log.Println("begin", stmt)
       tr := lakehouse.NewTranscation(Q.request.Dbid, Q.request.Sid)
-      tr.Start(false);
+      tr.SetAutoCommit(false);
       isProcessed = true
       message = "begin"
     case *tree.RollbackTransaction:
@@ -53,6 +53,9 @@ func (Q *QueryHandler) processUtility() (bool, error) {
       tr.Commit();
       isProcessed = true
       message = "commit"
+    default:
+      tr := lakehouse.NewTranscation(Q.request.Dbid, Q.request.Sid)
+      tr.WriteAble()
     }
     if isProcessed {
       var result sdb.WorkerResultData

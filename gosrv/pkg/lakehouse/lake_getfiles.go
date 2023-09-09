@@ -55,16 +55,18 @@ func (L *LakeRelOperator) GetAllFile(rel uint64, segCount, segIndex uint64) ([]*
 		return nil, err
 	}
 
-	_, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		t := L.T
-		err = t.CheckReadAble(tr)
-		return nil, err
-	})
+  if !L.isSuper {
+    _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+      t := L.T
+      err = t.CheckReadAble(tr)
+      return nil, err
+      })
 
-	if err != nil {
-		log.Printf("check read able error %v", err)
-		return nil, err
-	}
+    if err != nil {
+      log.Printf("check read able error %v", err)
+      return nil, err
+    }
+  }
 
 	data, err := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
 		var key keys.FileKey = keys.FileKey{Database: L.T.Database, Relation: rel, Fileid: 0}
@@ -124,7 +126,11 @@ func (L *LakeRelOperator) GetAllFile(rel uint64, segCount, segIndex uint64) ([]*
 
 	files := data.([]*sdb.LakeFileDetail)
 	// check session mvcc
-	files, err = L.statifiesMvcc(files, L.T.session.WriteTransactionId)
+  if !L.isSuper {
+    files, err = L.statifiesMvcc(files, L.T.session.WriteTransactionId)
+  } else {
+    files, err = L.statifiesMvcc(files, SUPER_SESSION)
+  }
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +249,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 				xmaxState = uint32(state)
 			}
 
-			log.Println("xmin state:", xminState, " xmax state:", xmaxState)
+			log.Println("xmin ", file.Xmin, " state:", xminState, " xmax ", file.Xmax," state:", xmaxState)
 
 			if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {
 				statifiesFiles = append(statifiesFiles, file)

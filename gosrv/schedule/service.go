@@ -41,6 +41,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 		log.Println("wirte query result ", in)
 		if isFinish {
 			tr := lakehouse.NewTranscation(in.Dbid, in.Sessionid)
+		  log.Println("try auto commit")
 			tr.TryAutoCommit()
 		}
 	}
@@ -49,7 +50,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 
 func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQueryResultRequest) (*sdb.CheckQueryResultReply, error) {
 	//out := new(sdb.QueryResultReply)
-	log.Println(in)
+	// log.Println(in)
 	mgr := schedule.NewQueryMgr(in.Dbid)
 	result, err := mgr.ReadQueryResult(in.QueryId)
 	reply := new(sdb.CheckQueryResultReply)

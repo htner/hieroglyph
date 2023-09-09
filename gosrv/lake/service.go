@@ -28,10 +28,12 @@ func (s *LakeServer) Start(ctx context.Context, req *sdb.StartTransactionRequest
 	session.State = keys.SessionTransactionIdle
 	session.ReadTransactionId = lakehouse.InvaildTranscaton
 	session.WriteTransactionId = lakehouse.InvaildTranscaton
+  session.AutoCommit = false
+  session.QueryId = 0
 	lakehouse.WriteSession(&session)
 
 	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
-	tr.Start(true)
+	tr.Start(false)
 
 	return new(sdb.StartTransactionResponse), nil
 }
@@ -44,13 +46,13 @@ func (s *LakeServer) Commit(ctx context.Context, req *sdb.CommitRequest) (*sdb.C
 
 func (s *LakeServer) Abort(ctx context.Context, req *sdb.AbortRequest) (*sdb.AbortResponse, error) {
 	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
-	tr.Commit()
+	tr.Rollback()
 	return new(sdb.AbortResponse), nil
 }
 
 func (s *LakeServer) AllocateXid(ctx context.Context, req *sdb.AllocateXidRequest) (*sdb.AllocateXidResponse, error) {
 	tr := lakehouse.NewTranscation(req.Dbid, req.Sessionid)
-	tr.Commit()
+	//tr.Commit()
 	err := tr.ReadAble()
 	if err != nil {
 		return nil, err
