@@ -166,11 +166,23 @@ func (L *LockMgr) CheckConflicts(tr fdb.Transaction, checkLock *keys.Lock, realT
 		}
 
 		if keys.LockConflicts(fdblock.LockType, realType) {
+	    kvOp := NewKvOperator(tr)
+      var plock keys.PotentialLock
+      plock.Database = checkLock.Database
+      plock.Relation = checkLock.Relation
+      plock.LockType = checkLock.LockType
+      plock.Sid = checkLock.Sid
+      err := kvOp.Write(&plock, &fdbkv.EmptyValue{})
+			if err != nil {
+				return false, err
+			}
+
 			fut := tr.Watch(data.Key)
 			log.Printf("LockConflicts Watch: %s\n", data.Key)
 			tr.Commit()
 			fut.BlockUntilReady()
-			err := fut.Get()
+
+			err = fut.Get()
 			if err != nil {
 				return false, err
 			}

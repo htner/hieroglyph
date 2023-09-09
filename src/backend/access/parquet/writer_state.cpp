@@ -144,6 +144,10 @@ void ParquetS3WriterState::Upload() {
 void ParquetS3WriterState::CommitUpload() {
 	auto auto_switch = AutoSwitch(cxt);
 	std::list<sdb::LakeFile> delete_files;
+	
+	if (updates.empty()) {
+		return;
+	}
 
 	for (auto update : updates) {
 		sdb::LakeFile file;

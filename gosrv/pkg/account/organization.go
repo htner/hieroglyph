@@ -177,7 +177,7 @@ func CloneDatabase(organization, dbname, sourceOrganization, sourceDbname string
   }
   lakeop := new(lakehouse.LakeOperator)
   tr := lakehouse.NewTranscation(sess.Dbid, sess.Id)
-  tr.Start(false)
+  tr.Start(true)
   lakeop.Copy(newDatabase.Dbid, sess.Dbid, sess.Id)
   tr.Commit()
   return newDatabase, nil

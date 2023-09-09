@@ -720,7 +720,7 @@ datasegpath(RelFileNode rnode, ForkNumber forknum, BlockNumber segno)
 	path = relpathperm(rnode, forknum);
 	if (segno > 0)
 	{
-		segpath = psprintf("%s.%u", path, segno);
+		segpath = psprintf("%s.%lu", path, segno);
 		pfree(path);
 		return segpath;
 	}

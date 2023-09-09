@@ -37,11 +37,23 @@ func NewTranscation(dbid uint64, sid uint64) *Transaction {
 }
 
 func (t *Transaction) GetSession() *sdb.Session {
+  if t.session == nil {
+    db, err := fdb.OpenDefault()
+    if err != nil {
+      return nil 
+    }
+    db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+      sessOp := NewSessionOperator(tr, t.Sid)
+      t.session, err = sessOp.Get()
+      return nil, err
+    })
+  }
+
 	return t.session
 }
 
 // 使用 fdb 的原则， 启动一个事
-func (t *Transaction) Start(autoCommit bool) error {
+func (t *Transaction) NewQuery(queryid uint64) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
 		return err
@@ -53,24 +65,61 @@ func (t *Transaction) Start(autoCommit bool) error {
 			return nil, err
 		}
 
+		log.Println("session", t.session)
+
     if t.session.State == keys.SessionTransactionStart {
-      return nil, ErrTransactionStarted
+      if t.session.QueryId == queryid {
+        return nil, ErrTransactionStarted
+      }
+    } else if t.session.State != keys.SessionTransactionIdle {
+      return nil, ErrStateMismatch
     }
 
-    if t.session.State != keys.SessionTransactionIdle {
+    t.session.QueryId = queryid
+		t.session.State = keys.SessionTransactionStart
+		log.Println("session", t.session)
+		return nil, sessOp.Write(t.session)
+		//tick := &keys.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
+		//return nil, kvOp.Write(tick, tick)
+	})
+	return e
+}
+
+func (t *Transaction) Start(autoCommit bool) error {
+  return t.start(false, autoCommit)
+}
+
+func (t *Transaction) SetAutoCommit(autoCommit bool) error {
+  return t.start(true, autoCommit)
+}
+
+// 使用 fdb 的原则， 启动一个事
+func (t *Transaction) start(forceSetAutoCommit bool, autoCommit bool) error {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		sessOp := NewSessionOperator(tr, t.Sid)
+		t.session, err = sessOp.Get()
+		if err != nil {
+			return nil, err
+		}
+
+		log.Println("session", t.session)
+
+    if t.session.State == keys.SessionTransactionStart {
+      if !forceSetAutoCommit || t.session.AutoCommit == autoCommit {
+        return nil, ErrTransactionStarted
+      }
+    } else if t.session.State != keys.SessionTransactionIdle {
       return nil, ErrStateMismatch
     }
 
 		t.session.AutoCommit = autoCommit
 		t.session.State = keys.SessionTransactionStart
+		log.Println("session", t.session)
 		return nil, sessOp.Write(t.session)
-		/*
-			err = kvOp.Write(sess, sess)
-			if err != nil {
-				return nil, err
-			}
-		*/
-
 		//tick := &keys.SessionTick{Id: t.Sid, LastTick: time.Now().UnixMicro()}
 		//return nil, kvOp.Write(tick, tick)
 	})
@@ -145,6 +194,7 @@ func (t *Transaction) CheckWriteAble(tr fdb.Transaction) error {
 	}
 
 	clog := &keys.TransactionCLog{Sessionid: t.Sid, Tid: maxTid.Max, DbId: t.Database, Status: XS_START}
+	log.Println("write clog", clog)
 	err = kvOp.Write(clog, clog)
 	if err != nil {
 		return err
@@ -174,6 +224,7 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) error {
 	clog.DbId = t.Database
 
 	err = kvOp.Read(&clog, &clog)
+	log.Println("read clog", t.session, t.Database, clog)
 	if err != nil {
 		return err
 	}
@@ -197,6 +248,18 @@ func (t *Transaction) Commit() error {
 			if err != nil {
 				return nil, err
 			}
+
+			t.session.AutoCommit = true 
+			t.session.ReadTransactionId = InvaildTranscaton
+			t.session.WriteTransactionId = InvaildTranscaton
+			t.session.State = keys.SessionTransactionIdle
+
+			log.Printf("reset session")
+			err = sessOp.Write(t.session)
+			if err != nil {
+				return nil, err
+			}
+
 			if t.clog == nil {
 				return nil, nil
 			}
@@ -208,17 +271,7 @@ func (t *Transaction) Commit() error {
 			t.clog.Status = XS_COMMIT
 			kvOp := NewKvOperator(tr)
 			err = kvOp.Write(t.clog, t.clog)
-			if err != nil {
-				return nil, err
-			}
-
-			t.session.AutoCommit = false
-			t.session.ReadTransactionId = InvaildTranscaton
-			t.session.WriteTransactionId = InvaildTranscaton
-			t.session.State = keys.SessionTransactionIdle
-
-			log.Printf("reset session")
-			err = sessOp.Write(t.session)
+			log.Println("write clog", t.clog)
 			if err != nil {
 				return nil, err
 			}
@@ -260,11 +313,9 @@ func (t *Transaction) ReadAble() error {
 }
 
 func (t *Transaction) State(kvReader *fdbkv.KvReader, xid uint64) (uint8, error) {
-	/*
-		if xid == 1 {
-			return XS_COMMIT, nil
-		}
-	*/
+  if xid == SUPER_SESSION {
+    return XS_COMMIT, nil
+  }
 	var minClog keys.TransactionCLog
 	minClog.Tid = uint64(xid)
 	minClog.DbId = t.Database
@@ -272,6 +323,7 @@ func (t *Transaction) State(kvReader *fdbkv.KvReader, xid uint64) (uint8, error)
 	if err != nil {
 		return XS_NULL, err
 	}
+	log.Println("read clog", minClog)
 	return minClog.Status, nil
 }
 
@@ -295,7 +347,7 @@ func (t *Transaction) TryAutoCommit() error {
 	}
 	data, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		sessOp := NewSessionOperator(tr, t.Sid)
-		t.session, err = sessOp.CheckAndGet(keys.SessionTransactionIdle)
+		t.session, err = sessOp.CheckAndGet(keys.SessionTransactionStart)
 		if err != nil {
 			return false, err
 		}
@@ -307,7 +359,7 @@ func (t *Transaction) TryAutoCommit() error {
 	}
 
   isAutoCommit, ok := data.(bool)
-	log.Println("auto commit")
+	log.Println("try auto commit", ok, isAutoCommit, data)
 	if ok && isAutoCommit {
 		log.Printf("auto commit")
 		return t.Commit()
@@ -329,6 +381,19 @@ func (t *Transaction) Rollback() error {
 				return nil, err
 			}
 
+      // session default?
+			t.session.AutoCommit = true
+			t.session.ReadTransactionId = InvaildTranscaton
+			t.session.WriteTransactionId = InvaildTranscaton
+			t.session.State = keys.SessionTransactionIdle
+      t.session.QueryId = 0
+
+			log.Printf("reset session")
+			err = sessOp.Write(t.session)
+			if err != nil {
+				return nil, err
+			}
+
 			if t.clog == nil {
 				return nil, nil
 			}
@@ -340,17 +405,6 @@ func (t *Transaction) Rollback() error {
 			t.clog.Status = XS_ABORT
 			kvOp := NewKvOperator(tr)
 			err = kvOp.Write(t.clog, t.clog)
-			if err != nil {
-				return nil, err
-			}
-
-			t.session.AutoCommit = false
-			t.session.ReadTransactionId = InvaildTranscaton
-			t.session.WriteTransactionId = InvaildTranscaton
-			t.session.State = keys.SessionTransactionIdle
-
-			log.Printf("reset session")
-			err = sessOp.Write(t.session)
 			if err != nil {
 				return nil, err
 			}
