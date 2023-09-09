@@ -116,6 +116,7 @@ private:
   //
   std::vector<std::unique_ptr<std::mutex>> mutexs_;
   std::vector<std::unique_ptr<std::condition_variable>> conds_;
+  std::mutex task_mutex_;
 };
 
 using ExecuteTaskPtr = std::shared_ptr<ExecuteTask>;

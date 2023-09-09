@@ -193,6 +193,7 @@ pkill -9 sdb_schedule
 pkill -9 sdb_lake 
 pkill -9 consul
 pkill -9 sdb_account 
+pkill -9 sdb_lockmgr
 
 #cmd="configure tenant_mode=disabled; writemode on; begin; clearrange \"\" \\xFF;  commit;"
 #fdbcli --exec "$cmd" || true
@@ -205,6 +206,7 @@ nohup sdb_proxy > log/proxy.log 2>&1 &
 nohup sdb_schedule > log/schedule.log 2>&1 &
 nohup sdb_lake > log/lake.log 2>&1 &
 nohup sdb_account > log/account.log 2>&1 &
+nohup sdb_lockmgr > log/lockmgr.log 2>&1 &
 
 netstat -lnpt |  grep proxy
 netstat -lnpt |  grep schedule 

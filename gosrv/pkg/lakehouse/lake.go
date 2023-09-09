@@ -9,12 +9,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var SUPER_SESSION uint64 = 1
 type LakeRelOperator struct {
 	T *Transaction
+  isSuper bool
 }
 
 func NewLakeRelOperator(dbid uint64, sid uint64) (L *LakeRelOperator) {
-	return &LakeRelOperator{T: NewTranscation(dbid, sid)}
+  l := &LakeRelOperator{T: NewTranscation(dbid, sid)}
+  if sid == SUPER_SESSION {
+    l.isSuper = true  
+  } else {
+    l.isSuper = false
+  }
+  return l
 }
 
 func (L *LakeRelOperator) PrepareFiles(rel uint64, count uint64) (files []*sdb.LakeFile, err error) {
