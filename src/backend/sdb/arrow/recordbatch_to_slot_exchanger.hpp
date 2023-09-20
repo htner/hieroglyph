@@ -1,6 +1,6 @@
 #pragma once
 
-#include "backend/sdb/arrow/array_scalar_exchanger.hpp"
+#include "backend/sdb/arrow/array_to_scalar_exchanger.hpp"
 //#include "backend/sdb/arrow/recordbatch_exchanger.hpp"
 #include "backend/sdb/common/pg_export.hpp"
 

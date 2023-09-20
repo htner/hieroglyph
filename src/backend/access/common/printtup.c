@@ -90,7 +90,7 @@ printtup_create_DR(CommandDest dest)
 	 * Send T message automatically if DestRemote, but not if
 	 * DestRemoteExecute
 	 */
-	self->sendDescrip = (dest == DestRemote);
+	self->sendDescrip = (dest == DestRemote || dest == DestSDBCloud);
 
 	self->attrinfo = NULL;
 	self->nattrs = 0;
@@ -110,7 +110,8 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 	DR_printtup *myState = (DR_printtup *) self;
 
 	Assert(myState->pub.mydest == DestRemote ||
-		   myState->pub.mydest == DestRemoteExecute);
+		   myState->pub.mydest == DestRemoteExecute ||
+		   myState->pub.mydest == DestSDBCloud);
 
 	myState->portal = portal;
 
@@ -973,7 +974,7 @@ SetRemoteDestFileInfo(DestReceiver *self, char *dirname, char* filename)
 {
 	self->dirname = dirname;
 	self->filename = filename;
-	elog(LOG, "dddtest result dirname: %s, filename: %s", dirname, filename);
+	elog(LOG, "result dirname: %s, filename: %s", dirname, filename);
 	CreateObjectStream(self->dirname, self->filename);
 }
 
@@ -997,15 +998,17 @@ static void
 printtup_shutdown_object(DestReceiver *self)
 {
 	printtup_shutdown(self);
-	WriteResultEnd();
+	elog(LOG, "printtup_shutdown_object");
+	// WriteResultEnd();
 }
 
 static void
 printtup_destroy_object(DestReceiver *self)
 {
 	printtup_destroy(self);
+	elog(LOG, "printtup_destroy_object");
 
-	WriteResultEnd();
+	// WriteResultEnd();
 }
 
 DestReceiver *
@@ -1024,7 +1027,7 @@ printtup_create_DR_object(CommandDest dest)
 	 * Send T message automatically if DestRemote, but not if
 	 * DestRemoteExecute
 	 */
-	self->sendDescrip = (dest == DestRemote);
+	self->sendDescrip = (dest == DestRemote || dest == DestSDBCloud);
 
 	self->attrinfo = NULL;
 	self->nattrs = 0;

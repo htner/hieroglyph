@@ -1,0 +1,298 @@
+diff -I HINT: -I CONTEXT: -I GP_IGNORE: -U3 /home/gpadmin/sdb/src/test/regress/expected/boolean.out /home/gpadmin/sdb/src/test/regress/results/boolean.out
+--- /home/gpadmin/sdb/src/test/regress/expected/boolean.out	2023-10-26 10:31:24.292333076 +0800
++++ /home/gpadmin/sdb/src/test/regress/results/boolean.out	2023-10-26 10:31:24.296333182 +0800
+@@ -45,8 +45,6 @@
+ 
+ SELECT bool 'test' AS error;
+ ERROR:  invalid input syntax for type boolean: "test"
+-LINE 1: SELECT bool 'test' AS error;
+-                    ^
+ SELECT bool 'false' AS false;
+  false 
+ -------
+@@ -55,8 +53,6 @@
+ 
+ SELECT bool 'foo' AS error;
+ ERROR:  invalid input syntax for type boolean: "foo"
+-LINE 1: SELECT bool 'foo' AS error;
+-                    ^
+ SELECT bool 'y' AS true;
+  true 
+ ------
+@@ -71,8 +67,6 @@
+ 
+ SELECT bool 'yeah' AS error;
+ ERROR:  invalid input syntax for type boolean: "yeah"
+-LINE 1: SELECT bool 'yeah' AS error;
+-                    ^
+ SELECT bool 'n' AS false;
+  false 
+ -------
+@@ -87,8 +81,6 @@
+ 
+ SELECT bool 'nay' AS error;
+ ERROR:  invalid input syntax for type boolean: "nay"
+-LINE 1: SELECT bool 'nay' AS error;
+-                    ^
+ SELECT bool 'on' AS true;
+  true 
+ ------
+@@ -109,16 +101,10 @@
+ 
+ SELECT bool 'o' AS error;
+ ERROR:  invalid input syntax for type boolean: "o"
+-LINE 1: SELECT bool 'o' AS error;
+-                    ^
+ SELECT bool 'on_' AS error;
+ ERROR:  invalid input syntax for type boolean: "on_"
+-LINE 1: SELECT bool 'on_' AS error;
+-                    ^
+ SELECT bool 'off_' AS error;
+ ERROR:  invalid input syntax for type boolean: "off_"
+-LINE 1: SELECT bool 'off_' AS error;
+-                    ^
+ SELECT bool '1' AS true;
+  true 
+ ------
+@@ -127,8 +113,6 @@
+ 
+ SELECT bool '11' AS error;
+ ERROR:  invalid input syntax for type boolean: "11"
+-LINE 1: SELECT bool '11' AS error;
+-                    ^
+ SELECT bool '0' AS false;
+  false 
+ -------
+@@ -137,12 +121,8 @@
+ 
+ SELECT bool '000' AS error;
+ ERROR:  invalid input syntax for type boolean: "000"
+-LINE 1: SELECT bool '000' AS error;
+-                    ^
+ SELECT bool '' AS error;
+ ERROR:  invalid input syntax for type boolean: ""
+-LINE 1: SELECT bool '' AS error;
+-                    ^
+ -- and, or, not in qualifications
+ SELECT bool 't' or bool 'f' AS true;
+  true 
+@@ -163,41 +143,17 @@
+ (1 row)
+ 
+ SELECT bool 't' = bool 'f' AS false;
+- false 
+--------
+- f
+-(1 row)
+-
++ERROR:  operator does not exist: boolean = boolean
+ SELECT bool 't' <> bool 'f' AS true;
+- true 
+-------
+- t
+-(1 row)
+-
++ERROR:  operator does not exist: boolean <> boolean
+ SELECT bool 't' > bool 'f' AS true;
+- true 
+-------
+- t
+-(1 row)
+-
++ERROR:  operator does not exist: boolean > boolean
+ SELECT bool 't' >= bool 'f' AS true;
+- true 
+-------
+- t
+-(1 row)
+-
++ERROR:  operator does not exist: boolean >= boolean
+ SELECT bool 'f' < bool 't' AS true;
+- true 
+-------
+- t
+-(1 row)
+-
++ERROR:  operator does not exist: boolean < boolean
+ SELECT bool 'f' <= bool 't' AS true;
+- true 
+-------
+- t
+-(1 row)
+-
++ERROR:  operator does not exist: boolean <= boolean
+ -- explicit casts to/from text
+ SELECT 'TrUe'::text::boolean AS true, 'fAlse'::text::boolean AS false;
+  true | false 
+@@ -219,9 +175,9 @@
+ (1 row)
+ 
+ SELECT '  tru e '::text::boolean AS invalid;    -- error
+-ERROR:  invalid input syntax for type boolean: "  tru e "
++ERROR:  data file miss
+ SELECT ''::text::boolean AS invalid;            -- error
+-ERROR:  invalid input syntax for type boolean: ""
++ERROR:  data file miss
+ CREATE TABLE BOOLTBL1 (f1 bool);
+ INSERT INTO BOOLTBL1 (f1) VALUES (bool 't');
+ INSERT INTO BOOLTBL1 (f1) VALUES (bool 'True');
+@@ -238,39 +194,20 @@
+ SELECT '' AS t_3, BOOLTBL1.*
+    FROM BOOLTBL1
+    WHERE f1 = bool 'true';
+- t_3 | f1 
+------+----
+-     | t
+-     | t
+-     | t
+-(3 rows)
+-
++ERROR:  operator does not exist: boolean = boolean
+ SELECT '' AS t_3, BOOLTBL1.*
+    FROM BOOLTBL1
+    WHERE f1 <> bool 'false';
+- t_3 | f1 
+------+----
+-     | t
+-     | t
+-     | t
+-(3 rows)
+-
++ERROR:  operator does not exist: boolean <> boolean
+ SELECT '' AS zero, BOOLTBL1.*
+    FROM BOOLTBL1
+    WHERE booleq(bool 'false', f1);
+- zero | f1 
+-------+----
+-(0 rows)
+-
++ERROR:  function booleq(boolean, boolean) does not exist
+ INSERT INTO BOOLTBL1 (f1) VALUES (bool 'f');
+ SELECT '' AS f_1, BOOLTBL1.*
+    FROM BOOLTBL1
+    WHERE f1 = bool 'false';
+- f_1 | f1 
+------+----
+-     | f
+-(1 row)
+-
++ERROR:  operator does not exist: boolean = boolean
+ CREATE TABLE BOOLTBL2 (f1 bool);
+ INSERT INTO BOOLTBL2 (f1) VALUES (bool 'f');
+ INSERT INTO BOOLTBL2 (f1) VALUES (bool 'false');
+@@ -281,8 +218,6 @@
+ INSERT INTO BOOLTBL2 (f1)
+    VALUES (bool 'XXX');
+ ERROR:  invalid input syntax for type boolean: "XXX"
+-LINE 2:    VALUES (bool 'XXX');
+-                        ^
+ -- BOOLTBL2 should be full of false's at this point
+ SELECT '' AS f_4, BOOLTBL2.* FROM BOOLTBL2;
+  f_4 | f1 
+@@ -296,76 +231,20 @@
+ SELECT '' AS tf_12, BOOLTBL1.*, BOOLTBL2.*
+    FROM BOOLTBL1, BOOLTBL2
+    WHERE BOOLTBL2.f1 <> BOOLTBL1.f1;
+- tf_12 | f1 | f1 
+--------+----+----
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-(12 rows)
+-
++ERROR:  operator does not exist: boolean <> boolean
+ SELECT '' AS tf_12, BOOLTBL1.*, BOOLTBL2.*
+    FROM BOOLTBL1, BOOLTBL2
+    WHERE boolne(BOOLTBL2.f1,BOOLTBL1.f1);
+- tf_12 | f1 | f1 
+--------+----+----
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-       | t  | f
+-(12 rows)
+-
++ERROR:  function boolne(boolean, boolean) does not exist
+ SELECT '' AS ff_4, BOOLTBL1.*, BOOLTBL2.*
+    FROM BOOLTBL1, BOOLTBL2
+    WHERE BOOLTBL2.f1 = BOOLTBL1.f1 and BOOLTBL1.f1 = bool 'false';
+- ff_4 | f1 | f1 
+-------+----+----
+-      | f  | f
+-      | f  | f
+-      | f  | f
+-      | f  | f
+-(4 rows)
+-
++ERROR:  operator does not exist: boolean = boolean
+ SELECT '' AS tf_12_ff_4, BOOLTBL1.*, BOOLTBL2.*
+    FROM BOOLTBL1, BOOLTBL2
+    WHERE BOOLTBL2.f1 = BOOLTBL1.f1 or BOOLTBL1.f1 = bool 'true'
+    ORDER BY BOOLTBL1.f1, BOOLTBL2.f1;
+- tf_12_ff_4 | f1 | f1 
+-------------+----+----
+-            | f  | f
+-            | f  | f
+-            | f  | f
+-            | f  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-            | t  | f
+-(16 rows)
+-
++ERROR:  operator does not exist: boolean = boolean
+ --
+ -- SQL syntax
+ -- Try all combinations to ensure that we get nothing when we expect nothing
+@@ -459,13 +338,7 @@
+     b IS UNKNOWN AS isunknown,
+     b IS NOT UNKNOWN AS isnotunknown
+ FROM booltbl3 ORDER BY o;
+-   d   | istrue | isnottrue | isfalse | isnotfalse | isunknown | isnotunknown 
+--------+--------+-----------+---------+------------+-----------+--------------
+- false | f      | t         | t       | f          | f         | t
+- null  | f      | t         | f       | t          | t         | f
+- true  | t      | f         | f       | t          | f         | t
+-(3 rows)
+-
++WARNING:  portal run error operator 97 is not a valid ordering operator
+ -- Test to make sure short-circuiting and NULL handling is
+ -- correct. Use a table as source to prevent constant simplification
+ -- to interfer.
+@@ -555,6 +428,10 @@
+ --  - thomas 1997-11-30
+ --
+ DROP TABLE  BOOLTBL1;
++WARNING:  portal run error feature not supported on appendoptimized relations
+ DROP TABLE  BOOLTBL2;
++WARNING:  portal run error feature not supported on appendoptimized relations
+ DROP TABLE  BOOLTBL3;
++WARNING:  portal run error feature not supported on appendoptimized relations
+ DROP TABLE  BOOLTBL4;
++WARNING:  portal run error feature not supported on appendoptimized relations

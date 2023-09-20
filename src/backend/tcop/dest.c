@@ -123,6 +123,7 @@ CreateDestReceiver(CommandDest dest)
 	{
 		case DestRemote:
 		case DestRemoteExecute:
+		case DestSDBCloud: // FIXME_SDB restruct
 			return printtup_create_DR_object(dest);
 
 		case DestRemoteSimple:
@@ -172,6 +173,7 @@ EndCommand(const char *commandTag, CommandDest dest)
 		case DestRemote:
 		case DestRemoteExecute:
 		case DestRemoteSimple:
+		case DestSDBCloud:
 
 			/*
 			 * We assume the commandTag is plain ASCII and therefore requires
@@ -213,6 +215,7 @@ NullCommand(CommandDest dest)
 		case DestRemote:
 		case DestRemoteExecute:
 		case DestRemoteSimple:
+		case DestSDBCloud: // FIXME_SDB restruct
 
 			/*
 			 * tell the fe that we saw an empty query string.  In protocols
@@ -256,6 +259,7 @@ ReadyForQuery(CommandDest dest)
 		case DestRemote:
 		case DestRemoteExecute:
 		case DestRemoteSimple:
+		case DestSDBCloud: // FIXME_SDB restruct
 			if (PG_PROTOCOL_MAJOR(FrontendProtocol) >= 3)
 			{
 				StringInfoData buf;

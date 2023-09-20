@@ -72,6 +72,7 @@ func (L *LakeRelCopyOperator) Copy(session uint64) error {
 	if err != nil {
 		return err
 	}
+  defer mgr.TryUnlock(L.sourceDb, session, L.sourceRel)
 
   lakeRel := NewLakeRelOperator(L.sourceDb, session)
 	files, err := lakeRel.GetAllFile(L.sourceRel, 0, 0)
@@ -82,7 +83,7 @@ func (L *LakeRelCopyOperator) Copy(session uint64) error {
 
   _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := NewKvOperator(tr)
-    idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: L.destDb}
+    idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: 0}
     idOp := utils.NewMaxIdOperator(tr, &idKey)
     _, err = idOp.GetCurrent()
     if err != nil {

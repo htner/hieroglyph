@@ -53,8 +53,8 @@ parquetGetFileReader(Aws::S3::S3Client *s3client, const char *dname,
 	arrow::Status status = parquet::arrow::OpenFile(infile, arrow::default_memory_pool(), &reader);
 
 	if (!status.ok()) {
-		// throw Error("parquetGetFileReader: failed to open Parquet file %s", status.message().c_str());
-		return nullptr;
+		//throw Error("parquetGetFileReader: failed to open Parquet file %s", status.message().c_str());
+		return reader;
 	}
 	return reader;
 }

@@ -21,6 +21,7 @@ extern "C" {
 //#include "executor/executor.h"
 //#include "utils/lsyscache.h"
 //#include "utils/timestamp.h"
+#include "include/sdb/session_info.h"
 }
 
 #include "backend/access/parquet/writer_state.hpp"
@@ -172,10 +173,11 @@ void ParquetS3WriterState::CommitUpload() {
 	}
 	stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
+    auto& sess_info = thr_sess->session_cxt_;
 
 	sdb::DeleteFilesRequest request;
-    request.set_dbid(dbid);
-    request.set_sessionid(sessionid);
+    request.set_dbid(sess_info.dbid_);
+    request.set_sessionid(sess_info.sessionid_);
     request.set_rel(rel_id);
 
 	for (auto it = delete_files.begin(); it != delete_files.end(); ++it) {

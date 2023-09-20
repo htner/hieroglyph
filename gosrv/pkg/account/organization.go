@@ -161,7 +161,7 @@ func GetOrganizationId(db fdb.Database, organization string) (uint64, error) {
   return id.(uint64), err
 }
 
-func CloneDatabase(organization, dbname, sourceOrganization, sourceDbname string) (*sdb.Database, error) {
+func CloneDatabase(organization, dbname, sourceOrganization, sourceDbname string, uid uint64) (*sdb.Database, error) {
   sourceDatabase, err := GetDatabase(sourceOrganization, sourceDbname)
   if err != nil {
     return nil, err
@@ -171,7 +171,7 @@ func CloneDatabase(organization, dbname, sourceOrganization, sourceDbname string
     return nil, err 
   }
 
-  sess, err := lakehouse.CreateSession(sourceDatabase.Dbid, 1)
+  sess, err := lakehouse.CreateSession(sourceDatabase.Dbid, uid)
   if err != nil {
     return nil, err
   }

@@ -39,12 +39,13 @@ func (Q *QueryHandler) optimize() error {
 		return fmt.Errorf("optimizer error")
 	}
 
-	if optimizerResult.Code != 0 {
-		log.Printf("optimize err: %v", optimizerResult.Message)
+	Q.optimizerResult = optimizerResult
+
+	if optimizerResult.Rescode != 0 {
+		log.Printf("optimize err: %v", optimizerResult)
 		return fmt.Errorf("optimizer error")
 	}
 
-	Q.optimizerResult = optimizerResult
 	log.Printf("Greeting: %s %d %d %d", string(optimizerResult.PlanDxlStr), len(optimizerResult.PlanDxlStr), len(optimizerResult.PlanstmtStr), len(optimizerResult.PlanParamsStr))
   if (len(optimizerResult.PlanstmtStr) == 0) {
     return fmt.Errorf("plan stmt str is empty")

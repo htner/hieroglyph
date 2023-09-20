@@ -57,7 +57,7 @@ func (Q *QueryHandler) prepareSliceTable() error {
 
 	if len(slices) == 0 {
 		var err error
-		Q.workers, Q.workerSlices, err = workerMgr.GetServerList(1, 0)
+		Q.workers, Q.workerSlices, err = workerMgr.GetServerList(1, 1, 0)
 		if err != nil {
 			log.Printf("get server list error: %v", err)
 			return err
@@ -148,7 +148,7 @@ func (Q *QueryHandler) prepareSliceTable() error {
 					segindex++
 				}
 		*/
-		workers, workerSlices, err := workerMgr.GetServerList(execSlice.PlanNumSegments, execSlice.SliceIndex)
+		workers, workerSlices, err := workerMgr.GetServerList(1, execSlice.PlanNumSegments, execSlice.SliceIndex)
 		if err != nil {
 			log.Printf("get server list error: %v", err)
 			return err

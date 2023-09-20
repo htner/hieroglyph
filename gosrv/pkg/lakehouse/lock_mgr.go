@@ -34,7 +34,7 @@ func (L *LockMgr) TryLock(dbid uint64, sid uint64, rel uint64) error {
   fdblock.LockType = keys.UpdateLock
   fdblock.Sid = sid
 
-  log.Println("pre lock", fdblock)
+  // log.Println("pre lock", fdblock)
 
   retryNum := 10
   for i := 0; i < retryNum; i++ {
@@ -56,6 +56,25 @@ func (L *LockMgr) TryLock(dbid uint64, sid uint64, rel uint64) error {
   return err
 }
 
+func (L *LockMgr) TryUnlock(dbid uint64, sid uint64, rel uint64) error {
+  db, err := fdb.OpenDefault()
+  if err != nil {
+    return err
+  }
+
+  var fdblock keys.Lock
+  fdblock.Database = dbid
+  fdblock.Relation = rel
+  fdblock.LockType = keys.UpdateLock
+  fdblock.Sid = sid
+
+  _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+    // log.Println("unlock", fdblock)
+    return nil, L.Unlock(tr, &fdblock)
+  })
+  return err
+}
+
 func (L *LockMgr) PreLock(dbid uint64, sid uint64, updates []uint64) error {
 	db, err := fdb.OpenDefault()
 	if err != nil {
@@ -70,7 +89,7 @@ func (L *LockMgr) PreLock(dbid uint64, sid uint64, updates []uint64) error {
     fdblock.LockType = keys.UpdateLock
     fdblock.Sid = sid
 
-    log.Println("pre lock", fdblock)
+    // log.Println("pre lock", fdblock)
 
     retryNum := 10
     for i := 0; i < retryNum; i++ {

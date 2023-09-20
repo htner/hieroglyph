@@ -3964,6 +3964,8 @@ Size
 LockShmemSize(void)
 {
 	Size		size = 0;
+
+#ifdef SDB_NOUSE
 	long		max_table_size;
 
 	/* lock hash table */
@@ -3989,6 +3991,7 @@ LockShmemSize(void)
 	 * Since NLOCKENTS is only an estimate, add 10% safety margin.
 	 */
 	size = add_size(size, size / 10);
+#endif
 
 	return size;
 }

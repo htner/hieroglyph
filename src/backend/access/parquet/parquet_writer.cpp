@@ -31,6 +31,10 @@
 #include "lake_service.pb.h"
 #include "backend/sdb/common/common.hpp"
 
+extern "C" {
+#include "include/sdb/session_info.h"
+}
+
 #define TEMPORARY_DIR "/tmp/parquet_writer_temp/"
 
 /**
@@ -63,7 +67,7 @@ ParquetWriter::ParquetWriter(Oid rel, const char *filename, TupleDesc tuple_desc
   is_insert_ = false;
   lake_2pc_state_ = LAKE2PC_NULL;
   builder_ = std::make_shared<sdb::RecordBatchBuilder>(rel, tuple_desc);
-  rel_id = rel;
+  rel_id_ = rel;
   Assert(builder_ != nullptr);
 }
 
@@ -182,7 +186,7 @@ void ParquetWriter::Upload(const char *dirname, Aws::S3::S3Client *s3_client) {
   ParquetWriteFile(dirname, s3_client, *table);
   INSTR_TIME_SET_CURRENT(duration);
   INSTR_TIME_SUBTRACT(duration, start);
-  LOG(INFO) << rel_name << "(" << rel_id  << ") "
+  LOG(INFO) << rel_name << "(" << rel_id_  << ") "
 		<< s3_filename_ << " file has been uploaded in "
 	<< duration.tv_sec << " seconds " << duration.tv_nsec/1000 << " microseconds.";
 }
@@ -244,9 +248,9 @@ void ParquetWriter::PrepareUpload() {
 	//*add_file = filename_;
 
 	// FIX_SDB: 
-	request.set_dbid(dbid);
-	request.set_sessionid(sessionid);
-	request.set_rel(rel_id);
+	request.set_dbid(thr_sess->session_cxt_.dbid_);
+	request.set_sessionid(thr_sess->session_cxt_.sessionid_);
+	request.set_rel(rel_id_);
 	request.set_count(1);
 
 	// LOG(INFO) << "prepare upload file " << request.DebugString();
@@ -293,9 +297,9 @@ void ParquetWriter::CommitUpload() {
 	//add_file->set_file_name(filename_);
 	//add_file->set_space(1);
 	//*add_file = filename_;
-	request.set_dbid(dbid);
-	request.set_sessionid(sessionid);
-	request.set_rel(rel_id);
+	request.set_dbid(thr_sess->session_cxt_.dbid_);
+	request.set_sessionid(thr_sess->session_cxt_.sessionid_);
+	request.set_rel(rel_id_);
 	auto lakefile = request.add_remove_files();
 	lakefile->set_file_id(file_id_);
 
@@ -315,5 +319,5 @@ void ParquetWriter::SetOldFilename(std::string filename) {
 
 void ParquetWriter::SetRel(char *name, Oid id) { 
 	rel_name = name; 
-	rel_id = id;
+	rel_id_ = id;
 }
