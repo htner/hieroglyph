@@ -876,6 +876,10 @@ AllocSetAlloc(MemoryContext context, Size size)
 	Size		chunk_size;
 	Size		blksize;
 
+	if (size > 10240) {
+		elog(WARNING, "AllocSetAlloc %d ", size);
+	}
+
 	AssertArg(AllocSetIsValid(set));
 #ifdef USE_ASSERT_CHECKING
 	if (IsUnderPostmaster && context != ErrorContext && mainthread() != 0 && !pthread_equal(main_tid, pthread_self()))

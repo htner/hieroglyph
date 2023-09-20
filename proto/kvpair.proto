@@ -135,3 +135,18 @@ message Session {
 message LocKValue {
   uint64 xid = 2;
 }
+
+enum WorkerState {
+  WSInit = 0;
+  WSReady = 1;
+  WSOverload = 2;
+  WSBusy = 3;
+  WSStop = 4;
+}
+
+message WorkerProcInfo {
+  uint64 workerid = 1;
+  string addr = 2;
+  WorkerState worker_state = 3;
+  uint32 currect_task = 4;
+}

@@ -93,3 +93,13 @@ func (s *ScheduleServer) Depart(ctx context.Context, query *sdb.ExecQueryRequest
 	}
 	return resRepy, err
 }
+
+func (s *ScheduleServer) NewWorkerId(context.Context, *sdb.NewWorkerIdRequest) (*sdb.NewWorkerIdReply, error) {
+  reply := &sdb.NewWorkerIdReply{}
+  return reply, nil
+}
+
+func (s *ScheduleServer) WorkerPing(context.Context, *sdb.WorkerPingRequest) (*sdb.WorkerPongReply, error) {
+  reply := &sdb.WorkerPongReply{}
+  return reply, nil
+}

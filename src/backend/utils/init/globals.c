@@ -155,7 +155,7 @@ int			max_parallel_maintenance_workers = 2;
  * MaxBackends is computed by PostmasterMain after modules have had a chance to
  * register background workers.
  */
-int			NBuffers = 4096;
+int			NBuffers = 256;
 int			MaxConnections = 90;
 int			max_worker_processes = 8 + MaxPMAuxProc;
 int			max_parallel_workers = 8;

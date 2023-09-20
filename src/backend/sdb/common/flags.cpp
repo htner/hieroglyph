@@ -19,3 +19,5 @@ DEFINE_string(s3passwd, "minioadmin", "");
 DEFINE_string(region, "ap1", "");
 DEFINE_string(bucket, "sdb1", "");
 DEFINE_bool(isminio, false, "");
+
+//DEFINE_string(bucket, "sdb1", "");

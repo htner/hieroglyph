@@ -467,6 +467,9 @@ static void *gp_malloc_internal(int64 requested_size)
  */
 void *gp_malloc(int64 sz)
 {
+	if (sz > 10000) {
+		elog(LOG, "gp_malloc %d ", sz);
+	}
 	Assert(!gp_mp_inited || MemoryProtection_IsOwnerThread());
 
 	void *ret;

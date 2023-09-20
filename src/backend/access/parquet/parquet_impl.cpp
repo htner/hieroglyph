@@ -335,10 +335,12 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	ReaderType reader_type = RT_MULTI;
 	int max_open_files = 10;
 
-	MemoryContextCallback *callback;
+	// MemoryContextCallback *callback;
 	MemoryContext reader_cxt;
 
 	std::string error;
+
+	RelationIncrementReferenceCount(relation);
 
 	scan = (ParquetScanDesc)palloc0(sizeof(ParquetScanDescData));
 	scan->rs_base.rs_rd = relation;
@@ -364,7 +366,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	ExtractFetchedColumns(targetlist, qual, fetched_col);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
-	reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
+	reader_cxt = AllocSetContextCreate(CurrentMemoryContext, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
 		state = create_parquet_execution_state(
@@ -388,10 +390,10 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
    * Enable automatic execution state destruction by using memory context
    * callback
    */
-	callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
-	callback->func = destroy_parquet_state;
-	callback->arg = (void *)state;
-	MemoryContextRegisterResetCallback(reader_cxt, callback);
+	//callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
+	//callback->func = destroy_parquet_state;
+	//callback->arg = (void *)state;
+	//MemoryContextRegisterResetCallback(reader_cxt, callback);
 
 	scan->state = state;
 	return scan;
@@ -614,7 +616,7 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 						} 
 
 						//LOG(ERROR) << "attr:" << __cur_keys->sk_attno  << " -> "<< DatumGetUInt32(__atp);
-	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
+ 	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
 								 __cur_keys->sk_collation, 
 								 __atp, __cur_keys->sk_argument); 
 
@@ -655,7 +657,22 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	return true;
 }
 
-extern "C" void ParquetEndScan(TableScanDesc scan) {}
+extern "C" void ParquetEndScan(TableScanDesc scan) {
+  ParquetScanDesc pscan = (ParquetScanDesc)scan;
+  ParquetS3ReaderState *festate = pscan->state;
+  delete festate;
+  pscan->state = nullptr;
+
+  RelationDecrementReferenceCount(pscan->rs_base.rs_rd);
+  if (pscan->rs_base.rs_key) {
+	pfree(pscan->rs_base.rs_key);
+  }
+  if (pscan->rs_base.rs_flags & SO_TEMP_SNAPSHOT) {
+	UnregisterSnapshot(pscan->rs_base.rs_snapshot);
+  }
+
+  pfree(pscan);
+}
 
 extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
                               bool allow_strat, bool allow_sync,
@@ -1041,7 +1058,7 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 	std::vector<bool> fetched_col(tuple_desc->natts, true);
 
-	auto reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
+	auto reader_cxt = AllocSetContextCreate(CurrentMemoryContext, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
 		state = create_parquet_execution_state(
@@ -1075,7 +1092,11 @@ void ParquetIndexFetchReset(IndexFetchTableData *scan) {
 
 extern "C"
 void ParquetIndexFetchEnd(IndexFetchTableData *scan) {
-  LOG(ERROR) << "parallel SeqScan not implemented for Parquet tables";
+  IndexFetchParquetData *iscan = (IndexFetchParquetData*)scan;
+  //LOG(ERROR) << "parallel SeqScan not implemented for Parquet tables";
+  delete iscan->state;
+  iscan->state = nullptr;
+  pfree(iscan);
 }
 
 extern "C"

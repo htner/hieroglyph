@@ -84,6 +84,7 @@ class DefaultParquetReader : public ParquetReader {
   }
 
   ~DefaultParquetReader() {
+	LOG(WARNING) << "parquet reader close";
 	/*
     if (reader_)
 		reader_
@@ -98,7 +99,7 @@ class DefaultParquetReader : public ParquetReader {
     parquetSplitS3Path(dirname, filename_.c_str(), &dname, &fname);
     reader_ = parquetGetFileReader(s3_client, dname.c_str(), fname.c_str());
 	if (reader_ == NULL) {
-		LOG(WARNING) <<  "parquet reader: open Parquet file on S3.  bucket:" << 
+		LOG(WARNING) << "parquet reader: open Parquet file on S3.  bucket:" << 
 				dname << " file:" << fname;
 		return arrow::Status::UnknownError("reader empty");
 	}

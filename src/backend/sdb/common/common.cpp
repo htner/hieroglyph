@@ -19,6 +19,7 @@ std::string kResultS3Password = "minioadmin";
 std::string kResultS3Region = "ap1";
 std::string kResultS3Endpoint = "127.0.0.1:9000";
 bool kResultIsMinio = true;
+bool kWaitingForNewQuery = false;
 
 uint64_t dbid = 1;
 uint64_t sessionid = 1;

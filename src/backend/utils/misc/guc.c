@@ -2244,7 +2244,7 @@ static struct config_int ConfigureNamesInt[] =
 			GUC_UNIT_BLOCKS
 		},
 		&NBuffers,
-		4096, 16, INT_MAX / 2,
+		256, 16, INT_MAX / 2,
 		NULL, NULL, NULL
 	},
 
@@ -2255,7 +2255,7 @@ static struct config_int ConfigureNamesInt[] =
 			GUC_UNIT_BLOCKS | GUC_EXPLAIN
 		},
 		&num_temp_buffers,
-		1024, 100, INT_MAX / 2,
+		256, 100, INT_MAX / 2,
 		check_temp_buffers, NULL, NULL
 	},
 

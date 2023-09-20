@@ -24,6 +24,8 @@
 #include <butil/logging.h>
 #include <brpc/server.h>
 #include <brpc/restful.h>
+#include <bthread/unstable.h>
+#include <gperftools/malloc_extension.h>
 
 #include "include/sdb/worker_main.h"
 #include "include/sdb/postgres_init.h"
@@ -67,7 +69,28 @@ int WorkerServiceMain(int argc, char* argv[]) {
 	worker_thread.join();	
 }
 
+// 定时任务的回调函数
+static void timer_func(void* arg) {
+	LOG(INFO) << "run timer fun:" << time(NULL);
+    // 其他逻辑
+    // ...
+	// register_state
+	
+	bthread_timer_t timer;
+    if (bthread_timer_add(&timer, butil::seconds_from_now(60),
+                          timer_func, NULL) != 0) {
+		LOG(ERROR) << "add timer task failed";
+    }
+	MallocExtension::instance()->ReleaseFreeMemory();
+}
+
 int WorkerServerRun(int argc, char** argv) {
+	 // 1分钟后执行一次
+    bthread_timer_t timer;
+    if (bthread_timer_add(&timer, butil::seconds_from_now(60),
+                          timer_func, NULL) != 0) {
+		LOG(ERROR) << "add timer task failed";
+    }
 
     // Generally you only need one Server.
     brpc::Server server;

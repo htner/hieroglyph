@@ -18,3 +18,9 @@ DECLARE_string(s3passwd);
 DECLARE_string(region);
 DECLARE_string(bucket);
 DECLARE_bool(isminio);
+
+DECLARE_string(schedule_host);
+DECLARE_int32(schedule_port);
+
+DECLARE_string(lake_host);
+DECLARE_int32(lake_port);

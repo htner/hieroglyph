@@ -6376,7 +6376,6 @@ void FetchRelationOidFromQuery(Query *query, List **read_list,
   if (query->commandType == CMD_UTILITY) {
     FetchUtilityRelationOid(query, read_list, insert_list, update_list, delete_list);
   } else {
-
     List *rtable = query->rtable;
     ListCell *lc = NULL;
     foreach (lc, rtable) {

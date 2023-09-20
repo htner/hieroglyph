@@ -276,7 +276,7 @@ ShmemAllocUnlocked(Size size)
 
 	newFree = newStart + size;
 	if (newFree > ShmemSegHdr->totalsize)
-		ereport(PANIC,
+		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
 				 errmsg("out of shared memory (%zu bytes requested)",
 						size)));
@@ -505,11 +505,17 @@ ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 
 
 void *FakeShmemInitStruct(const char *name, Size size, bool *foundPtr) {
+		ereport(WARNING,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 errmsg("ShmemIndex size \"%d\"",
+						size)));
+
 	*foundPtr = false;
 	return MemoryContextAlloc(TopMemoryContext, size);
-
 	ShmemIndexEnt *result;
 	void	   *structPtr;
+
+	LWLockAcquire(ShmemIndexLock, LW_EXCLUSIVE);
 
 	if (!ShmemIndex)
 	{

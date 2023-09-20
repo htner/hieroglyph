@@ -939,6 +939,8 @@ HeapTuple CatalogCache::SyncFromCatalogRelation(int cache_id,
 		break;					/* assume only one match */
 	}
 
+	systable_endscan(scandesc);
+	table_close(relation, NoLock);
 	return cache_tp;
 }
 

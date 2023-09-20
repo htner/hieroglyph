@@ -142,63 +142,147 @@ CreateSharedMemoryAndSemaphores(int port)
 		 */
 		size = 150000;
 		size = add_size(size, PGSemaphoreShmemSize(numSemas));
+
+		elog(DEBUG1, "1 %lu", (unsigned long) size);
+
 		size = add_size(size, SpinlockSemaSize());
+		elog(DEBUG1, "2 %lu", (unsigned long) size);
+
 		size = add_size(size, hash_estimate_size(SHMEM_INDEX_SIZE,
 												 sizeof(ShmemIndexEnt)));
+		elog(DEBUG1, "3 %lu", (unsigned long) size);
+
 		size = add_size(size, BufferShmemSize());
-		size = add_size(size, LockShmemSize());
-		size = add_size(size, PredicateLockShmemSize());
+		elog(DEBUG1, "4 %lu", (unsigned long) size);
+		//size = add_size(size, LockShmemSize());
+		elog(DEBUG1, "5 %lu", (unsigned long) size);
+		//size = add_size(size, PredicateLockShmemSize());
+		elog(DEBUG1, "6 %lu", (unsigned long) size);
 
 		if (IsResQueueEnabled() && Gp_role == GP_ROLE_DISPATCH)
 		{
 			size = add_size(size, ResSchedulerShmemSize());
+			elog(DEBUG1, "7 %lu", (unsigned long) size);
 			size = add_size(size, ResPortalIncrementShmemSize());
+			elog(DEBUG1, "8 %lu", (unsigned long) size);
 		}
-		else if (IsResGroupEnabled())
+		else if (IsResGroupEnabled()) {
 			size = add_size(size, ResGroupShmemSize());
+			elog(DEBUG1, "9 %lu", (unsigned long) size);
+		}
 		size = add_size(size, SharedSnapshotShmemSize());
-		if (Gp_role == GP_ROLE_DISPATCH || Gp_role == GP_ROLE_UTILITY)
+		elog(DEBUG1, "10 %lu", (unsigned long) size);
+
+		if (Gp_role == GP_ROLE_DISPATCH || Gp_role == GP_ROLE_UTILITY) {
 			size = add_size(size, FtsShmemSize());
+			elog(DEBUG1, "11 %lu", (unsigned long) size);
+		}
 
 		size = add_size(size, ProcGlobalShmemSize());
+		elog(DEBUG1, "12 %lu", (unsigned long) size);
+
 		size = add_size(size, XLOGShmemSize());
+		elog(DEBUG1, "13 %lu", (unsigned long) size);
+
 		size = add_size(size, DistributedLog_ShmemSize());
+		elog(DEBUG1, "14 %lu", (unsigned long) size);
+
 		size = add_size(size, CLOGShmemSize());
+		elog(DEBUG1, "15 %lu", (unsigned long) size);
+
 		size = add_size(size, CommitTsShmemSize());
+		elog(DEBUG1, "16 %lu", (unsigned long) size);
+
 		size = add_size(size, SUBTRANSShmemSize());
+		elog(DEBUG1, "17 %lu", (unsigned long) size);
+
 		size = add_size(size, TwoPhaseShmemSize());
+		elog(DEBUG1, "18 %lu", (unsigned long) size);
+
 		size = add_size(size, BackgroundWorkerShmemSize());
+		elog(DEBUG1, "19 %lu", (unsigned long) size);
+
 		size = add_size(size, MultiXactShmemSize());
+		elog(DEBUG1, "20 %lu", (unsigned long) size);
+
 		size = add_size(size, LWLockShmemSize());
+		elog(DEBUG1, "21 %lu", (unsigned long) size);
+
 		size = add_size(size, ProcArrayShmemSize());
+		elog(DEBUG1, "22 %lu", (unsigned long) size);
+
 		size = add_size(size, BackendStatusShmemSize());
+		elog(DEBUG1, "23 %lu", (unsigned long) size);
+
 		size = add_size(size, SInvalShmemSize());
+		elog(DEBUG1, "24 %lu", (unsigned long) size);
+
 		size = add_size(size, PMSignalShmemSize());
+		elog(DEBUG1, "25 %lu", (unsigned long) size);
+
 		size = add_size(size, ProcSignalShmemSize());
+		elog(DEBUG1, "26 %lu", (unsigned long) size);
+
 		size = add_size(size, CheckpointerShmemSize());
+		elog(DEBUG1, "27 %lu", (unsigned long) size);
+
 		size = add_size(size, AutoVacuumShmemSize());
+		elog(DEBUG1, "28 %lu", (unsigned long) size);
+
 		size = add_size(size, ReplicationSlotsShmemSize());
+		elog(DEBUG1, "29 %lu", (unsigned long) size);
+
 		size = add_size(size, ReplicationOriginShmemSize());
+		elog(DEBUG1, "30 %lu", (unsigned long) size);
+
 		size = add_size(size, WalSndShmemSize());
+		elog(DEBUG1, "31 %lu", (unsigned long) size);
+
 		size = add_size(size, WalRcvShmemSize());
+		elog(DEBUG1, "32 %lu", (unsigned long) size);
+
 		size = add_size(size, ApplyLauncherShmemSize());
+		elog(DEBUG1, "33 %lu", (unsigned long) size);
+
 		size = add_size(size, FTSReplicationStatusShmemSize());
+		elog(DEBUG1, "34 %lu", (unsigned long) size);
+
 		size = add_size(size, SnapMgrShmemSize());
+		elog(DEBUG1, "35 %lu", (unsigned long) size);
+
 		size = add_size(size, BTreeShmemSize());
+		elog(DEBUG1, "36 %lu", (unsigned long) size);
+
 		size = add_size(size, SyncScanShmemSize());
+		elog(DEBUG1, "37 %lu", (unsigned long) size);
+
 		size = add_size(size, AsyncShmemSize());
+		elog(DEBUG1, "38 %lu", (unsigned long) size);
+
 #ifdef EXEC_BACKEND
 		size = add_size(size, ShmemBackendArraySize());
 #endif
 
 		size = add_size(size, tmShmemSize());
+		elog(DEBUG1, "39 %lu", (unsigned long) size);
+
 		size = add_size(size, CheckpointerShmemSize());
+		elog(DEBUG1, "40 %lu", (unsigned long) size);
+
 		size = add_size(size, CancelBackendMsgShmemSize());
+		elog(DEBUG1, "41 %lu", (unsigned long) size);
+
 		size = add_size(size, WorkFileShmemSize());
+		elog(DEBUG1, "42 %lu", (unsigned long) size);
+
 		size = add_size(size, ShareInputShmemSize());
+		elog(DEBUG1, "43 %lu", (unsigned long) size);
+
 
 #ifdef FAULT_INJECTOR
 		size = add_size(size, FaultInjector_ShmemSize());
+		elog(DEBUG1, "44 %lu", (unsigned long) size);
+
 #endif			
 
 		/* This elog happens before we know the name of the log file we are supposed to use */
@@ -208,24 +292,38 @@ CreateSharedMemoryAndSemaphores(int port)
 		/* freeze the addin request size and include it */
 		addin_request_allowed = false;
 		size = add_size(size, total_addin_request);
+		elog(DEBUG1, "45 %lu", (unsigned long) size);
+
 
 		/* might as well round it off to a multiple of a typical page size */
 		size = add_size(size, BLCKSZ - (size % BLCKSZ));
+		elog(DEBUG1, "46 %lu", (unsigned long) size);
+
 
 		/* Consider the size of the SessionState array */
 		size = add_size(size, SessionState_ShmemSize());
+		elog(DEBUG1, "47 %lu", (unsigned long) size);
+
 
 		/* size of Instrumentation slots */
 		size = add_size(size, InstrShmemSize());
+		elog(DEBUG1, "48 %lu", (unsigned long) size);
+
 
 		/* size of expand version */
 		size = add_size(size, GpExpandVersionShmemSize());
+		elog(DEBUG1, "49 %lu", (unsigned long) size);
+
 
 		/* size of token and endpoint shared memory */
 		size = add_size(size, EndpointShmemSize());
+		elog(DEBUG1, "50 %lu", (unsigned long) size);
+
 
 		/* size of parallel cursor count */
 		size = add_size(size, ParallelCursorCountSize());
+		elog(DEBUG1, "51 %lu", (unsigned long) size);
+
 
 		elog(DEBUG3, "invoking IpcMemoryCreate(size=%zu)", size);
 
@@ -235,6 +333,11 @@ CreateSharedMemoryAndSemaphores(int port)
 #ifdef SDB_NOUSE
 		seghdr = PGSharedMemoryCreate(size, port, &shim);
 #endif
+
+		ereport(WARNING,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 errmsg("ShmemIndex size \"%d\"",
+						size)));
 		seghdr = MemoryContextAllocZero(TopMemoryContext, size);
 		/* Initialize new segment. */
 		//hdr = (PGShmemHeader *) memAddress;
@@ -309,12 +412,12 @@ CreateSharedMemoryAndSemaphores(int port)
 	/*
 	 * Set up lock manager
 	 */
-	InitLocks();
+	// InitLocks();
 
 	/*
 	 * Set up predicate lock manager
 	 */
-	InitPredicateLocks();
+	// InitPredicateLocks();
 
 	/*
 	 * Set up resource manager 

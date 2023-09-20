@@ -31,6 +31,8 @@ extern uint64_t slice_seg_index;
 
 extern bool not_initdb;
 
+extern bool kWaitingForNewQuery;
+
 namespace sdb {
 
 struct CatalogInfo {
