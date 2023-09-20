@@ -153,9 +153,56 @@ func (mgr *QueryMgr) InitQueryResult(queryId uint64, state uint32, root_workers 
 		}
 
 		value.State = state
-		value.Message = msg
-		value.Detail = ""
+    value.Message = new(sdb.ErrorResponse)
+		value.Message.Message = msg
+		value.Message.Code = "00000" 
+
 		value.RootWorkers = root_workers
+
+		return nil, kvOp.WritePB(key, value)
+	})
+	return e
+}
+
+func (mgr *QueryMgr) QueryError(queryId uint64, state uint32, code string, message string) error {
+  var e sdb.ErrorResponse
+  e.Code = code
+  e.Severity = "ERROR"
+  e.Message = message
+  return mgr.WriteErrorQueryResult(queryId, state, &e)
+}
+
+func (mgr *QueryMgr) WriteErrorQueryResult(queryId uint64, state uint32, message *sdb.ErrorResponse) error {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	_, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+
+		kvOp := fdbkv.NewKvOperator(tr)
+
+		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
+		value := new(sdb.QueryResult)
+
+		err = kvOp.ReadPB(key, value)
+		if err != nil {
+			if err != fdbkv.ErrEmptyData {
+				return nil, err
+			}
+			if value.State >= state {
+				return nil, errors.New("state rollback?")
+			}
+		}
+
+		value.State = state
+		value.RootWorkers = 1 
+    value.Message = message 
+
+    result := new(sdb.WorkerResultData)
+    //result.SqlErrCode = sqlerrcode
+    result.Message = message 
+
+		value.Result = append(value.Result, result)
 
 		return nil, kvOp.WritePB(key, value)
 	})
@@ -201,9 +248,7 @@ func (mgr *QueryMgr) ReadQueryResult(queryId uint64) (*sdb.QueryResult, error) {
 		return nil, err
 	}
 	value, e := db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
-
 		kvOp := fdbkv.NewKvReader(tr)
-
 		key := keys.NewQueryKey(uint64(mgr.Database), queryId, keys.QueryResultTag)
 		value := new(sdb.QueryResult)
 		err = kvOp.ReadPB(key, value)

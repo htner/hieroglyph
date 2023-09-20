@@ -73,6 +73,7 @@ cleanDemo(){
         return 2
     fi
     mc alias set demo-cluster/ http://127.0.0.1:9000 minioadmin minioadmin
+    mc rb --force demo-cluster/${bucket_name}
     mc mb --ignore-existing --region=us-east-1 demo-cluster/${bucket_name}
 
     ( source ${GPHOME}/greenplum_path.sh;)
@@ -176,16 +177,6 @@ echo ""
 echo "create user"
 echo "-----------------------------"
 sdb_stool createuser -o sdb -u sdb -p 123 
-
-echo ""
-echo "create account"
-echo "-----------------------------"
-sdb_stool createaccount -a test -p 123 -o test
-
-echo ""
-echo "create user"
-echo "-----------------------------"
-sdb_stool createuser -o test -u test -p 123 
 
 mkdir -p log
 pkill -9 sdb_proxy

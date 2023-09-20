@@ -49,6 +49,11 @@ extern List *pg_analyze_and_rewrite(RawStmt *parsetree,
 									const char *query_string,
 									Oid *paramTypes, int numParams,
 									QueryEnvironment *queryEnv);
+
+extern List *pg_analyze_and_rewrite_with_error(RawStmt *parsetree,
+									const char *query_string,
+									Oid *paramTypes, int numParams,
+									QueryEnvironment *queryEnv);
 extern List *pg_analyze_and_rewrite_params(RawStmt *parsetree,
 										   const char *query_string,
 										   ParserSetupHook parserSetup,

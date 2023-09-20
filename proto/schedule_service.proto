@@ -15,6 +15,8 @@ service Schedule {
   rpc Depart(ExecQueryRequest) returns (ExecQueryReply) {}
   rpc PushWorkerResult(PushWorkerResultRequest) returns (PushWorkerResultReply) {}
   rpc CheckQueryResult(CheckQueryResultRequest) returns (CheckQueryResultReply) {}
+  rpc NewWorkerId(NewWorkerIdRequest) returns (NewWorkerIdReply) {}
+  rpc WorkerPing(WorkerPingRequest) returns (WorkerPongReply) {}
 }
 
 // The request message containing the user's name.
@@ -25,8 +27,10 @@ message ExecQueryRequest {
   uint64 uid = 4;
   uint64 dbid = 5;
   string uuid = 6; // if uuid is not empty, request will be exector exactly once
+  uint64 organization_id = 7;
+  string organization = 8;
+  map<string, string> params = 9;
 }
-
 // The response message containing the greetings
 message ExecQueryReply {
   uint64 query_id = 1;
@@ -34,6 +38,7 @@ message ExecQueryReply {
   uint64 uid = 3;
   uint64 dbid = 4;
   string result_dir = 5;
+  map<string, string> params = 10;
 }
 
 message PushWorkerResultRequest {
@@ -60,5 +65,26 @@ message CheckQueryResultReply {
   int32 rescode = 1;
   string resmsg = 2;
   WorkerResultData result = 3;
+}
+
+message NewWorkerIdRequest {
+  uint32 cluster = 1;
+}
+
+message NewWorkerIdReply {
+  uint64 worker_id = 1;
+}
+
+message WorkerPingRequest {
+  uint64 worker_id = 1;
+  uint32 cluster = 2;
+  string addr = 3;
+  WorkerState state = 4;
+  uint64 currect_index = 5;
+}
+
+message WorkerPongReply {
+  int32 rescode = 1;
+  string resmsg = 2;
 }
 

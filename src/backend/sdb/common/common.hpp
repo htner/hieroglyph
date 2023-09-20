@@ -1,11 +1,13 @@
 #pragma once
 
 #include "backend/sdb/common/pg_export.hpp"
+#include "kvpair.pb.h"
 #include <stdint.h>
 #include <string>
 #include <unordered_map>
 #include <mutex>
 
+/*
 extern Oid MyDatabaseId;
 extern Oid MyDatabaseTableSpace;
 
@@ -29,7 +31,13 @@ extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
 
-extern bool not_initdb;
+
+extern bool kWaitingForNewQuery;
+*/
+extern bool kNotInitdb;
+extern uint64_t kWorkerId;
+extern uint64_t kCurrentIndex;
+extern sdb::WorkerState kWorkerState;
 
 namespace sdb {
 

@@ -17,7 +17,7 @@ type LakeRelOperator struct {
 
 func NewLakeRelOperator(dbid uint64, sid uint64) (L *LakeRelOperator) {
   l := &LakeRelOperator{T: NewTranscation(dbid, sid)}
-  if sid == SUPER_SESSION {
+  if sid == SUPER_SESSION  {
     l.isSuper = true  
   } else {
     l.isSuper = false
@@ -52,7 +52,7 @@ func (L *LakeRelOperator) PrepareFiles(rel uint64, count uint64) (files []*sdb.L
 			}
 
 			kvOp := NewKvOperator(tr)
-			idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: L.T.Database}
+			idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: 0}
 			idOp := utils.NewMaxIdOperator(tr, &idKey)
 			start, end, err := idOp.Add(count)
 			if err != nil {

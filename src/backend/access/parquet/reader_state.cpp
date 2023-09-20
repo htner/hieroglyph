@@ -56,10 +56,10 @@ private:
     };
 
 private:
-    ParquetReader          *reader;
+    ParquetReader          *reader_;
     std::map<uint64_t, FileRowgroups> files;
 
-    MemoryContext           cxt;
+    MemoryContext           cxt_;
     TupleDesc               tuple_desc;
 	std::vector<bool>       fetched_col_;
     bool                    use_threads;
@@ -72,8 +72,8 @@ private:
     ParquetReader *get_next_reader() {
         ParquetReader *r;
 		std::map<uint64_t, FileRowgroups>::iterator it;
-		if (reader != nullptr) {
-			it = files.upper_bound(reader->id());
+		if (reader_ != nullptr) {
+			it = files.upper_bound(reader_->id());
 		} else {
 			it = files.begin();
 		}
@@ -92,6 +92,7 @@ private:
             st = r->Open();
 		}
 		if (!st.ok()) {
+			delete r;
 			return nullptr;
 		}
 
@@ -106,36 +107,44 @@ public:
 							const std::vector<bool>& fetched_col,
                             bool use_threads,
                             bool use_mmap)
-        : reader(nullptr), cxt(cxt), tuple_desc(tuple_desc),
+        : reader_(nullptr), cxt_(cxt), tuple_desc(tuple_desc),
 		  fetched_col_(fetched_col), use_threads(use_threads),
 		  use_mmap(use_mmap), dirname(dirname), s3_client(s3_client)
     { }
 
-    ~MultifileExecutionStateS3() {
-        if (reader)
-            delete reader;
+    virtual ~MultifileExecutionStateS3() {
+        if (reader_) {
+            delete reader_;
+		}
+		if (s3_client) {
+			//s3_client.close();
+			delete s3_client;
+		}
+		reader_ = nullptr;
+		MemoryContextDelete(cxt_);
     }
 
     bool next(TupleTableSlot *slot, bool fake=false) {
         ReadStatus  res;
 
-        if (unlikely(reader == NULL)) {
-            if ((reader = this->get_next_reader()) == NULL)
+        if (unlikely(reader_ == NULL)) {
+			reader_ = this->get_next_reader();
+            if (reader_ == NULL)
                 return false;
         }
 
-        res = reader->Next(slot, fake);
+        res = reader_->Next(slot, fake);
 
         /* Finished reading current reader? Proceed to the next one */
         if (unlikely(res != RS_SUCCESS)) {
             while (true) {
-                if (reader) {
-                    delete reader;
+                if (reader_) {
+                    delete reader_;
 				}
-                reader = this->get_next_reader();
-                if (!reader)
+                reader_ = this->get_next_reader();
+                if (reader_ == nullptr)
                     return false;
-                res = reader->Next(slot, fake);
+                res = reader_->Next(slot, fake);
                 if (res == RS_SUCCESS) {
                     break;
 				}
@@ -151,8 +160,8 @@ public:
 
     bool fetch(ItemPointer tid, TupleTableSlot *slot, bool fake) {
 		auto fileid = ItemPointerGetBlockNumberNoCheck(tid);
-		if (reader != nullptr && (size_t)(reader->id()) == (size_t)fileid) {
-			return reader->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);
+		if (reader_ != nullptr && (size_t)(reader_->id()) == (size_t)fileid) {
+			return reader_->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);
 		}
 
         ParquetReader *r;
@@ -169,15 +178,16 @@ public:
         else
             st = r->Open();
 		if (!st.ok()) {
+			delete r;
 			return false;
 		}
 
-        reader = r;
-		return reader->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);
+        reader_ = r;
+		return reader_->Fetch(ItemPointerGetOffsetNumberNoCheck(tid), slot);
 	} 
 
     void rescan(void) {
-        reader->Rescan();
+        reader_->Rescan();
     }
 
     void add_file(uint64_t fileid, const char *filename, List *rowgroups) {

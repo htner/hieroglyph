@@ -1032,6 +1032,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	}
 	else if (in_dbname != NULL)
 	{
+		// Set From Flags now
 		MyDatabaseId = TemplateDbOid;
 		MyDatabaseTableSpace = DEFAULTTABLESPACE_OID;
 		/*

@@ -960,7 +960,8 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 static void
 convert_sourcefiles(void)
 {
-	content_zero_hostname = get_host_name(0, 'p');
+	// content_zero_hostname = get_host_name(0, 'p');
+	content_zero_hostname = "127.0.0.1";
 
 	convert_sourcefiles_in("input", outputdir, "sql", "sql");
 	convert_sourcefiles_in("output", outputdir, "expected", "out");
@@ -2592,6 +2593,8 @@ create_database(const char *dbname)
 	else
 		psql_command("postgres", "CREATE DATABASE \"%s\" TEMPLATE=template0%s", dbname,
 					 (nolocale) ? " LC_COLLATE='C' LC_CTYPE='C'" : "");
+	// not support now
+	/*
 	psql_command(dbname,
 				 "ALTER DATABASE \"%s\" SET lc_messages TO 'C';"
 				 "ALTER DATABASE \"%s\" SET lc_monetary TO 'C';"
@@ -2600,6 +2603,7 @@ create_database(const char *dbname)
 				 "ALTER DATABASE \"%s\" SET bytea_output TO 'hex';"
 				 "ALTER DATABASE \"%s\" SET timezone_abbreviations TO 'Default';",
 				 dbname, dbname, dbname, dbname, dbname, dbname);
+	*/
 
 	/*
 	 * Install any requested procedural languages.  We use CREATE OR REPLACE
@@ -3502,11 +3506,13 @@ psql_command_output(const char *database, char *buffer, int buf_len, const char 
 static bool
 cluster_healthy(void)
 {
-	char line[1024];
-	psql_command_output("postgres", line, 1024,
-						"SELECT * FROM gp_segment_configuration WHERE status = 'd' OR preferred_role != role;");
+	// sdb not check
+	// char line[1024];
+	//psql_command_output("postgres", line, 1024,
+	//						"SELECT * FROM gp_segment_configuration WHERE status = 'd' OR preferred_role != role;");
 
 	halt_work = false;
+	/*
 	if (strcmp(line, "\n") != 0)
 	{
 		fprintf(stderr, _("\n==================================\n"));
@@ -3514,6 +3520,7 @@ cluster_healthy(void)
 		fprintf(stderr, _("==================================\n"));
 		halt_work = true;
 	}
+	*/
 
 	return !halt_work;
 }
@@ -3521,9 +3528,11 @@ cluster_healthy(void)
 static char *
 get_host_name(int16 contentid, char role)
 {
-	char line[1024];
+	// char line[1024];
 	char *hostname = NULL;
 
+
+	/*
 	psql_command_output("postgres", line, 1024,
 						"SELECT hostname FROM gp_segment_configuration WHERE role=\'%c\' AND content = %d;",
 						role,
@@ -3537,6 +3546,8 @@ get_host_name(int16 contentid, char role)
 				progname);
 		exit(2);
 	}
+	*/
+	hostname = psprintf("127.0.0.1");
 
 	return hostname;
 }

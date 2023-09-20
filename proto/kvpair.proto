@@ -96,11 +96,35 @@ message Database {
   LakeSpace space = 4;
 }
 
+message ErrorResponse {
+  string severity = 1;
+  string severity_unlocklized = 2; 
+  string code = 3;
+  string message = 4;
+  string detail = 5;
+  string hint = 6;
+  int32 position = 7;
+  int32 internal_position = 8;
+  string internal_query = 9;
+  string where = 10;
+  string schema_name = 11;
+  string table_name = 12;
+  string column_name = 13;
+  string data_type_name = 14;
+  string constraint_name = 15;
+  string file = 16;
+  int32 line = 17;
+  string outine = 18;
+  map<string, string> unkown_fields = 19;
+}
+
 message WorkerResultData {
   uint64 dbid = 1;
   uint64 query_id = 2;
   int32 rescode = 3;
-  string message = 4;
+  //string sql_err_code = 3;
+  //string message = 4;
+  ErrorResponse message = 4;
   string result_dir = 5;
 
   uint32 cmd_type = 6;
@@ -129,9 +153,26 @@ message Session {
 	uint64 write_transaction_id = 8;
 
   uint64 query_id = 9;
+  map<string, string> params = 10;
 	//ReadOnlyTransactions map[uint64]uint64
 }
 
 message LocKValue {
   uint64 xid = 2;
+}
+
+enum WorkerState {
+  WSInit = 0;
+  WSReady = 1;
+  WSOverload = 2;
+  WSBusy = 3;
+  WSStop = 4;
+}
+
+message WorkerStatus {
+  uint64 worker_id = 1;
+  uint32 cluster = 2;
+  string addr = 3;
+  WorkerState worker_state = 4;
+  uint64 currect_index = 5;
 }

@@ -31,6 +31,7 @@
 #include "backend/sdb/common/shared_queue.hpp"
 #include "backend/sdb/optimizer/optimize_task.hpp"
 #include "backend/sdb/optimizer/optimizer_service.hpp"
+#include "backend/sdb/common/s3_context.hpp"
 
 #include "backend/sdb/common/common.hpp"
 #include "backend/sdb/common/flags.hpp"
@@ -42,19 +43,36 @@ int OptimizerServerRun(int argc, char** argv);
 
 int OptimizerServiceMain(int argc, char* argv[]) {
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
+	create_session_context(TopMemoryContext);
 	//
-	not_initdb = true;
+	kNotInitdb = true;
 	MyDatabaseId = FLAGS_dbid;
-	dbid = FLAGS_dbid;
 	MyDatabaseTableSpace = 1;
 	Gp_role = GP_ROLE_DISPATCH;
 
+	/*
 	kDBBucket = FLAGS_bucket;
 	kDBS3User = FLAGS_s3user;
 	kDBS3Password = FLAGS_s3passwd;
 	kDBS3Region = FLAGS_region;
 	kDBS3Endpoint = FLAGS_endpoint;
 	kDBIsMinio = FLAGS_isminio;
+	*/
+
+	auto s3_cxt = GetS3Context();
+    auto& sess_info = thr_sess->session_cxt_;
+
+	s3_cxt->lake_bucket_ = FLAGS_bucket;
+	s3_cxt->lake_user_ = FLAGS_s3user;
+	s3_cxt->lake_password_ = FLAGS_s3passwd;
+	s3_cxt->lake_region_ = FLAGS_region;
+	s3_cxt->lake_endpoint_ = FLAGS_endpoint;
+	s3_cxt->lake_isminio_ = FLAGS_isminio;
+
+	sess_info.dbid_ = FLAGS_dbid;
+	sess_info.sessionid_ = 1;
+	sess_info.query_id_ = 1;
+
 	sdb::CatalogInfo catalog_info;
 
     //InitMinimizePostgresEnv(argc, argv, "template1", "template1");

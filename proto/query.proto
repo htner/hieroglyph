@@ -16,10 +16,10 @@ enum QueryStates {
   QueryInit = 1;
   QueryOptimizer = 2;
   QueryExecStart = 3;
-  QueryCancel = 4;
-  QueryPartitionSuccess = 5;
-  QuerySuccess = 6;
-  QueryError = 7;
+  QueryPartitionSuccess = 4;
+  QueryCancel = 10;
+  QuerySuccess = 11;
+  QueryError = 12;
 }
 
 message QueryRequestInfo {
@@ -56,9 +56,11 @@ message TaskResult {
 
 message QueryResult {
   uint32 state = 1;
-  string message = 2;
-  string detail = 3;
+  ErrorResponse message = 2;
+  //string message = 2;
+  //string detail = 3;
   uint32 root_workers = 4;
+  // string sql_err_code = 5;
 
   // uint32 cmd_type = 5;
   // uint64 process_rows = 6;

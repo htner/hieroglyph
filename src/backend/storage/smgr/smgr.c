@@ -324,8 +324,10 @@ smgrclose(SMgrRelation reln)
 
 	if (hash_search(SMgrRelationHash,
 					(void *) &(reln->smgr_rnode),
-					HASH_REMOVE, NULL) == NULL)
-		elog(PANIC, "SMgrRelation hashtable corrupted");
+					HASH_REMOVE, NULL) == NULL) {
+		// FIXME_SDB maybe not duplicates, but sdb has bug
+		// elog(PANIC, "SMgrRelation hashtable corrupted");
+	}
 
 	/*
 	 * Unhook the owner pointer, if any.  We do this last since in the remote

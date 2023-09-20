@@ -95,7 +95,7 @@ class ParquetWriter {
 
   uint64_t file_id_ = 0;
   std::string rel_name;
-  Oid rel_id;
+  Oid rel_id_;
   std::string old_filename_;
   std::string filename_;
   sdb::LakeFile file_handler_;

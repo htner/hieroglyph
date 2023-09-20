@@ -405,6 +405,7 @@ void SysOneCacheInvalidate(int idx_oid) {
 
 // sdb catalog cache
 namespace sdb {
+
 void CatalogCache::InitCatalogCache(SDBContext *cxt) {
 	for (int i = 0; i < SysCacheSize; ++i) {
 		CatCacheData data;
@@ -939,6 +940,8 @@ HeapTuple CatalogCache::SyncFromCatalogRelation(int cache_id,
 		break;					/* assume only one match */
 	}
 
+	systable_endscan(scandesc);
+	table_close(relation, NoLock);
 	return cache_tp;
 }
 

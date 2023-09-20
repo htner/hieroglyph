@@ -3729,7 +3729,7 @@ CleanupTransaction(void)
 	 */
 	s->state = TRANS_DEFAULT;
 
-	finishDistributedTransactionContext("CleanupTransaction", true);
+	// finishDistributedTransactionContext("CleanupTransaction", true);
 
 	/* Release resource group slot at the end of a transaction */
 	if (ShouldUnassignResGroup())

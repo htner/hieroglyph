@@ -68,7 +68,7 @@ var CloneDatabaseCmd = &cobra.Command{
 	Short: "Clone CloudDB Database",
 	Long:  `The utility is used to clone the SDB CloudDB Database.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := account.CloneDatabase(organization, database, sourceOrganization, sourceDatabase)
+		db, err := account.CloneDatabase(organization, database, sourceOrganization, sourceDatabase, 1)
 		if err != nil {
 			log.Printf("create database err: %s", err.Error())
 		}
