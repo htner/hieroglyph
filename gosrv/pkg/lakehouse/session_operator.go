@@ -73,7 +73,7 @@ func (s *SessionOperator) CheckAndGet(state int32) (*sdb.Session, error) {
 		return nil, err
 	}
 	if sess.State != state {
-		log.Println("session states mismatch")
+		log.Println("session states mismatch, ", sess.State, state)
 		return &sess, ErrStateMismatch//fmt.Errorf("session mismatch %v %v", sess, stat)
 	}
 	return &sess, nil

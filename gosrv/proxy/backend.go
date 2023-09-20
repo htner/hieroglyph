@@ -48,6 +48,8 @@ type Proxy struct {
 	dbid           uint64
 	sessionid      uint64
 	transcationid  uint64
+
+  sessionParas map[string]string
 }
 
 func NewProxy(frontendConn net.Conn) *Proxy {
@@ -232,7 +234,52 @@ func (p *Proxy) readClientConn() error {
 	return nil
 }
 
+type RawMessage struct {
+  data []byte 
+}
+
+func (R *RawMessage) Decode(data []byte) error {
+  R.data = data
+  return nil
+}
+
+func (R *RawMessage) Encode(data []byte) []byte {
+  return append(data, R.data...)
+}
+
+func (R *RawMessage) Backend() {
+}
+
 func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error {
+
+  if resp.Result.Rescode != 0 {
+      if resp.Result.Message != nil {
+        message := resp.Result.Message
+
+	      errMsg := &pgproto3.ErrorResponse{
+        Severity: message.Severity, 
+        Code: message.Code, 
+        Message: message.Message,
+        Detail: message.Detail,
+        Hint: message.Hint,
+        Position: message.Position,
+        InternalPosition: message.InternalPosition,
+        InternalQuery: message.InternalQuery,
+        Where: message.Where,
+        SchemaName: message.SchemaName,
+        TableName: message.TableName,
+        ColumnName: message.ColumnName,
+        DataTypeName: message.DataTypeName,
+        ConstraintName: message.ConstraintName,
+        File: message.File,
+        Line: message.Line} 
+
+	      return p.backend.Send(errMsg)
+      } else {
+			  return p.SendError("58000", "check result empty")
+      }
+	}
+
 	if resp.Result.CmdType == postgres.CMD_UPDATE ||
 		resp.Result.CmdType == postgres.CMD_INSERT ||
 		resp.Result.CmdType == postgres.CMD_DELETE {
@@ -251,11 +298,24 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 		command.CommandTag = []byte(commandTag)
 		return p.backend.Send(&command)
 	}
-	if resp.Result.CmdType == postgres.CMD_UTILITY &&
-      resp.Result.Message != "" {
-		var command pgproto3.CommandComplete
-		command.CommandTag = []byte(resp.Result.Message)
-		return p.backend.Send(&command)
+
+	if resp.Result.CmdType == postgres.CMD_UTILITY {
+		  var command pgproto3.CommandComplete
+      if resp.Result.Message != nil {
+        command.CommandTag = []byte(resp.Result.Message.Message)
+      }
+		  return p.backend.Send(&command)
+  }
+
+	result := resp.Result
+  if len(result.DataFiles) == 0 {
+		if result.Message != nil {
+        message := result.Message
+	      errMsg := &pgproto3.ErrorResponse{Code: message.Code, Message: message.Message, Severity: message.Severity} 
+	      return p.backend.Send(errMsg)
+    } else {
+			  return p.SendError("58000", "data file miss")
+    }
   }
 
 	//const defaultRegion = "us-east-1"
@@ -274,7 +334,6 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 		EndpointResolver: staticResolver,
 	}
 
-	result := resp.Result
 	s3Client := s3.NewFromConfig(cfg)
 	out, err := s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String("sdb1"),
@@ -310,22 +369,52 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 	*/
 	reader := bufio.NewReader(&bbuffer)
 
-	// result is  len:type:data
-	buf := make([]byte, 8)
-	n, err := reader.Read(buf)
-	if err != nil && err != io.EOF {
-		return err
-	}
+	// result is len:type:data
+  for true {
+    buf := make([]byte, 8)
+    n, err := io.ReadFull(reader, buf)
+    if err != nil && err != io.EOF {
+      log.Println("reader error:", err)
+      return err
+    }
+    if n == 0 {
+      log.Println("reader end")
+      return nil
+    }
 
-	if n == 0 {
-		return nil
-	}
+    if n != 8 {
+      log.Println("reader len error:", n)
+      return nil
+    }
 
-	descSize := binary.BigEndian.Uint64(buf)
+    descSize := binary.BigEndian.Uint64(buf)
 
-	descBuf := make([]byte, descSize)
-	reader.Read(descBuf)
+    descBuf := make([]byte, descSize)
+    n, err = io.ReadFull(reader, descBuf)
 
+    if err != nil && err != io.EOF {
+      log.Println("reader error:", err)
+      return err
+    }
+
+    if n != int(descSize) {
+      log.Println("reader len error:", n)
+      return nil
+    }
+
+		log.Println("send message, type: ", string(rune(descBuf[0])))
+
+    var raw RawMessage
+    raw.data = descBuf
+
+    err = p.backend.Send(&raw)
+    if err != nil {
+      return err
+    }
+  }
+
+
+  /*
 	switch descBuf[0] {
 	case 'C':
 		log.Println("dddtest: ", descBuf)
@@ -369,9 +458,20 @@ func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error 
 			}
 		}
 		p.backend.Send(&pgproto3.CommandComplete{CommandTag: []byte("END")})
+  case 'D':
+    var command pgproto3.DataRow
+		err = command.Decode(descBuf[1:])
+		if err != nil {
+			return err
+		}
+		err = p.backend.Send(&command)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown message type: %c", descBuf[0])
 	}
+  */
 	return nil
 }
 
@@ -430,7 +530,7 @@ func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	req := &sdb.ExecQueryRequest{Sql: msg.String, Sid: p.sessionid, Uid: p.uid, Dbid: p.dbid}
+  req := &sdb.ExecQueryRequest{Sql: msg.String, Sid: p.sessionid, Uid: p.uid, Dbid: p.dbid, Organization: p.organization, OrganizationId: p.organizationId}
 	log.Println("get req:", req)
 	resp, err := client.Depart(ctx, req)
 	log.Println("get resp:", resp, err)
@@ -443,18 +543,21 @@ func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
 	var respResult *sdb.CheckQueryResultReply
 	for true {
 		respResult, err = client.CheckQueryResult(ctx, &sdb.CheckQueryResultRequest{Dbid: p.dbid, QueryId: queryId})
-		log.Println("check query result resp:", respResult, err)
 		if err != nil {
+		  log.Println("check query result resp:", respResult, err)
 			p.SendError("58030", "get query result error")
 			return err
 		}
 		if respResult.Rescode == 20000 {
-			time.Sleep(time.Second)
-		} else if respResult.Rescode == 0 {
-			break
+			time.Sleep(time.Millisecond * 50)
+      continue
+    } 
+
+    log.Println("check query result resp:", respResult, err)
+    if respResult.Result == nil ||  respResult.Rescode != 0 {
+			return p.SendError("58000", "check result empty")
 		} else {
-			p.SendError("58030", fmt.Sprint("get query result error %ld", respResult.Rescode))
-			return nil
+			break
 		}
 		/*
 			    if (p.checkCancel()) {
@@ -473,23 +576,24 @@ func (p *Proxy) processQuery(msg *pgproto3.Query) (err error) {
 	return nil
 }
 
-func (p *Proxy) SendError(code string, msg string) {
-	errMsg := &pgproto3.ErrorResponse{Code: code, Message: msg}
-	err := p.backend.Send(errMsg)
-	if err != nil {
-		return // fmt.Errorf("error writing query response: %w", err)
-	}
+func (p *Proxy) SendError(code string, msg string) error {
+	errMsg := &pgproto3.ErrorResponse{Code: code, Message: msg, Severity: "ERROR"}
+	return p.backend.Send(errMsg)
 }
 
 func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 	fullDatabase := msg.Parameters["database"]
 	names := strings.Split(fullDatabase, ".")
-	if len(names) != 2 {
-		return errors.New("must has organization and username")
-	}
-	p.organization = names[0]
-	p.database = names[1]
-	p.username = msg.Parameters["user"]
+	if len(names) == 1 {
+    p.organization = "test"
+    p.database = fullDatabase
+    p.username = msg.Parameters["user"]
+		// return errors.New("must has organization and username")
+  } else if len(names) >= 2 {
+    p.organization = names[0]
+    p.database = names[1]
+    p.username = msg.Parameters["user"]
+  }
 	passwd := ""
 
 	log.Println("checkuser ", p.organization, p.username)

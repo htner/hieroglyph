@@ -1,4 +1,4 @@
-#include "backend/sdb/arrow/recordbatch_slot_exchanger.hpp"
+#include "backend/sdb/arrow/recordbatch_to_slot_exchanger.hpp"
 #include "backend/sdb/common/pg_export.hpp"
 //#include "access/tupdesc.h"
 #include <brpc/server.h>

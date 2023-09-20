@@ -52,6 +52,7 @@
 #include "utils/ps_status.h"
 #include "utils/rel.h"
 #include "utils/relmapper.h"
+#include "sdb/session_info.h"
 
 uint32		bootstrap_data_checksum_version = 0;	/* No checksum */
 
@@ -552,9 +553,9 @@ static void CopyPGClassTableToParquet() {
 					   RelationGetDescr(rel), &isnull);
 		if (DatumGetObjectId(datum) == 2) {
 			tuple = heap_modify_tuple_by_cols(tuple, RelationGetDescr(rel), chnattrs, chattrs, newvals, newnulls);
-			// elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
+			elog(WARNING, "change heap to parquet %d", DatumGetObjectId(datum_tid));
 		} else if (DatumGetObjectId(datum) == 403) {
-			// elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
+			elog(WARNING, "btree index %d", DatumGetObjectId(datum_tid));
 		}
 		simple_parquet_insert_cache(rel, tuple);
 		//simple_parquet_insert(rel, tuple);
@@ -580,11 +581,13 @@ extern bool SDB_StartTransaction(uint64 dbid, uint64 sid);
 extern bool SDB_AlloccateXid(uint64 dbid, uint64 sid, bool read, bool write, uint64* read_xid, uint64* write_xid);
 extern bool SDB_CommitTransaction(uint64 dbid, uint64 sid);
 
+/*
 extern uint64_t dbid;
 extern uint64_t sessionid;
 extern uint64_t query_id;
 extern uint64_t slice_count;
 extern uint64_t slice_seg_index;
+*/
 
 void upload_all() {
 	simple_parquet_uploadall();
@@ -644,12 +647,22 @@ BootstrapModeMain(void)
 	 * Process bootstrap input.type <list>  boot_index_params
 	 */
 	StartTransactionCommand();
+
+	create_session_context(TopMemoryContext);
+    SessionContext* sess_info = &(thr_sess->session_cxt_);
+	sess_info->dbid_ = 1;
+	sess_info->sessionid_ = 1;
+	sess_info->query_id_ = 1;
+	sess_info->slice_count_ = 1;
+	sess_info->slice_seg_index_ = 1;
+	/*
 	dbid = 1;
 	sessionid = 1;
 
 	query_id = 1;
 	slice_count = 1;
 	slice_seg_index = 1;
+	*/
 
 	SDB_StartTransaction(1, 1);
 	SDB_AlloccateXid(1, 1, true, true, NULL, NULL);

@@ -126,6 +126,8 @@ ic_proxy_backend_on_close(uv_handle_t *handle)
 static ChunkTransportStateEntry *
 ic_proxy_backend_get_pentry(ICProxyBackend *backend)
 {
+	return NULL;
+	/*
 	ICProxyBackendContext *context;
 	ChunkTransportState *pTransportStates;
 	ChunkTransportStateEntry *pEntry = NULL;
@@ -135,6 +137,7 @@ ic_proxy_backend_get_pentry(ICProxyBackend *backend)
 	getChunkTransportState(pTransportStates, backend->key.sendSliceIndex,
 						   &pEntry);
 	return pEntry;
+	*/
 }
 
 /*
@@ -358,7 +361,7 @@ ic_proxy_backend_on_cancel_from_qd_timer(uv_timer_t *timer)
 	ChunkTransportState *pTransportStates;
 
 	pTransportStates = timer->data;
-	checkForCancelFromQD(pTransportStates);
+	// checkForCancelFromQD(pTransportStates);
 }
 
 /*

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
+	"time"
 
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
@@ -42,7 +42,7 @@ func (c *ScheduleServer) PushWorkerResult(ctx context.Context, in *sdb.PushWorke
 		if isFinish {
 			tr := lakehouse.NewTranscation(in.Dbid, in.Sessionid)
 		  log.Println("try auto commit")
-			tr.TryAutoCommit()
+			tr.TryAutoCommitWithQuery(in.TaskId.QueryId)
 		}
 	}
 	return out, err
@@ -59,23 +59,29 @@ func (c *ScheduleServer) CheckQueryResult(ctx context.Context, in *sdb.CheckQuer
 		reply.Rescode = 20000
 		reply.Resmsg = "wait"
 		err = nil
-	} else if result.State < uint32(sdb.QueryStates_QuerySuccess) {
-		// reply.Rescode = int32(result.State)
-		// reply.Resmsg = result.Detail
+  } else if result.State <= uint32(sdb.QueryStates_QueryPartitionSuccess) {
 		reply.Rescode = 20000
 		reply.Resmsg = "wait"
 		err = nil
 	} else {
+    log.Println("get query result", result)
+    reply.Rescode = 0
 		if len(result.Result) == 0 {
-			return nil, errors.New("not root slice?")
-		}
-		reply.Result = result.Result[0]
+      worker_result := new(sdb.WorkerResultData)
+      worker_result.Rescode = -1
+      worker_result.Message = result.Message 
+      reply.Result = worker_result
+		} else {
+		  reply.Result = result.Result[0]
 		//reply.Result.State = result.State
-		for i := 1; i < len(result.Result); i++ {
-			result_sub := result.Result[i]
-			reply.Result.ProcessRows += result_sub.ProcessRows
-			reply.Result.DataFiles = append(reply.Result.DataFiles, result_sub.DataFiles...)
-		}
+      if result.State == uint32(sdb.QueryStates_QuerySuccess) {
+        for i := 1; i < len(result.Result); i++ {
+          result_sub := result.Result[i]
+          reply.Result.ProcessRows += result_sub.ProcessRows
+          reply.Result.DataFiles = append(reply.Result.DataFiles, result_sub.DataFiles...)
+        }
+      }
+    }
 	}
 	return reply, err
 }
@@ -92,4 +98,21 @@ func (s *ScheduleServer) Depart(ctx context.Context, query *sdb.ExecQueryRequest
 		//ResultDir: query.ResultDir,
 	}
 	return resRepy, err
+}
+
+func (s *ScheduleServer) NewWorkerId(context.Context, *sdb.NewWorkerIdRequest) (*sdb.NewWorkerIdReply, error) {
+  id := time.Now().UnixNano()
+  workerId := uint32(id)
+  reply := &sdb.NewWorkerIdReply{WorkerId: uint64(workerId)}
+	log.Println("new workerid ", workerId)
+  return reply, nil
+}
+
+func (s *ScheduleServer) WorkerPing(ctx context.Context, req *sdb.WorkerPingRequest) (*sdb.WorkerPongReply, error) {
+  reply := &sdb.WorkerPongReply{}
+  mgr := schedule.NewWorkerMgr()
+  mgr.Ping(req)
+
+  //log.Println("ping")
+  return reply, nil
 }

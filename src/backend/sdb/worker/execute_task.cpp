@@ -4,10 +4,12 @@
 #include "backend/sdb/worker/motion_stream.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
 #include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/log.hpp"
 #include "cdb/cdbvars.h"
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
 #include "backend/sdb/common/lake_file_mgr.hpp"
+#include "backend/sdb/common/s3_context.hpp"
 #include "backend/sdb/catalog_index/catalog_to_index.hpp"
 
 namespace sdb {
@@ -25,6 +27,7 @@ void ExecuteTask::Run(CatalogInfo& catalog_info) {
 
 	//kGlobalTask = shared_from_this();
 	// Prepare();
+	InitThreadInfo();
 	StartTransactionCommand();
     PrepareCatalog(catalog_info);
 	PrepareGuc();
@@ -54,25 +57,31 @@ void ExecuteTask::StartRecvStream(int motion_id, int16 route, brpc::StreamId id)
 }
 
 void ExecuteTask::Prepare() {
-	dbid = request_.dbid();
-	sessionid = request_.sessionid();
-	query_id = request_.task_identify().query_id();
+}
 
-	kDBBucket = request_.db_space().s3_info().bucket();
-	kDBS3User = request_.db_space().s3_info().user();
-	kDBS3Password = request_.db_space().s3_info().password();
-	kDBS3Region = request_.db_space().s3_info().region();
-	kDBS3Endpoint = request_.db_space().s3_info().endpoint();
-	kDBIsMinio = request_.db_space().s3_info().is_minio();
+void ExecuteTask::InitThreadInfo() {
+    auto& sess_info = thr_sess->session_cxt_;
+    auto s3_cxt = GetS3Context();
 
-	kResultBucket = request_.result_space().s3_info().bucket();
-	kResultS3User = request_.result_space().s3_info().user();
-	kResultS3Password = request_.result_space().s3_info().password();
-	kResultS3Region = request_.result_space().s3_info().region();
-	kResultS3Endpoint = request_.result_space().s3_info().endpoint();
-	kResultIsMinio = request_.result_space().s3_info().is_minio();
+	sess_info.dbid_ = request_.dbid();
+	sess_info.sessionid_ = request_.sessionid();
+	sess_info.query_id_ = request_.task_identify().query_id();
 
-	GpIdentity.dbid = dbid;
+	s3_cxt->lake_bucket_ = request_.db_space().s3_info().bucket();
+	s3_cxt->lake_user_ = request_.db_space().s3_info().user();
+	s3_cxt->lake_password_ = request_.db_space().s3_info().password();
+	s3_cxt->lake_region_ = request_.db_space().s3_info().region();
+	s3_cxt->lake_endpoint_ = request_.db_space().s3_info().endpoint();
+	s3_cxt->lake_isminio_ = request_.db_space().s3_info().is_minio();
+
+	s3_cxt->result_bucket_ = request_.result_space().s3_info().bucket();
+	s3_cxt->result_user_ = request_.result_space().s3_info().user();
+	s3_cxt->result_password_ = request_.result_space().s3_info().password();
+	s3_cxt->result_region_ = request_.result_space().s3_info().region();
+	s3_cxt->result_endpoint_ = request_.result_space().s3_info().endpoint();
+	s3_cxt->result_isminio_ = request_.result_space().s3_info().is_minio();
+
+	GpIdentity.dbid = sess_info.dbid_;
 
     std::vector<sdb::RelFiles> catalog_list(request_.catalog_list().begin(), request_.catalog_list().end());
     std::vector<sdb::RelFiles> user_rel_list(request_.user_rel_list().begin(), request_.user_rel_list().end());
@@ -110,6 +119,8 @@ void ExecuteTask::HandleQuery() {
 	/*
 	 * Deserialize the query execution plan (a PlannedStmt node), if there is one.
 	*/
+    auto& sess_info = thr_sess->session_cxt_;
+
 	const std::string& plan_info = request_.plan_info();
 	PlannedStmt* plan = (PlannedStmt *) deserializeNode(plan_info.data(), plan_info.size());
 	if (!plan || !IsA(plan, PlannedStmt)) {
@@ -140,8 +151,13 @@ void ExecuteTask::HandleQuery() {
 		auto result = request.mutable_result();
 		result->set_dbid(request_.dbid());
 		result->set_query_id(request_.task_identify().query_id());
-		result->set_rescode(50000);
-		result->set_message("invalid planned statement");
+		result->set_rescode(-1);
+		//result->set_message("invalid planned statement");
+		//
+		auto message = result->mutable_message();
+		message->set_code("50000");
+		message->set_message("invalid planned statement");
+
 		result->set_cmd_type(plan->commandType);
 		//result->set_result_dir(result_dir);
 		//result->set_meta_file("");
@@ -169,7 +185,7 @@ void ExecuteTask::HandleQuery() {
 
 	if (plan->commandType != CMD_UTILITY) {
 		slice_table = BuildSliceTable();
-		GpIdentity.segindex = slice_seg_index;
+		GpIdentity.segindex = sess_info.slice_seg_index_;
 	}
 
 	std::string result_file = std::to_string(request_.task_identify().query_id()) + "_"
@@ -179,10 +195,70 @@ void ExecuteTask::HandleQuery() {
 	set_worker_param(request_.sessionid(), request_.worker_id());
 
 	uint64_t process_rows = 0;
-	exec_worker_query(request_.sql().data(), plan, params, slice_table,
+	bool succ = exec_worker_query(request_.sql().data(), plan, params, slice_table,
 					  request_.result_dir().data(), result_file.data(), 
 					  &process_rows, (void*)this);
-	ReportResult(plan->commandType, process_rows, request_.result_dir(), result_file);
+	if (succ) {
+		ReportResult(plan->commandType, process_rows, request_.result_dir(), result_file);
+	} else {
+		std::unique_ptr<brpc::Channel> channel;
+		std::unique_ptr<sdb::Schedule_Stub> stub;//(&channel);
+		brpc::Controller cntl;
+		channel = std::make_unique<brpc::Channel>();
+
+		// Initialize the channel, NULL means using default options. 
+		brpc::ChannelOptions options;
+		options.protocol = "h2:grpc";
+		//options.connection_type = "pooled";
+		options.timeout_ms = 10000/*milliseconds*/;
+		options.max_retry = 5;
+		if (channel->Init("127.0.0.1", 10002, &options) != 0) {
+			LOG(ERROR) << "Fail to initialize channel";
+			return;
+		}
+		stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
+
+		auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
+		//reply_->set_code(last.sqlerrorcode_);
+		//reply_->set_message(last.message_);
+
+		sdb::PushWorkerResultRequest request;
+		request.set_dbid(request_.dbid());
+		request.set_sessionid(request_.sessionid());
+
+		auto task_id = request.mutable_task_id();
+		*task_id = request_.task_identify();
+		auto result = request.mutable_result();
+		result->set_dbid(request_.dbid());
+		result->set_query_id(request_.task_identify().query_id());
+		result->set_rescode(-1);
+
+		auto message = result->mutable_message();
+		if (log_cxt) {
+			*message = log_cxt->LastErrorData();
+			// result->set_sql_err_code(last.sqlerrcode_);
+			// result->set_message(last.message_);
+		} else {
+			//result->set_sql_err_code("58000");
+			//result->set_message("invalid planned statement");
+			message->set_code("58000");
+			message->set_message("invalid planned statement");
+		}
+		result->set_cmd_type(plan->commandType);
+		//result->set_result_dir(result_dir);
+		//result->set_meta_file("");
+		//result->add_data_files(result_file);
+
+		sdb::PushWorkerResultReply response;
+
+		stub->PushWorkerResult(&cntl, &request, &response, NULL);
+		if (cntl.Failed()) {
+			LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+			return;
+		}
+		return;
+
+	}
 }
 
 void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
@@ -214,7 +290,6 @@ void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
 	result->set_dbid(request_.dbid());
 	result->set_query_id(request_.task_identify().query_id());
 	result->set_rescode(0);
-	result->set_message("");
 	result->set_result_dir(result_dir);
 
 	result->set_cmd_type(cmdtype);
@@ -232,6 +307,8 @@ void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
 }
 
 SliceTable* ExecuteTask::BuildSliceTable() {
+    auto& sess_info = thr_sess->session_cxt_;
+
 	if (!request_.has_slice_table()) {	
 		LOG(INFO) << "not have slice table";
 		return nullptr;
@@ -261,7 +338,7 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 
 		if (i == table->localSlice) {
 			// set global
-			slice_count = exec_slice->planNumSegments;
+			sess_info.slice_count_ = exec_slice->planNumSegments;
 		}
 
 		auto children = pb_exec_slice.children();
@@ -273,8 +350,8 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 		for (int j = 0; j < segments.size(); ++j) {
 			exec_slice->segments = lappend_int(exec_slice->segments, segments[j]);
 			if (segments[j] == table->localSegIndex) {
-				slice_seg_index = j;
-				LOG(ERROR) << "total seg num:" << slice_count << " my index:" << slice_seg_index; 
+				sess_info.slice_seg_index_ = j;
+				LOG(ERROR) << "total seg num:" << sess_info.slice_count_ << " my index:" << sess_info.slice_seg_index_; 
 
 			}
 		}

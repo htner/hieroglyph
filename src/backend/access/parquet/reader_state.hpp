@@ -36,7 +36,7 @@ enum ReaderType {
 
 class ParquetS3ReaderState {
 public:
-    virtual ~ParquetS3ReaderState() {};
+    virtual ~ParquetS3ReaderState(){};
     virtual void SetRel(Oid rel) {
       rel_ = rel;
     }

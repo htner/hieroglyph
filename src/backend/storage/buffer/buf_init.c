@@ -197,14 +197,19 @@ BufferShmemSize(void)
 
 	/* size of buffer descriptors */
 	size = add_size(size, mul_size(NBuffers, sizeof(BufferDescPadded)));
+	elog(DEBUG1, "buffer shmem size 1 %lu", (unsigned long) size);
 	/* to allow aligning buffer descriptors */
 	size = add_size(size, PG_CACHE_LINE_SIZE);
+	elog(DEBUG1, "buffer shmem size 2 %lu", (unsigned long) size);
 
 	/* size of data pages */
 	size = add_size(size, mul_size(NBuffers, BLCKSZ));
+	elog(DEBUG1, "buffer shmem size 3 %lu", (unsigned long) size);
+	elog(DEBUG1, "buffer shmem size 3 %lu %lu", NBuffers, BLCKSZ);
 
 	/* size of stuff controlled by freelist.c */
 	size = add_size(size, StrategyShmemSize());
+	elog(DEBUG1, "buffer shmem size 4 %lu", (unsigned long) size);
 
 	/*
 	 * It would be nice to include the I/O locks in the BufferDesc, but that
@@ -216,11 +221,14 @@ BufferShmemSize(void)
 	 * padding.
 	 */
 	size = add_size(size, mul_size(NBuffers, sizeof(LWLockMinimallyPadded)));
+	elog(DEBUG1, "buffer shmem size 5 %lu", (unsigned long) size);
 	/* to allow aligning the above */
 	size = add_size(size, PG_CACHE_LINE_SIZE);
+	elog(DEBUG1, "buffer shmem size 6 %lu", (unsigned long) size);
 
 	/* size of checkpoint sort array in bufmgr.c */
 	size = add_size(size, mul_size(NBuffers, sizeof(CkptSortItem)));
+	elog(DEBUG1, "buffer shmem size 7 %lu", (unsigned long) size);
 
 	return size;
 }

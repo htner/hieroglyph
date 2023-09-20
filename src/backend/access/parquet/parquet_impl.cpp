@@ -79,6 +79,7 @@ extern "C" {
 #else
 #include "catalog/pg_am_d.h"
 #endif
+#include "include/sdb/session_info.h"
 }
 
 #include "backend/sdb/common/pg_export.hpp"
@@ -109,6 +110,7 @@ extern "C" {
 
 #include "backend/sdb/common/singleton.hpp"
 #include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/s3_context.hpp"
 
 /* from costsize.c */
 #define LOG2(x) (log(x) / 0.693147180559945)
@@ -228,10 +230,15 @@ static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
     parquet_s3_init();
     init_s3sdk = true;
   }
+ 
+ auto s3_cxt = GetS3Context();
   Aws::S3::S3Client *s3client = s3_client_open(
-	  kDBS3User.data(), kDBS3Password.data(), kDBIsMinio, kDBS3Endpoint.data(), kDBS3Region.data());
+	  s3_cxt->lake_user_.data(), s3_cxt->lake_password_.data(), s3_cxt->lake_isminio_, 
+		s3_cxt->lake_endpoint_.data(), s3_cxt->lake_region_.data());
       //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1");
-  
+  LOG(ERROR) << "parquet_s3 open:" <<
+	  s3_cxt->lake_user_ << ", " << s3_cxt->lake_password_ << ", " <<
+	  s3_cxt->lake_endpoint_ << ", " << s3_cxt->lake_region_;
   return s3client;
 }
 
@@ -335,10 +342,12 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	ReaderType reader_type = RT_MULTI;
 	int max_open_files = 10;
 
-	MemoryContextCallback *callback;
+	// MemoryContextCallback *callback;
 	MemoryContext reader_cxt;
 
 	std::string error;
+
+	RelationIncrementReferenceCount(relation);
 
 	scan = (ParquetScanDesc)palloc0(sizeof(ParquetScanDescData));
 	scan->rs_base.rs_rd = relation;
@@ -364,11 +373,12 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 	ExtractFetchedColumns(targetlist, qual, fetched_col);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
-	reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
+	reader_cxt = AllocSetContextCreate(CurrentMemoryContext, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
+		auto s3_cxt = GetS3Context();
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, kDBBucket.data(), s3client,
+			reader_type, reader_cxt, s3_cxt->lake_bucket_.data(), s3client,
 			relation->rd_id, tuple_desc, fetched_col,
 			use_threads, use_mmap, max_open_files);
 
@@ -388,10 +398,10 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
    * Enable automatic execution state destruction by using memory context
    * callback
    */
-	callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
-	callback->func = destroy_parquet_state;
-	callback->arg = (void *)state;
-	MemoryContextRegisterResetCallback(reader_cxt, callback);
+	//callback = (MemoryContextCallback *)palloc(sizeof(MemoryContextCallback));
+	//callback->func = destroy_parquet_state;
+	//callback->arg = (void *)state;
+	//MemoryContextRegisterResetCallback(reader_cxt, callback);
 
 	scan->state = state;
 	return scan;
@@ -411,7 +421,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                           */
   auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
+		// LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
 		//filenames.push_back(lake_files[i].file_name());
   }
 
@@ -523,7 +533,7 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 						} 
 					} 
 				} while (0);
-				//LOG(ERROR) << "heap key test result" << valid;
+				LOG(ERROR) << "heap key test result" << valid;
 			}
 			valid = result;
 
@@ -531,6 +541,7 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 				return tuple;
 			}
 	}
+	LOG(ERROR) << "heap key get null ";
 	
   } catch (std::exception &e) {
     error = e.what();
@@ -562,14 +573,14 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	ExecClearTuple(slot);
 	try {
 		while(true) {
-		//LOG(ERROR) << "parquet get next slot 1: " << error.c_str();
+			// LOG(ERROR) << "parquet get next slot 1: " << error.c_str();
 			bool ret = festate->next(slot);
-		//LOG(ERROR) << "parquet get next slot: 2" << error.c_str();
+			// LOG(ERROR) << "parquet get next slot: 2" << error.c_str();
 			if (!ret) {
 				LOG(ERROR) << "parquet get next slot return false";
 				return false;
 			}
-			//LOG(ERROR) << "attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
+			// LOG(ERROR) << "attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
 			bool		shouldFree = true;
 			HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
@@ -580,22 +591,19 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 			bool result = true;
 			if (keys != NULL) {
 				// HeapKeyTest(tuple, RelationGetDescr(pscan->rs_base.rs_rd), nkeys, key, valid);
-				//LOG(ERROR) << "heap key test result " << valid << " key size: " << nkeys << " attr no:" << key[0].sk_attno;
-				do 
-				{ 
+				// LOG(ERROR) << "heap key test result " << valid << " key size: " << nkeys << " attr no:" << keys[0].sk_attno;
+				do { 
 					/* Use underscores to protect the variables passed in as parameters */ 
 					int			__cur_nkeys = (nkeys); 
 					ScanKey		__cur_keys = (keys); 
 
 					(result) = true; /* may change */ 
-					for (; __cur_nkeys--; __cur_keys++) 
-					{ 
+					for (; __cur_nkeys--; __cur_keys++) { 
 						Datum	__atp; 
 						bool	__isnull; 
 						Datum	__test; 
 
-						if (__cur_keys->sk_flags & SK_ISNULL) 
-						{ 
+						if (__cur_keys->sk_flags & SK_ISNULL) { 
 							LOG(ERROR) << "SK_ISNULL:";
 							(result) = false; 
 							break; 
@@ -606,20 +614,20 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 						   (RelationGetDescr(pscan->rs_base.rs_rd)), 
 						&__isnull); 
 
-						if (__isnull) 
-						{ 
+						if (__isnull) { 
 							LOG(ERROR) << "ISNULL:";
 							(result) = false; 
 							break; 
 						} 
 
-						//LOG(ERROR) << "attr:" << __cur_keys->sk_attno  << " -> "<< DatumGetUInt32(__atp);
-	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
+						// LOG(ERROR) << "attr:" << __cur_keys->sk_attno  << " -> "<< DatumGetUInt32(__atp);
+ 	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
 								 __cur_keys->sk_collation, 
 								 __atp, __cur_keys->sk_argument); 
 
-						if (!DatumGetBool(__test)) 
-						{ 
+						if (!DatumGetBool(__test)) { 
+						//int *i = NULL;
+						//*i = 0;
 							(result) = false; 
 							break; 
 						} 
@@ -630,10 +638,12 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 			valid = result;
 
 			if (valid) {
+				/*
 				LOG(WARNING) << "get next tuple, fileid "
 					<< ItemPointerGetBlockNumber(&(slot->tts_tid))
 					<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
 					<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
+				*/
 					return slot;
 			}
 		}
@@ -650,12 +660,26 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	<< ItemPointerGetBlockNumber(&(slot->tts_tid))
 	<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
 	<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
-    
 
 	return true;
 }
 
-extern "C" void ParquetEndScan(TableScanDesc scan) {}
+extern "C" void ParquetEndScan(TableScanDesc scan) {
+  ParquetScanDesc pscan = (ParquetScanDesc)scan;
+  ParquetS3ReaderState *festate = pscan->state;
+  delete festate;
+  pscan->state = nullptr;
+
+  RelationDecrementReferenceCount(pscan->rs_base.rs_rd);
+  if (pscan->rs_base.rs_key) {
+	pfree(pscan->rs_base.rs_key);
+  }
+  if (pscan->rs_base.rs_flags & SO_TEMP_SNAPSHOT) {
+	UnregisterSnapshot(pscan->rs_base.rs_snapshot);
+  }
+
+  pfree(pscan);
+}
 
 extern "C" void ParquetRescan(TableScanDesc scan, ScanKey key, bool set_params,
                               bool allow_strat, bool allow_sync,
@@ -696,7 +720,8 @@ extern "C" void ParquetDmlInit(Relation rel) {
 
   auto s3client = ParquetGetConnectionByRelation(rel);
   try {
-    auto fmstate = CreateParquetModifyState(rel, kDBBucket.data(), s3client,
+	auto s3_cxt = GetS3Context();
+    auto fmstate = CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client,
                                             tuple_desc, use_threads);
 
     fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
@@ -771,7 +796,7 @@ extern "C" void ParquetDmlFinish(Relation relation) {
 	try {
 		/*
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, kDBBucket.data(), s3client,
+			reader_type, reader_cxt, s3_cxt->lake_bucket_.data(), s3client,
 			relation->rd_id, tuple_desc, fetched_col,
 			use_threads, use_mmap, max_open_files);
 
@@ -790,7 +815,8 @@ extern "C" void ParquetDmlFinish(Relation relation) {
 			reader->SetRowgroupsList(rowgroups);
 			reader->SetOptions(use_threads, use_mmap);
 			if (s3client) {
-				auto status = reader->Open(kDBBucket.c_str(), s3client);
+				auto s3_cxt = GetS3Context();
+				auto status = reader->Open(s3_cxt->lake_bucket_.c_str(), s3client);
 				if (!status.ok()) {
 					LOG(ERROR) << "open failure";
 					break;
@@ -846,8 +872,9 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
 
 	if (fmstate == nullptr) {
 		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3_cxt = GetS3Context();
 		fmstate =
-			CreateParquetModifyState(rel, kDBBucket.data(), s3client, desc, true);
+			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
 
 		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
 		LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
@@ -952,8 +979,9 @@ void simple_parquet_insert_cache(Relation rel, HeapTuple tuple) {
 
 	if (fmstate == nullptr) {
 		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3_cxt = GetS3Context();
 		fmstate =
-			CreateParquetModifyState(rel, kDBBucket.data(), s3client, desc, true);
+			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
 
 		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
 		//LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
@@ -1041,11 +1069,13 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 	std::vector<bool> fetched_col(tuple_desc->natts, true);
 
-	auto reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
+	auto reader_cxt = AllocSetContextCreate(CurrentMemoryContext, "parquet_am tuple data",
 									ALLOCSET_DEFAULT_SIZES);
 	try {
+
+		auto s3_cxt = GetS3Context();
 		state = create_parquet_execution_state(
-			reader_type, reader_cxt, kDBBucket.data(), s3client, relation->rd_id, tuple_desc,
+			reader_type, reader_cxt, s3_cxt->lake_bucket_.data(), s3client, relation->rd_id, tuple_desc,
 			fetched_col, use_threads, use_mmap, max_open_files);
 
 		auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
@@ -1075,7 +1105,11 @@ void ParquetIndexFetchReset(IndexFetchTableData *scan) {
 
 extern "C"
 void ParquetIndexFetchEnd(IndexFetchTableData *scan) {
-  LOG(ERROR) << "parallel SeqScan not implemented for Parquet tables";
+  IndexFetchParquetData *iscan = (IndexFetchParquetData*)scan;
+  //LOG(ERROR) << "parallel SeqScan not implemented for Parquet tables";
+  delete iscan->state;
+  iscan->state = nullptr;
+  pfree(iscan);
 }
 
 extern "C"

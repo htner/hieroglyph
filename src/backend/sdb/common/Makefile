@@ -17,5 +17,6 @@ CXXFLAGS += -std=c++11
 include $(SDB_GLOBAL_MAKEFILE)
 
 OBJS = $(patsubst %.cpp, %.o, $(wildcard *.cpp))
+OBJS += session_info.o
 
 include $(SDB_COMMON_MK)

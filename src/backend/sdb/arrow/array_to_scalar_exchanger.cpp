@@ -1,4 +1,4 @@
-#include "backend/sdb/arrow/array_scalar_exchanger.hpp"
+#include "backend/sdb/arrow/array_to_scalar_exchanger.hpp"
 #include "backend/sdb/arrow/boot.hpp"
 
 extern "C" {
@@ -253,7 +253,7 @@ arrow::Status GetArray(ArrowToPgDatumConverter sub_func, Oid sub_type,
 	datums = (Datum*)palloc(size * sizeof(Datum));
 	nulls = (bool*)palloc(size * sizeof(bool));
   }
-  LOG(ERROR) << "get array size " << size; 
+  //LOG(ERROR) << "get array size " << size; 
   for (int i = 0; i < size; ++i) {
     if (array->IsNull(i)) {
       nulls[i] = true;
@@ -462,7 +462,7 @@ ArrowToPgDatumConverter ArraySalarExchanger::GetFunction(Oid rel, Oid typid, int
                                           Oid typrelid) {
   /* array type */
   if (typelem != 0 && typlen == -1) {
-	LOG(ERROR) << "get array function";
+	// LOG(ERROR) << "get array function";
     auto sub_func = GetFunction(rel, typelem);
     if (sub_func == nullptr) {
 	

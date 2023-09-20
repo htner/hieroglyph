@@ -1,19 +1,38 @@
 #include "backend/sdb/optimizer/optimize_task.hpp"
+#include "backend/sdb/common/s3_context.hpp"
+#include "backend/sdb/common/log.hpp"
 
 namespace sdb {
 
 void OptimizeTask::Run(CatalogInfo &catalog_info) {
+    auto& sess_info = thr_sess->session_cxt_;
+    auto s3_cxt = GetS3Context();
+
+	sess_info.dbid_ = request_->dbid();
+	sess_info.sessionid_ = request_->sid();
+
+	s3_cxt->lake_bucket_ = request_->db_space().s3_info().bucket();
+	s3_cxt->lake_user_ = request_->db_space().s3_info().user();
+	s3_cxt->lake_password_ = request_->db_space().s3_info().password();
+	s3_cxt->lake_region_ = request_->db_space().s3_info().region();
+	s3_cxt->lake_endpoint_ = request_->db_space().s3_info().endpoint();
+	s3_cxt->lake_isminio_ = request_->db_space().s3_info().is_minio();
+	/*
 	kDBBucket = request_->db_space().s3_info().bucket();
 	kDBS3User = request_->db_space().s3_info().user();
 	kDBS3Password = request_->db_space().s3_info().password();
 	kDBS3Region = request_->db_space().s3_info().region();
 	kDBS3Endpoint = request_->db_space().s3_info().endpoint();
 	kDBIsMinio = request_->db_space().s3_info().is_minio();
-	reply_->set_code(0);
+	*/
+	reply_->set_rescode(0);
+
+	whereToSendOutput = DestSDBCloud;
 
 	StartTransactionCommand();
 	PrepareCatalog(catalog_info);
 	std::unique_ptr<Parser> parser = std::make_unique<Parser>();
+	LOG(INFO) << "optimize sql:" << request_->sql();
 	List* parsetree_list = parser->Parse(request_->sql().data());
 	HandleOptimize(parsetree_list);
 	CommitTransactionCommand();
@@ -52,13 +71,28 @@ void OptimizeTask::HandleOptimize(List* parsetree_list) {
 
 	foreach (parsetree_item, parsetree_list) {
 		RawStmt    *parsetree = lfirst_node(RawStmt, parsetree_item);
-		List* querytree_list = pg_analyze_and_rewrite(parsetree, request_->sql().data(),
+		List* querytree_list = pg_analyze_and_rewrite_with_error(parsetree, request_->sql().data(),
 		NULL, 0, NULL);
 		if (!querytree_list) {
-			std::string err_msg("analyze and rewrite failed");
-			reply_->set_code(-1);
-			reply_->set_message(err_msg);
-			LOG(ERROR) << err_msg; 
+			reply_->set_rescode(-1);
+			// std::string err_msg(errinfo);
+			auto& log_context = thr_sess->log_context_;
+			auto message = reply_->mutable_message();
+			if (log_context == nullptr) {
+				message->set_code("58000");
+				message->set_message("system error");
+			} else {
+				auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
+				*message = log_cxt->LastErrorData();
+
+				/*
+				reply_->set_sql_err_code(last.sqlerrcode_);
+				std::string errinfo = "message ";
+				errinfo += last.message_;
+				reply_->set_message(last.message_);
+				*/
+			}
+			//LOG(ERROR) << err_msg; 
 			return;
 		}
 		PlanQueries(querytree_list);
@@ -96,10 +130,8 @@ void OptimizeTask::PlanQuery(Query* query) {
 		plan = orca_optimizer(query, CURSOR_OPT_PARALLEL_OK, NULL, &plan_str);
 	}
 
-
-
 	if (plan == NULL) {
-		reply_->set_message("plan is empty");
+		// reply_->set_message("plan is empty");
 		return;
 	}
 

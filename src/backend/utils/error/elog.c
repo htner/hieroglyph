@@ -89,6 +89,7 @@
 #include "cdb/cdbtm.h"
 #include "utils/ps_status.h"    /* get_ps_display_username() */
 #include "cdb/cdbselect.h"
+#include "sdb/session_info.h"
 #include "pgtime.h"
 
 #include "miscadmin.h"
@@ -222,7 +223,7 @@ static void write_csvlog(ErrorData *edata);
 static void send_message_to_server_log(ErrorData *edata);
 static void write_pipe_chunks(char *data, int len, int dest);
 static void send_message_to_frontend(ErrorData *edata);
-static const char *error_severity(int elevel);
+extern const char *error_severity(int elevel);
 static void append_with_tabs(StringInfo buf, const char *str);
 static bool is_log_level_output(int elevel, int log_min_level);
 static void write_pipe_chunks(char *data, int len, int dest);
@@ -380,7 +381,7 @@ errstart(int elevel, const char *domain)
 	output_to_server = is_log_level_output(elevel, log_min_messages);
 
 	/* Determine whether message is enabled for client output */
-	if (whereToSendOutput == DestRemote && elevel != LOG_SERVER_ONLY)
+	if (whereToSendOutput == DestSDBCloud && elevel != LOG_SERVER_ONLY)
 	{
 		/*
 		 * client_min_messages is honored only after we complete the
@@ -4441,6 +4442,8 @@ err_sendstring(StringInfo buf, const char *str)
 static void
 send_message_to_frontend(ErrorData *edata)
 {
+	SendMessageToSession(edata);
+	return;
 	StringInfoData msgbuf;
 
 	/* 'N' (Notice) is for nonfatal conditions, 'E' is for errors */
@@ -4626,7 +4629,7 @@ send_message_to_frontend(ErrorData *edata)
  * The string is not localized here, but we mark the strings for translation
  * so that callers can invoke _() on the result.
  */
-static const char *
+const char *
 error_severity(int elevel)
 {
 	const char *prefix;

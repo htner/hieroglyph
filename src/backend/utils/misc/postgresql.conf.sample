@@ -129,12 +129,12 @@
 
 # - Memory -
 
-#shared_buffers = 128MB			# min 128kB
+shared_buffers = 8MB			# min 8MB
 					# (change requires restart)
 #huge_pages = try			# on, off, or try
 					# (change requires restart)
 #temp_buffers = 8MB			# min 800kB
-max_prepared_transactions = 250		# can be 0 or more
+# max_prepared_transactions = 250		# can be 0 or more
 					# (change requires restart)
 # Caution: it is not advisable to set max_prepared_transactions nonzero unless
 # you actively intend to use prepared transactions.
