@@ -42,6 +42,26 @@ func (Q *QueryHandler) buildPrepareTaskRequest() {
 	}
 }
 
+func (Q *QueryHandler) GetWorkerSliceLists(workers []*sdb.WorkerInfo, sliceIndex int32) []*sdb.WorkerSliceInfo {
+	workerSlices := make([]*sdb.WorkerSliceInfo, 0)
+	for workinfo := range workers {
+		/*
+			workinfo := &sdb.WorkerInfo{
+				Addr:  fmt.Sprintf("127.0.0.1:%d", basePort+(*segid)),
+				Id:    int64(*segid + 100000),
+				Segid: *segid,
+			}
+		*/
+
+		workerslice := &sdb.WorkerSliceInfo{
+			WorkerInfo: workinfo,
+			Sliceid:    int32(sliceIndex),
+		}
+		workerSlices = append(workerSlices, workerslice)
+	}
+	return workerSlices
+}
+
 func (Q *QueryHandler) prepareSliceTable() error {
 	workerMgr := schedule.NewWorkerMgr()
 	log.Printf("slices: %v", Q.optimizerResult.Slices)
@@ -66,6 +86,7 @@ func (Q *QueryHandler) prepareSliceTable() error {
 
 	}
 
+	// omit else {}
 	for i, planSlice := range slices {
 		log.Printf("%d.%s", i, planSlice.String())
 		execSlice := new(sdb.PBExecSlice)
@@ -148,12 +169,12 @@ func (Q *QueryHandler) prepareSliceTable() error {
 					segindex++
 				}
 		*/
-		workers, workerSlices, err := workerMgr.GetServerList(execSlice.PlanNumSegments, execSlice.SliceIndex)
+		workers, err := workerMgr.GetServerList(execSlice.PlanNumSegments)
 		if err != nil {
 			log.Printf("get server list error: %v", err)
 			return err
 		}
-
+		workerSlices := Q.GetWorkerSliceLists(workerSlices, execSlice.SliceIndex)
 		for _, worker := range workers {
 			execSlice.Segments = append(execSlice.Segments, worker.Segid)
 			log.Printf("init segs %d(%d) %d->%d", execSlice.SliceIndex, execSlice.PlanNumSegments, worker.Segid, worker.Id)

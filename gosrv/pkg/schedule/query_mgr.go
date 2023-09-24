@@ -188,7 +188,7 @@ func (mgr *QueryMgr) WriteQueryResult(queryId uint64, result *sdb.WorkerResultDa
 			isFinish = true
 		}
 
-    log.Println(key, value)
+		log.Println(key, value)
 		err = kvOp.WritePB(key, value)
 		return isFinish, err
 	})

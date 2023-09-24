@@ -10,19 +10,20 @@ import (
 )
 
 var SUPER_SESSION uint64 = 1
+
 type LakeRelOperator struct {
-	T *Transaction
-  isSuper bool
+	T       *Transaction
+	isSuper bool
 }
 
 func NewLakeRelOperator(dbid uint64, sid uint64) (L *LakeRelOperator) {
-  l := &LakeRelOperator{T: NewTranscation(dbid, sid)}
-  if sid == SUPER_SESSION {
-    l.isSuper = true  
-  } else {
-    l.isSuper = false
-  }
-  return l
+	l := &LakeRelOperator{T: NewTranscation(dbid, sid)}
+	if sid == SUPER_SESSION {
+		l.isSuper = true
+	} else {
+		l.isSuper = false
+	}
+	return l
 }
 
 func (L *LakeRelOperator) PrepareFiles(rel uint64, count uint64) (files []*sdb.LakeFile, err error) {
@@ -83,7 +84,7 @@ func (L *LakeRelOperator) PrepareFiles(rel uint64, count uint64) (files []*sdb.L
 				file.Xmax = uint64(InvaildTranscaton)
 				file.XminState = uint32(XS_START)
 				file.XmaxState = uint32(XS_NULL)
-        file.IsShared = false 
+				file.IsShared = false
 
 				log.Println("insert file:", file)
 				err = kvOp.WritePB(&key, &file)

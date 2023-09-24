@@ -43,5 +43,7 @@ const (
 	FCDatabaseMaxIDTag     uint16 = 103
 	SessionMaxIDTag        uint16 = 104
 	DatabaseObjectIDTag    uint16 = 105
-	FileSharedObjectIDTag    uint16 = 106
+	FileSharedObjectIDTag  uint16 = 106
+
+	FreeWorkerListItemTag uint16 = 106
 )
