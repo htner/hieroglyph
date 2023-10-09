@@ -325,7 +325,7 @@ CreateSharedMemoryAndSemaphores(int port)
 		elog(DEBUG1, "51 %lu", (unsigned long) size);
 
 
-		elog(DEBUG3, "invoking IpcMemoryCreate(size=%zu)", size);
+		elog(DEBUG3, "invoking IpcMemoryCreate(size=%lu)", size);
 
 		/*
 		 * Create the shmem segment
@@ -336,7 +336,7 @@ CreateSharedMemoryAndSemaphores(int port)
 
 		ereport(WARNING,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
-				 errmsg("ShmemIndex size \"%d\"",
+				 errmsg("ShmemIndex size \"%lu\"",
 						size)));
 		seghdr = MemoryContextAllocZero(TopMemoryContext, size);
 		/* Initialize new segment. */

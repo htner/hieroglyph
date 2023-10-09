@@ -1866,7 +1866,7 @@ InitTableAmRoutine(Relation relation)
 /*
  * Initialize table access method support for a table like relation
  */
-extern bool not_initdb;
+extern bool kNotInitdb;
 void
 RelationInitTableAccessMethod(Relation relation)
 {
@@ -1888,7 +1888,7 @@ RelationInitTableAccessMethod(Relation relation)
 		/*
 		 * Avoid doing a syscache lookup for catalog tables.
 		 */
-		if (Gp_role == GP_ROLE_EXECUTE || Gp_role == GP_ROLE_DISPATCH || not_initdb) {
+		if (Gp_role == GP_ROLE_EXECUTE || Gp_role == GP_ROLE_DISPATCH || kNotInitdb) {
 			//elog(WARNING, "relation init table access 1");
 			Assert(relation->rd_rel->relam == PARQUET_TABLE_AM_OID); 
 			relation->rd_amhandler = PARQUET_TABLE_AM_HANDLER_OID;

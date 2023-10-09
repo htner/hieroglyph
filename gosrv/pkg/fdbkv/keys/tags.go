@@ -13,6 +13,7 @@ const (
 	CLOGTag                    uint16 = 23
 	FileListVersionTag         uint16 = 24
 	PotentialLockTag           uint16 = 25
+	WorkerStatusTag            uint16 = 26
 
 	QueryStatusTag          uint16 = 30
 	QueryRequestTag         uint16 = 31
@@ -21,6 +22,7 @@ const (
 	QueryWorkerDetailTag    uint16 = 34
 	QueryResultTag          uint16 = 35
 	WorkerResultTag         uint16 = 36
+
 
 	MAXTIDTag           uint16 = 40
 	MAXFILEIDTag        uint16 = 41

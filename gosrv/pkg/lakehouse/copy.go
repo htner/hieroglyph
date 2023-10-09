@@ -82,7 +82,7 @@ func (L *LakeRelCopyOperator) Copy(session uint64) error {
 
   _, err = db.Transact(func(tr fdb.Transaction) (interface{}, error) {
     kvOp := NewKvOperator(tr)
-    idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: L.destDb}
+    idKey := keys.SecondClassObjectMaxKey{MaxTag: keys.MAXFILEIDTag, Dbid: 0}
     idOp := utils.NewMaxIdOperator(tr, &idKey)
     _, err = idOp.GetCurrent()
     if err != nil {

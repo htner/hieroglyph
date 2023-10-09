@@ -3,8 +3,10 @@
 
 DECLARE_string(dir);
 DECLARE_string(database);
+DECLARE_string(host);
 
 DECLARE_uint64(dbid);
+DECLARE_uint32(cluster);
 DECLARE_int32(port);
 DECLARE_int32(idle_timeout_s);
 DECLARE_bool(gzip);

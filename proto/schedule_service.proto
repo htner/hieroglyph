@@ -64,19 +64,19 @@ message CheckQueryResultReply {
 }
 
 message NewWorkerIdRequest {
+  uint32 cluster = 1;
 }
 
 message NewWorkerIdReply {
-  uint64 workerid = 1;
+  uint64 worker_id = 1;
 }
 
-
-
 message WorkerPingRequest {
-  uint64 workerid = 1;
-  string addr = 2;
-  WorkerState state = 3;
-  uint32 currect_task = 4;
+  uint64 worker_id = 1;
+  uint32 cluster = 2;
+  string addr = 3;
+  WorkerState state = 4;
+  uint64 currect_index = 5;
 }
 
 message WorkerPongReply {

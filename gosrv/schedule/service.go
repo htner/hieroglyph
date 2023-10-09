@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/htner/sdb/gosrv/pkg/fdbkv"
 	"github.com/htner/sdb/gosrv/pkg/lakehouse"
@@ -95,11 +96,18 @@ func (s *ScheduleServer) Depart(ctx context.Context, query *sdb.ExecQueryRequest
 }
 
 func (s *ScheduleServer) NewWorkerId(context.Context, *sdb.NewWorkerIdRequest) (*sdb.NewWorkerIdReply, error) {
-  reply := &sdb.NewWorkerIdReply{}
+  id := time.Now().UnixNano()
+  workerId := uint32(id)
+  reply := &sdb.NewWorkerIdReply{WorkerId: uint64(workerId)}
+	log.Println("new workerid ", workerId)
   return reply, nil
 }
 
-func (s *ScheduleServer) WorkerPing(context.Context, *sdb.WorkerPingRequest) (*sdb.WorkerPongReply, error) {
+func (s *ScheduleServer) WorkerPing(ctx context.Context, req *sdb.WorkerPingRequest) (*sdb.WorkerPongReply, error) {
   reply := &sdb.WorkerPongReply{}
+  mgr := schedule.NewWorkerMgr()
+  mgr.Ping(req)
+
+	log.Println("ping")
   return reply, nil
 }

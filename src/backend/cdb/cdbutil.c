@@ -97,6 +97,7 @@ static int nextQEIdentifer(CdbComponentDatabases *cdbs);
 static HTAB *segment_ip_cache_htab = NULL;
 
 int numsegmentsFromQD = -1;
+int kNumSegments = 2;
 
 typedef struct SegIpEntry
 {
@@ -1751,8 +1752,8 @@ int
 getgpsegmentCount(void)
 {
 	/* 1 represents a singleton postgresql in utility mode */
+	return kNumSegments;
 	int32 numsegments = 3;
-	return numsegments;
 
 	if (Gp_role == GP_ROLE_DISPATCH)
 		numsegments = cdbcomponent_getCdbComponents()->total_segments;

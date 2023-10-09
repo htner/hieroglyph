@@ -484,12 +484,16 @@ func (p *Proxy) SendError(code string, msg string) {
 func (p *Proxy) checkUser(msg *pgproto3.StartupMessage) error {
 	fullDatabase := msg.Parameters["database"]
 	names := strings.Split(fullDatabase, ".")
-	if len(names) != 2 {
-		return errors.New("must has organization and username")
-	}
-	p.organization = names[0]
-	p.database = names[1]
-	p.username = msg.Parameters["user"]
+	if len(names) == 1 {
+    p.organization = "test"
+    p.database = fullDatabase
+    p.username = msg.Parameters["user"]
+		// return errors.New("must has organization and username")
+  } else if len(names) >= 2 {
+    p.organization = names[0]
+    p.database = names[1]
+    p.username = msg.Parameters["user"]
+  }
 	passwd := ""
 
 	log.Println("checkuser ", p.organization, p.username)

@@ -3,7 +3,7 @@ extern "C" {
 #include "access/write_result_object.h"
 }
 
-#include <arpa/inet.h>
+//#include <arpa/inet.h>
 #include <filesystem>
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include <string>
@@ -16,16 +16,11 @@ extern "C" {
 #include <aws/s3/model/ListObjectsRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
 #include <dirent.h>
-#include <sys/stat.h>
+//#include <sys/stat.h>
 #include <fstream>
-#include <butil/logging.h>
 
-extern std::string kResultBucket;
-extern std::string kResultS3User;
-extern std::string kResultS3Password;
-extern std::string kResultS3Region;
-extern std::string kResultS3Endpoint;
-extern bool kResultIsMinio;
+#include "backend/sdb/common/s3_context.hpp"
+#include <butil/logging.h>
 
 namespace fs = std::filesystem;
 
@@ -80,12 +75,14 @@ void ObjectStream::Init() {
   aws_sdk_options_ = std::make_unique<Aws::SDKOptions>();
   Aws::InitAPI(*aws_sdk_options_);
 
+ auto s3_cxt = GetS3Context();
+
   s3_client_.reset(s3_client_open(
-	 				kResultS3User.data(),
-					kResultS3Password.data(),
-					kResultIsMinio,
-					kResultS3Endpoint.data(),
-					kResultS3Region.data()));
+	 				s3_cxt->result_user_.data(),
+					s3_cxt->result_password_.data(),
+					s3_cxt->result_isminio_,
+					s3_cxt->result_endpoint_.data(),
+					s3_cxt->result_region_.data()));
   //"minioadmin", "minioadmin", true, "127.0.0.1:9000", "ap-northeast-1"));
   local_file_ = dirname_ + "/" + filename_;
 
@@ -99,13 +96,15 @@ void ObjectStream::Init() {
 }
 
 bool ObjectStream::Upload() {
+  auto s3_cxt = GetS3Context();
+
   char *filepath;
   Aws::S3::Model::PutObjectRequest request;
   std::shared_ptr<Aws::IOStream> input_data;
   Aws::S3::Model::PutObjectOutcome outcome;
 
   filepath = local_file_.data();
-  request.SetBucket(kResultBucket.data());
+  request.SetBucket(s3_cxt->result_bucket_.data());
 
   /*
    * We are using the name of the file as the key for the object in the bucket.
@@ -122,7 +121,7 @@ bool ObjectStream::Upload() {
 
   if (outcome.IsSuccess()) {
     LOG(WARNING) <<  "write result to object: added object " << filepath << " ("<< dirname_ << ", "
-			<< local_file_ << ") to bucket " << kResultBucket ;
+			<< local_file_ << ") to bucket " << s3_cxt->result_bucket_;
     return true;
   } else {
     LOG(ERROR) << "write result to object: " << outcome.GetError().GetMessage();
@@ -175,23 +174,20 @@ void ObjectStream::EndStream() {
 static ObjectStream *object_stream = nullptr;
 
 void
-CreateObjectStream(const char* dirname, const char *filename)
-{
+CreateObjectStream(const char* dirname, const char *filename) {
 	assert(object_stream == nullptr);
 	object_stream = new ObjectStream(dirname, filename);
 	object_stream->Init();
 }
 
 int
-WriteResultToObject(char msgtype, const char *buf, int size)
-{
+WriteResultToObject(char msgtype, const char *buf, int size) {
 	assert(object_stream != nullptr);
 	return object_stream->WriteResultToFile(msgtype, buf, size);
 }
 
 void
-WriteResultEnd()
-{
+WriteResultEnd() {
 	if (object_stream != nullptr) {
 		object_stream->EndStream();
 		delete object_stream;
@@ -200,8 +196,7 @@ WriteResultEnd()
 }
 
 void
-WriteResultFlush()
-{
+WriteResultFlush() {
 	assert(object_stream != nullptr);
 	object_stream->Flush();
 }

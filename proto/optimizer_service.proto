@@ -50,6 +50,7 @@ message OptimizeRequest {
   uint64 sid = 3;
   uint64 uid = 4;
   uint64 dbid = 5;
+  uint64 num_segments = 6;
   uint64 commandid = 7;
 
   LakeSpace db_space = 8;

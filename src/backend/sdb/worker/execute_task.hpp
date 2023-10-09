@@ -55,6 +55,8 @@ public:
 
 	void Prepare();
 
+  void InitThreadInfo();
+
 	void PrepareGuc();
 
 	void PrepareCatalog(CatalogInfo& catalog_info);

@@ -78,7 +78,7 @@ ReloadOneCatalogCacheIndex(int rel_oid)
 	for (const auto& idx_iter : cat_iter->second) {
 		Oid idx_oid = idx_iter;
 		Oid rel_oid = cat_iter->first;
-elog(LOG, "dddtest reload rel:%d - idx:%d", rel_oid, idx_oid);
+		elog(LOG, "dddtest reload rel:%d - idx:%d", rel_oid, idx_oid);
 		unlink_oid(idx_iter, false);
 		unlink_oid(idx_iter, true);
 		DropOidBuffers(idx_oid);

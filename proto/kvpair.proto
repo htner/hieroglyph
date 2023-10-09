@@ -144,9 +144,10 @@ enum WorkerState {
   WSStop = 4;
 }
 
-message WorkerProcInfo {
-  uint64 workerid = 1;
-  string addr = 2;
-  WorkerState worker_state = 3;
-  uint32 currect_task = 4;
+message WorkerStatus {
+  uint64 worker_id = 1;
+  uint32 cluster = 2;
+  string addr = 3;
+  WorkerState worker_state = 4;
+  uint64 currect_index = 5;
 }

@@ -1,14 +1,29 @@
 #include "backend/sdb/optimizer/optimize_task.hpp"
+#include "backend/sdb/common/s3_context.hpp"
 
 namespace sdb {
 
 void OptimizeTask::Run(CatalogInfo &catalog_info) {
+    auto& sess_info = thr_sess->session_cxt_;
+    auto s3_cxt = GetS3Context();
+
+	sess_info.dbid_ = request_->dbid();
+	sess_info.sessionid_ = request_->sid();
+
+	s3_cxt->lake_bucket_ = request_->db_space().s3_info().bucket();
+	s3_cxt->lake_user_ = request_->db_space().s3_info().user();
+	s3_cxt->lake_password_ = request_->db_space().s3_info().password();
+	s3_cxt->lake_region_ = request_->db_space().s3_info().region();
+	s3_cxt->lake_endpoint_ = request_->db_space().s3_info().endpoint();
+	s3_cxt->lake_isminio_ = request_->db_space().s3_info().is_minio();
+	/*
 	kDBBucket = request_->db_space().s3_info().bucket();
 	kDBS3User = request_->db_space().s3_info().user();
 	kDBS3Password = request_->db_space().s3_info().password();
 	kDBS3Region = request_->db_space().s3_info().region();
 	kDBS3Endpoint = request_->db_space().s3_info().endpoint();
 	kDBIsMinio = request_->db_space().s3_info().is_minio();
+	*/
 	reply_->set_code(0);
 
 	StartTransactionCommand();
