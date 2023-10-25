@@ -11,6 +11,21 @@ rm -rf /tmp/output4.log
 source /usr/local/sdb/greenplum_path.sh
 
 #ls datadirs/optimizer0/global/ -a | grep -E "^[0-9]{4,}" 
+pkill -9 sdb_proxy
+pkill -9 sdb_schedule 
+pkill -9 sdb_lake 
+pkill -9 sdb_account 
+pkill -9 sdb_lockmgr
+
+sleep 2
+
+nohup sdb_proxy > log/proxy.log 2>&1 &
+nohup sdb_schedule > log/schedule.log 2>&1 &
+nohup sdb_lake > log/lake.log 2>&1 &
+nohup sdb_account > log/account.log 2>&1 &
+nohup sdb_lockmgr > log/lockmgr.log 2>&1 &
+
+sleep 2
 
 echo ""
 echo "create account"

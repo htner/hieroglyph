@@ -73,6 +73,11 @@ public:
     }
     stub = std::make_unique<sdb::Lake_Stub>(channel.get());
 
+    if (thr_sess == nullptr) {
+      // for test
+	    create_session_context(TopMemoryContext);
+    }
+
     auto& sess_info = thr_sess->session_cxt_;
 
     sdb::GetFilesRequest request;
@@ -99,7 +104,11 @@ public:
 
   void SetRelLakeLists(std::vector<sdb::RelFiles> rels) {
     for (size_t i = 0; i < rels.size(); ++i) {
-      rel_files_[rels[i].rel()] = rels[i];
+      auto& rel = rels[i];
+      rel_files_[rel.rel()] = rel;
+      for (int j = 0; j < rel.files().size(); ++j) {
+        LOG(INFO) << "file " << rel.rel() << " " << rel.files(j).file_id(); 
+      }
     }
   }
 

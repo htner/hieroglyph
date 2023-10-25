@@ -224,7 +224,7 @@ func (t *Transaction) CheckVaild(tr fdb.Transaction) error {
 	clog.DbId = t.Database
 
 	err = kvOp.Read(&clog, &clog)
-	log.Println("read clog", t.session, t.Database, clog)
+	// log.Println("read clog", t.session, t.Database, clog)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (t *Transaction) Commit() error {
 			t.session.WriteTransactionId = InvaildTranscaton
 			t.session.State = keys.SessionTransactionIdle
 
-			log.Printf("reset session")
+			// log.Printf("reset session")
 			err = sessOp.Write(t.session)
 			if err != nil {
 				return nil, err
@@ -323,7 +323,7 @@ func (t *Transaction) State(kvReader *fdbkv.KvReader, xid uint64) (uint8, error)
 	if err != nil {
 		return XS_NULL, err
 	}
-	log.Println("read clog", minClog)
+	// log.Println("read clog", minClog)
 	return minClog.Status, nil
 }
 
@@ -339,6 +339,36 @@ func (t *Transaction) OpState(kvReader *fdbkv.KvOperator, xid uint64) (uint8, er
 	return minClog.Status, nil
 }
 */
+
+func (t *Transaction) TryAutoCommitWithQuery(queryid uint64) error {
+	db, err := fdb.OpenDefault()
+	if err != nil {
+		return err
+	}
+	data, err := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		sessOp := NewSessionOperator(tr, t.Sid)
+		t.session, err = sessOp.CheckAndGet(keys.SessionTransactionStart)
+		if err != nil {
+			return false, err
+		}
+    if t.session.QueryId != queryid {
+      return false, err
+    }
+		return t.session.AutoCommit, nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+  isAutoCommit, ok := data.(bool)
+	log.Println("try auto commit", ok, isAutoCommit, data)
+	if ok && isAutoCommit {
+		log.Printf("auto commit")
+		return t.Commit()
+	}
+	return nil
+}
 
 func (t *Transaction) TryAutoCommit() error {
 	db, err := fdb.OpenDefault()

@@ -144,7 +144,7 @@ require (
 	github.com/ldez/gomoddirectives v0.2.3 // indirect
 	github.com/ldez/tagliatelle v0.4.0 // indirect
 	github.com/leonklingele/grouper v1.1.1 // indirect
-	github.com/lib/pq v1.10.7 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/lufeee/execinquery v1.2.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/maratori/testableexamples v1.0.0 // indirect
@@ -238,3 +238,5 @@ require (
 )
 
 replace github.com/jackc/pgx/v5 v5.0.4 => github.com/htner/pgx/v5 v5.0.5-0.20221111155855-b0d15c283f06
+
+replace github.com/auxten/postgresql-parser v1.0.1 => github.com/htner/postgresql-parser v1.0.2-0.20231010093932-3ae9f35c90ff 

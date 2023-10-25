@@ -115,6 +115,8 @@
 
 #include "utils/inval.h"
 #include "sdb/postgres_init.h"
+#include "access/write_result_object.h"
+#include "sdb/session_info.h"
 
 /* ----------------
  *		global variables
@@ -814,6 +816,32 @@ pg_parse_query(const char *query_string)
 	return raw_parsetree_list;
 }
 
+List *
+pg_analyze_and_rewrite_with_error(RawStmt *parsetree, const char *query_string,
+								  Oid *paramTypes, int numParams,
+								  QueryEnvironment *queryEnv)
+{
+	List	   *querytree_list;
+	MemoryContext ccxt = CurrentMemoryContext;
+	PG_TRY();
+	{
+		querytree_list = pg_analyze_and_rewrite(parsetree, query_string, paramTypes, numParams, queryEnv);
+	}
+	PG_CATCH();
+	{
+		ErrorData *errdata;
+		MemoryContextSwitchTo(ccxt);
+        errdata = CopyErrorData();
+        FlushErrorState();
+		SendMessageToSession(errdata);
+		elog(LOG, "pg analyze and rewrite failed %s", errdata->message);
+        FreeErrorData(errdata);
+		querytree_list = NULL;
+	}
+	PG_END_TRY();
+	return querytree_list;
+}
+
 /*
  * Given a raw parsetree (gram.y output), and optionally information about
  * types of parameter symbols ($n), perform parse analysis and rule rewriting.
@@ -839,29 +867,16 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
 	if (log_parser_stats)
 		ResetUsage();
 
-	PG_TRY();
-	{
-		query = parse_analyze(parsetree, query_string, paramTypes, numParams,
-						  queryEnv);
+	query = parse_analyze(parsetree, query_string, paramTypes, numParams,
+					  queryEnv);
 
-		if (log_parser_stats)
-			ShowUsage("PARSE ANALYSIS STATISTICS");
+	if (log_parser_stats)
+		ShowUsage("PARSE ANALYSIS STATISTICS");
 
-		/*
-		* (2) Rewrite the queries, as necessary
-		*/
-		querytree_list = pg_rewrite_query(query);
-	}
-	PG_CATCH();
-	{
-		ErrorData *errdata;
-        errdata = CopyErrorData();
-        FlushErrorState();
-		elog(WARNING, "pg analyze and rewrite failed %s", errdata->message);
-        FreeErrorData(errdata);
-		querytree_list = NULL;
-	}
-	PG_END_TRY();
+	/*
+	* (2) Rewrite the queries, as necessary
+	*/
+	querytree_list = pg_rewrite_query(query);
 
 	TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 
@@ -5989,17 +6004,21 @@ void InitMinimizePostgresEnv(const char *proc, const char *dir,
  * Caller may supply either a Query (representing utility command) or
  * a PlannedStmt (representing a planned DML command), but not both.
  */
-void exec_worker_query(const char *query_string, PlannedStmt *plan,
+bool
+exec_worker_query(const char *query_string, PlannedStmt *plan,
                        SerializedParams *paramInfo, SliceTable *sliceTable,
                        const char *result_dir, const char *result_file,
                        uint64* process_rows, void *task) {
-  CommandDest dest = DestRemote;
+  FrontendProtocol = PG_PROTOCOL_LATEST;
+  whereToSendOutput = DestSDBCloud;
+  CommandDest dest = whereToSendOutput;
   MemoryContext oldcontext;
   QueryDispatchDesc *ddesc = NULL;
   CmdType commandType = CMD_UNKNOWN;
   ExecSlice *slice = NULL;
   ParamListInfo paramListInfo = NULL;
   bool root_work = false;
+  bool succ = true;
   FrontendProtocol = PG_PROTOCOL_LATEST;
 
   if (plan->commandType == CMD_UTILITY) {
@@ -6109,6 +6128,9 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
    */
   MemoryContextSwitchTo(oldcontext);
 
+  MemoryContext ccxt = CurrentMemoryContext;
+  PG_TRY();
+  {
   /*
    * All unpacked and checked.  Process the command.
    */
@@ -6161,6 +6183,7 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
      * Create unnamed portal to run the query or queries in. If there
      * already is one, silently drop it.
      */
+	
     portal = CreatePortal("worker", true, true);
     /* Don't display the portal in pg_cursors */
     portal->visible = false;
@@ -6196,7 +6219,7 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
       dest = DestNone;
 
     receiver = CreateDestReceiver(dest);
-    if (dest == DestRemote) {
+    if (dest == DestSDBCloud) {
       SetRemoteDestReceiverParams(receiver, portal);
       SetRemoteDestFileInfo(receiver, (char *)result_dir, (char *)result_file);
     }
@@ -6209,9 +6232,8 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
     /*
      * Run the portal to completion, and then drop it (and the receiver).
      */
-    (void)PortalRun(portal, FETCH_ALL, true, /* Effectively always top level. */
+	(void)PortalRun(portal, FETCH_ALL, true, /* Effectively always top level. */
                     portal->run_once, receiver, receiver, completionTag);
-
 
 	if (portal->queryDesc != NULL) {
 		*process_rows = portal->queryDesc->es_processed;
@@ -6248,11 +6270,30 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
      * aborted by error will not send an EndCommand report at all.)
      */
 	
-    if (commandType != CMD_SELECT)
-      EndCommand(completionTag, dest);
+    //if (commandType != CMD_SELECT)
+    EndCommand(completionTag, dest);
 
     (*receiver->rDestroy)(receiver);
+	WriteResultEnd();
   } /* end loop over parsetrees */
+
+  }
+  PG_CATCH();
+  {
+		ErrorData *errdata;
+		MemoryContextSwitchTo(ccxt);
+		errdata = CopyErrorData();
+		FlushErrorState();
+		elog(WARNING, "portal run error %s", errdata->message);
+		FreeErrorData(errdata);
+		succ = false;
+		//querytree_list = NULL;  
+  }
+  PG_END_TRY();
+
+
+
+
 
   /*
    * Close down transaction statement, if one is open.
@@ -6261,6 +6302,7 @@ void exec_worker_query(const char *query_string, PlannedStmt *plan,
 
   debug_query_string = NULL;
   Gp_role = GP_ROLE_EXECUTE;
+  return succ;
 }
 
 void set_worker_param(int64_t sessionid, int64_t identifier) {

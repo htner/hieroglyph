@@ -421,7 +421,7 @@ extern "C" TableScanDesc ParquetBeginScan(Relation relation, Snapshot snapshot,
                                                           */
   auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
   for (size_t i = 0; i < lake_files.size(); ++i) {
-		LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
+		// LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
 		//filenames.push_back(lake_files[i].file_name());
   }
 
@@ -571,16 +571,16 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	// TupleTableSlot             *slot = pscan->ss_ScanTupleSlot;
 	std::string error;
 	ExecClearTuple(slot);
-	//try {
+	try {
 		while(true) {
-		LOG(ERROR) << "parquet get next slot 1: " << error.c_str();
+			// LOG(ERROR) << "parquet get next slot 1: " << error.c_str();
 			bool ret = festate->next(slot);
-		LOG(ERROR) << "parquet get next slot: 2" << error.c_str();
+			// LOG(ERROR) << "parquet get next slot: 2" << error.c_str();
 			if (!ret) {
 				LOG(ERROR) << "parquet get next slot return false";
 				return false;
 			}
-			LOG(ERROR) << "attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
+			// LOG(ERROR) << "attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);
 			bool		shouldFree = true;
 			HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
@@ -591,22 +591,19 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 			bool result = true;
 			if (keys != NULL) {
 				// HeapKeyTest(tuple, RelationGetDescr(pscan->rs_base.rs_rd), nkeys, key, valid);
-				LOG(ERROR) << "heap key test result " << valid << " key size: " << nkeys << " attr no:" << keys[0].sk_attno;
-				do 
-				{ 
+				// LOG(ERROR) << "heap key test result " << valid << " key size: " << nkeys << " attr no:" << keys[0].sk_attno;
+				do { 
 					/* Use underscores to protect the variables passed in as parameters */ 
 					int			__cur_nkeys = (nkeys); 
 					ScanKey		__cur_keys = (keys); 
 
 					(result) = true; /* may change */ 
-					for (; __cur_nkeys--; __cur_keys++) 
-					{ 
+					for (; __cur_nkeys--; __cur_keys++) { 
 						Datum	__atp; 
 						bool	__isnull; 
 						Datum	__test; 
 
-						if (__cur_keys->sk_flags & SK_ISNULL) 
-						{ 
+						if (__cur_keys->sk_flags & SK_ISNULL) { 
 							LOG(ERROR) << "SK_ISNULL:";
 							(result) = false; 
 							break; 
@@ -617,20 +614,18 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 						   (RelationGetDescr(pscan->rs_base.rs_rd)), 
 						&__isnull); 
 
-						if (__isnull) 
-						{ 
+						if (__isnull) { 
 							LOG(ERROR) << "ISNULL:";
 							(result) = false; 
 							break; 
 						} 
 
-						LOG(ERROR) << "attr:" << __cur_keys->sk_attno  << " -> "<< DatumGetUInt32(__atp);
+						// LOG(ERROR) << "attr:" << __cur_keys->sk_attno  << " -> "<< DatumGetUInt32(__atp);
  	 					__test = FunctionCall2Coll(&__cur_keys->sk_func, 
 								 __cur_keys->sk_collation, 
 								 __atp, __cur_keys->sk_argument); 
 
-						if (!DatumGetBool(__test)) 
-						{ 
+						if (!DatumGetBool(__test)) { 
 						//int *i = NULL;
 						//*i = 0;
 							(result) = false; 
@@ -643,16 +638,18 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 			valid = result;
 
 			if (valid) {
+				/*
 				LOG(WARNING) << "get next tuple, fileid "
 					<< ItemPointerGetBlockNumber(&(slot->tts_tid))
 					<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
 					<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
+				*/
 					return slot;
 			}
 		}
-	//} catch (std::exception &e) {
-	//	error = e.what();
-	//}
+	} catch (std::exception &e) {
+		error = e.what();
+	}
 	if (!error.empty()) {
 		LOG(ERROR) << "parquet get next slot: " << error.c_str();
 		std::string* e = nullptr;
@@ -663,7 +660,6 @@ extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
 	<< ItemPointerGetBlockNumber(&(slot->tts_tid))
 	<< " index " << ItemPointerGetOffsetNumber(&(slot->tts_tid))
 	<< " tostring: " << ItemPointerToString(&(slot->tts_tid));
-    
 
 	return true;
 }

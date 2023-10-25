@@ -3239,17 +3239,20 @@ initialize_data_directory(void)
 			 backend_exec, backend_options,
 			 DEVNULL);
 
+	/*
 	PG_CMD_OPEN;
 
 	setup_auth(cmdfd);
 
 	setup_depend(cmdfd);
+	*/
 
 	/*
 	 * Note that no objects created after setup_depend() will be "pinned".
 	 * They are all droppable at the whim of the DBA.
 	 */
 
+	/*
 	setup_sysviews(cmdfd);
 
 	setup_description(cmdfd);
@@ -3265,8 +3268,10 @@ initialize_data_directory(void)
 	setup_schema(cmdfd);
 
 	load_plpgsql(cmdfd);
+	*/
 
 	/* sets up the Greenplum Database admin schema */
+	/*
 	setup_cdb_schema(cmdfd);
 
 	vacuum_db(cmdfd);
@@ -3278,6 +3283,7 @@ initialize_data_directory(void)
 	PG_CMD_CLOSE;
 
 	check_ok();
+	*/
 }
 
 

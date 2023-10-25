@@ -4,6 +4,7 @@
 #include "backend/sdb/worker/motion_stream.hpp"
 #include "backend/sdb/worker/worker_service.hpp"
 #include "backend/sdb/common/common.hpp"
+#include "backend/sdb/common/log.hpp"
 #include "cdb/cdbvars.h"
 #include "schedule_service.pb.h"
 #include "sdb/execute.h"
@@ -150,8 +151,13 @@ void ExecuteTask::HandleQuery() {
 		auto result = request.mutable_result();
 		result->set_dbid(request_.dbid());
 		result->set_query_id(request_.task_identify().query_id());
-		result->set_rescode(50000);
-		result->set_message("invalid planned statement");
+		result->set_rescode(-1);
+		//result->set_message("invalid planned statement");
+		//
+		auto message = result->mutable_message();
+		message->set_code("50000");
+		message->set_message("invalid planned statement");
+
 		result->set_cmd_type(plan->commandType);
 		//result->set_result_dir(result_dir);
 		//result->set_meta_file("");
@@ -189,10 +195,70 @@ void ExecuteTask::HandleQuery() {
 	set_worker_param(request_.sessionid(), request_.worker_id());
 
 	uint64_t process_rows = 0;
-	exec_worker_query(request_.sql().data(), plan, params, slice_table,
+	bool succ = exec_worker_query(request_.sql().data(), plan, params, slice_table,
 					  request_.result_dir().data(), result_file.data(), 
 					  &process_rows, (void*)this);
-	ReportResult(plan->commandType, process_rows, request_.result_dir(), result_file);
+	if (succ) {
+		ReportResult(plan->commandType, process_rows, request_.result_dir(), result_file);
+	} else {
+		std::unique_ptr<brpc::Channel> channel;
+		std::unique_ptr<sdb::Schedule_Stub> stub;//(&channel);
+		brpc::Controller cntl;
+		channel = std::make_unique<brpc::Channel>();
+
+		// Initialize the channel, NULL means using default options. 
+		brpc::ChannelOptions options;
+		options.protocol = "h2:grpc";
+		//options.connection_type = "pooled";
+		options.timeout_ms = 10000/*milliseconds*/;
+		options.max_retry = 5;
+		if (channel->Init("127.0.0.1", 10002, &options) != 0) {
+			LOG(ERROR) << "Fail to initialize channel";
+			return;
+		}
+		stub = std::make_unique<sdb::Schedule_Stub>(channel.get());
+
+		auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
+		//reply_->set_code(last.sqlerrorcode_);
+		//reply_->set_message(last.message_);
+
+		sdb::PushWorkerResultRequest request;
+		request.set_dbid(request_.dbid());
+		request.set_sessionid(request_.sessionid());
+
+		auto task_id = request.mutable_task_id();
+		*task_id = request_.task_identify();
+		auto result = request.mutable_result();
+		result->set_dbid(request_.dbid());
+		result->set_query_id(request_.task_identify().query_id());
+		result->set_rescode(-1);
+
+		auto message = result->mutable_message();
+		if (log_cxt) {
+			*message = log_cxt->LastErrorData();
+			// result->set_sql_err_code(last.sqlerrcode_);
+			// result->set_message(last.message_);
+		} else {
+			//result->set_sql_err_code("58000");
+			//result->set_message("invalid planned statement");
+			message->set_code("58000");
+			message->set_message("invalid planned statement");
+		}
+		result->set_cmd_type(plan->commandType);
+		//result->set_result_dir(result_dir);
+		//result->set_meta_file("");
+		//result->add_data_files(result_file);
+
+		sdb::PushWorkerResultReply response;
+
+		stub->PushWorkerResult(&cntl, &request, &response, NULL);
+		if (cntl.Failed()) {
+			LOG(ERROR) << "Fail to connect stream, " << cntl.ErrorText();
+			return;
+		}
+		return;
+
+	}
 }
 
 void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
@@ -224,7 +290,6 @@ void ExecuteTask::ReportResult(CmdType cmdtype, uint64_t process_rows,
 	result->set_dbid(request_.dbid());
 	result->set_query_id(request_.task_identify().query_id());
 	result->set_rescode(0);
-	result->set_message("");
 	result->set_result_dir(result_dir);
 
 	result->set_cmd_type(cmdtype);

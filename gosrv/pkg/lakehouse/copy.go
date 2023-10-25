@@ -72,6 +72,7 @@ func (L *LakeRelCopyOperator) Copy(session uint64) error {
 	if err != nil {
 		return err
 	}
+  defer mgr.TryUnlock(L.sourceDb, session, L.sourceRel)
 
   lakeRel := NewLakeRelOperator(L.sourceDb, session)
 	files, err := lakeRel.GetAllFile(L.sourceRel, 0, 0)

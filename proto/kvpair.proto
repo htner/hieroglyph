@@ -96,11 +96,19 @@ message Database {
   LakeSpace space = 4;
 }
 
+message ErrorResponse {
+  string severity = 1;
+  string code = 3;
+  string message = 4;
+}
+
 message WorkerResultData {
   uint64 dbid = 1;
   uint64 query_id = 2;
   int32 rescode = 3;
-  string message = 4;
+  //string sql_err_code = 3;
+  //string message = 4;
+  ErrorResponse message = 4;
   string result_dir = 5;
 
   uint32 cmd_type = 6;
@@ -129,6 +137,7 @@ message Session {
 	uint64 write_transaction_id = 8;
 
   uint64 query_id = 9;
+  map<string, string> params = 10;
 	//ReadOnlyTransactions map[uint64]uint64
 }
 

@@ -60,7 +60,7 @@ func (L *LakeRelOperator) GetAllFile(rel uint64, segCount, segIndex uint64) ([]*
       t := L.T
       err = t.CheckReadAble(tr)
       return nil, err
-      })
+    })
 
     if err != nil {
       log.Printf("check read able error %v", err)
@@ -94,7 +94,7 @@ func (L *LakeRelOperator) GetAllFile(rel uint64, segCount, segIndex uint64) ([]*
 		for ri.Advance() {
 			file := &sdb.LakeFileDetail{}
 			data, e := ri.Get()
-			log.Println(data)
+			// log.Println(data)
 			if e != nil {
 				log.Printf("Unable to read next value: %v\n", e)
 				return nil, nil
@@ -218,9 +218,9 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 	}
 	_, e := db.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
 		for _, file := range files {
-			log.Println("tid ", currTid, "file xmin:", file.Xmin)
+			// log.Println("tid ", currTid, "file xmin:", file.Xmin)
 			if file.Xmax != 0 && uint64(currTid) == file.Xmax {
-				log.Println("error tid == file.Xmax:", currTid)
+				// log.Println("error tid == file.Xmax:", currTid)
 				continue
 			}
 
@@ -238,7 +238,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 				}
 				xminState = uint32(state)
 			}
-			log.Println("xmin state:", xminState, " xmax state:", xmaxState)
+			// log.Println("xmin state:", xminState, " xmax state:", xmaxState)
 
 			if file.Xmax != uint64(InvaildTranscaton) {
 				state, err := L.T.State(kvReader, uint64(file.Xmax))
@@ -249,7 +249,7 @@ func (L *LakeRelOperator) statifiesMvcc(files []*sdb.LakeFileDetail, currTid uin
 				xmaxState = uint32(state)
 			}
 
-			log.Println("xmin ", file.Xmin, " state:", xminState, " xmax ", file.Xmax," state:", xmaxState)
+			// log.Println("xmin ", file.Xmin, " state:", xminState, " xmax ", file.Xmax," state:", xmaxState)
 
 			if xminState == uint32(XS_COMMIT) && xmaxState != uint32(XS_COMMIT) {
 				statifiesFiles = append(statifiesFiles, file)

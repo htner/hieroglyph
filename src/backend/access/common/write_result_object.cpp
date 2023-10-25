@@ -150,9 +150,17 @@ int ObjectStream::WriteResultToFile(char msgtype, const char *buf, int size) {
 
 	// we will write tuple or desc to file, the format is:
 	// size(int64) + msgtype + tuple/desc
-	uint64_t total_size = htonll(size + 1);
+	uint64_t total_size = htonll(size + 1 + 4);
 	file_stream_->write(reinterpret_cast<char *>(&total_size), sizeof(uint64_t));
-	file_stream_->write(&msgtype, 1);
+	if (msgtype) {
+		file_stream_->write(&msgtype, 1);
+	}
+
+	// proto3 only
+    uint32 n32;
+	n32 = pg_hton32((uint32)size + 4);
+	file_stream_->write((char*)&n32, 4);
+
 	file_stream_->write(buf, size);
 	return 0;
 }
@@ -175,7 +183,9 @@ static ObjectStream *object_stream = nullptr;
 
 void
 CreateObjectStream(const char* dirname, const char *filename) {
-	assert(object_stream == nullptr);
+	//assert(object_stream == nullptr);
+	// FIXME_SDB try catch in exec_worker_query
+	WriteResultEnd();
 	object_stream = new ObjectStream(dirname, filename);
 	object_stream->Init();
 }

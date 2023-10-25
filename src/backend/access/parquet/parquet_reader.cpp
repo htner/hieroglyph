@@ -14,7 +14,7 @@
 #include "backend/access/parquet/parquet_reader.hpp"
 #include "backend/access/parquet/parquet_s3/parquet_s3.hpp"
 #include "backend/access/parquet/common.hpp"
-#include "backend/sdb/arrow/recordbatch_slot_exchanger.hpp"
+#include "backend/sdb/arrow/recordbatch_to_slot_exchanger.hpp"
 
 #include <list>
 
@@ -84,7 +84,7 @@ class DefaultParquetReader : public ParquetReader {
   }
 
   ~DefaultParquetReader() {
-	LOG(WARNING) << "parquet reader close";
+	// LOG(WARNING) << "parquet reader close";
 	/*
     if (reader_)
 		reader_

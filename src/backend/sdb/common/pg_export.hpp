@@ -34,6 +34,52 @@ extern "C" {
 #include "optimizer/orca.h"
 #include "sdb/postgres_init.h"
 
+extern const char *error_severity(int elevel);
+/*
+{
+	const char *prefix;
+
+	switch (elevel)
+	{
+		case DEBUG1:
+		case DEBUG2:
+		case DEBUG3:
+		case DEBUG4:
+		case DEBUG5:
+			prefix = gettext_noop("DEBUG");
+			break;
+		case LOG:
+		case LOG_SERVER_ONLY:
+			prefix = gettext_noop("LOG");
+			break;
+		case INFO:
+			prefix = gettext_noop("INFO");
+			break;
+		case NOTICE:
+			prefix = gettext_noop("NOTICE");
+			break;
+		case WARNING:
+			prefix = gettext_noop("WARNING");
+			break;
+		case ERROR:
+			prefix = gettext_noop("ERROR");
+			break;
+		case FATAL:
+			prefix = gettext_noop("FATAL");
+			break;
+		case PANIC:
+			prefix = gettext_noop("PANIC");
+			break;
+		default:
+			prefix = "???";
+			break;
+	}
+
+	return prefix;
+}
+*/
+
+
 // TODO FIXME
 // sp c / c++
 #undef DEBUG5
@@ -85,6 +131,7 @@ void exec_worker_query(const char *query_string,
 */
 
 extern int PostPortNumber;
+extern CommandDest whereToSendOutput;
 
 PlannedStmt *utility_optimizer(Query *query);
 void prepare_catalog(Oid *oid_arr, int size);
