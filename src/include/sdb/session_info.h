@@ -29,6 +29,7 @@ typedef struct SessionContext {
 typedef struct ThreadSessionContext {
 	SessionContext session_cxt_;
 	void *s3_context_;
+	void *log_context_;
 } ThreadSessionContext;
 
 extern THR_LOCAL ThreadSessionContext* thr_sess;
@@ -36,5 +37,7 @@ extern THR_LOCAL ThreadSessionContext* thr_sess;
 extern ThreadSessionContext* create_session_context(MemoryContext parent);
 
 extern void InitS3Context(void**);
+
+extern void SendMessageToSession(ErrorData* edata);
 
 #endif

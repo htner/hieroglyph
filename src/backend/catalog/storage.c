@@ -429,6 +429,7 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 void
 smgrDoPendingDeletes(bool isCommit)
 {
+	elog(INFO, "smgrDoPendingDeletes");
 	int			nestLevel = GetCurrentTransactionNestLevel();
 	PendingRelDelete *pending;
 	PendingRelDelete *prev;
@@ -478,6 +479,11 @@ smgrDoPendingDeletes(bool isCommit)
 					srels = repalloc(srels, sizeof(SMgrRelation) * maxrels);
 				}
 
+				elog(WARNING, "smgropen: %d-%d", nrels, pending->relnode.node.relNode);
+				// int* i = 0;
+				// *i = 0;
+				// elog(ERROR, "smgropen: %d-%d", nrels, pending->relnode.node.relNode);
+				// elog(FA, "smgropen: %d-%d", nrels, pending->relnode.node.relNode);
 				srels[nrels++] = srel;
 			}
 			/* must explicitly free the list entry */

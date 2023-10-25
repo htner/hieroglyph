@@ -405,6 +405,7 @@ void SysOneCacheInvalidate(int idx_oid) {
 
 // sdb catalog cache
 namespace sdb {
+
 void CatalogCache::InitCatalogCache(SDBContext *cxt) {
 	for (int i = 0; i < SysCacheSize; ++i) {
 		CatCacheData data;

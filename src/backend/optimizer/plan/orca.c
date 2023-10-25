@@ -39,6 +39,7 @@
 #include "portability/instr_time.h"
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
+#include "sdb/session_info.h"
 
 /* GPORCA entry point */
 extern PlannedStmt * GPOPTOptimizedPlan(Query *parse, bool *had_unexpected_failure);
@@ -88,6 +89,7 @@ PlannedStmt *
 orca_optimizer(Query *parse, int cursorOptions, ParamListInfo boundParams, char** plan_str)
 {
 	PlannedStmt *stmt = NULL;
+	MemoryContext ccxt = CurrentMemoryContext;
 
 	PG_TRY();
 	{
@@ -96,9 +98,11 @@ orca_optimizer(Query *parse, int cursorOptions, ParamListInfo boundParams, char*
     PG_CATCH();
     {
         ErrorData *errdata;
+		MemoryContextSwitchTo(ccxt);
         errdata = CopyErrorData();
         FlushErrorState();
-		elog(WARNING, "orca optimizer failed %s", errdata->message);
+		SendMessageToSession(errdata);
+		elog(LOG, "orca optimizer failed %s", errdata->message);
         FreeErrorData(errdata);
     }
     PG_END_TRY();

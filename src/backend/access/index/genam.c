@@ -468,7 +468,7 @@ systable_getnext(SysScanDesc sysscan)
 
 	if (sysscan->irel)
 	{
-		elog(WARNING, "index-getndex %u", sysscan->irel->rd_id);
+		// elog(WARNING, "index-getndex %u", sysscan->irel->rd_id);
 		if (index_getnext_slot(sysscan->iscan, ForwardScanDirection, sysscan->slot))
 		{
 			bool		shouldFree;

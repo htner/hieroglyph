@@ -960,7 +960,8 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 static void
 convert_sourcefiles(void)
 {
-	content_zero_hostname = get_host_name(0, 'p');
+	// content_zero_hostname = get_host_name(0, 'p');
+	content_zero_hostname = "127.0.0.1";
 
 	convert_sourcefiles_in("input", outputdir, "sql", "sql");
 	convert_sourcefiles_in("output", outputdir, "expected", "out");
@@ -2592,6 +2593,8 @@ create_database(const char *dbname)
 	else
 		psql_command("postgres", "CREATE DATABASE \"%s\" TEMPLATE=template0%s", dbname,
 					 (nolocale) ? " LC_COLLATE='C' LC_CTYPE='C'" : "");
+	// not support now
+	/*
 	psql_command(dbname,
 				 "ALTER DATABASE \"%s\" SET lc_messages TO 'C';"
 				 "ALTER DATABASE \"%s\" SET lc_monetary TO 'C';"
@@ -2600,6 +2603,7 @@ create_database(const char *dbname)
 				 "ALTER DATABASE \"%s\" SET bytea_output TO 'hex';"
 				 "ALTER DATABASE \"%s\" SET timezone_abbreviations TO 'Default';",
 				 dbname, dbname, dbname, dbname, dbname, dbname);
+	*/
 
 	/*
 	 * Install any requested procedural languages.  We use CREATE OR REPLACE

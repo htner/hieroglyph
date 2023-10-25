@@ -27,6 +27,9 @@ message ExecQueryRequest {
   uint64 uid = 4;
   uint64 dbid = 5;
   string uuid = 6; // if uuid is not empty, request will be exector exactly once
+  uint64 organization_id = 7;
+  string organization = 8;
+  map<string, string> params = 9;
 }
 // The response message containing the greetings
 message ExecQueryReply {
@@ -35,6 +38,7 @@ message ExecQueryReply {
   uint64 uid = 3;
   uint64 dbid = 4;
   string result_dir = 5;
+  map<string, string> params = 10;
 }
 
 message PushWorkerResultRequest {

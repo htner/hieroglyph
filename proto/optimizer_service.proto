@@ -61,8 +61,11 @@ message OptimizeRequest {
 
 // The response message containing the greetings
 message OptimizeReply {
-  int32 code = 1;
-  string message = 2;
+  int32 rescode = 1;
+  ErrorResponse message = 2;
+  //int32 code = 1;
+  //string sql_err_code = 1;
+  //string message = 2;
   bytes planstmt_str = 3;
   bytes plan_dxl_str = 4; // TODO maybe problem FIXME_SDB
   bytes plan_params_str = 5;

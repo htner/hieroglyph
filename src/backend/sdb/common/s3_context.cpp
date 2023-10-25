@@ -35,3 +35,6 @@ void InitS3Context(void** thread_s3_context) {
 	s3_cxt->result_isminio_ = FLAGS_s3isminio;
 	*/
 }
+
+
+
