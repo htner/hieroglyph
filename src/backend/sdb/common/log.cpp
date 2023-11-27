@@ -50,13 +50,13 @@ void sdb::LogDetail::SendMessage(ErrorData* edata) {
     if (edata->column_name) {
 		error_data_.set_column_name(edata->column_name); 
 	}
-  if (edata->datatype_name) {
+    if (edata->datatype_name) {
 		error_data_.set_data_type_name(edata->datatype_name); 
 	}
     if (edata->constraint_name) {
 		error_data_.set_constraint_name(edata->constraint_name); 
 	}
-  if (edata->filename) {
+    if (edata->filename) {
 		error_data_.set_file(edata->filename); 
 	}
 	error_data_.set_line(edata->lineno); 

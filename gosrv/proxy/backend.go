@@ -252,33 +252,32 @@ func (R *RawMessage) Backend() {
 
 func (p *Proxy) sendQueryResultToFronted(resp *sdb.CheckQueryResultReply) error {
 
-  if resp.Result.Rescode != 0 {
-      if resp.Result.Message != nil {
-        message := resp.Result.Message
+  if resp.Result.Message != nil && resp.Result.Message.Code != "00000" {
+    message := resp.Result.Message
 
-	      errMsg := &pgproto3.ErrorResponse{
-        Severity: message.Severity, 
-        Code: message.Code, 
-        Message: message.Message,
-        Detail: message.Detail,
-        Hint: message.Hint,
-        Position: message.Position,
-        InternalPosition: message.InternalPosition,
-        InternalQuery: message.InternalQuery,
-        Where: message.Where,
-        SchemaName: message.SchemaName,
-        TableName: message.TableName,
-        ColumnName: message.ColumnName,
-        DataTypeName: message.DataTypeName,
-        ConstraintName: message.ConstraintName,
-        File: message.File,
-        Line: message.Line} 
+    errMsg := &pgproto3.ErrorResponse{
+      Severity: message.Severity, 
+      Code: message.Code, 
+      Message: message.Message,
+      Detail: message.Detail,
+      Hint: message.Hint,
+      Position: message.Position,
+      //Position: 5,
+      InternalPosition: message.InternalPosition,
+      InternalQuery: message.InternalQuery,
+      Where: message.Where,
+      SchemaName: message.SchemaName,
+      TableName: message.TableName,
+      ColumnName: message.ColumnName,
+      DataTypeName: message.DataTypeName,
+      ConstraintName: message.ConstraintName,
+      File: message.File,
+      Line: message.Line} 
 
-	      return p.backend.Send(errMsg)
-      } else {
-			  return p.SendError("58000", "check result empty")
-      }
-	}
+    fmt.Println("send error message:", errMsg)
+
+    return p.backend.Send(errMsg)
+  }
 
 	if resp.Result.CmdType == postgres.CMD_UPDATE ||
 		resp.Result.CmdType == postgres.CMD_INSERT ||
