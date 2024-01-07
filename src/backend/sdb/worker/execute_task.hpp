@@ -93,7 +93,7 @@ public:
 
   const std::string& RecvTupleChunk(int32_t motion_id, int32 target_route);
 
-  const std::string* RecvTupleChunkAny(int32_t motion_id, int32* target_route);
+  const std::string& RecvTupleChunkAny(int32_t motion_id, int32* target_route);
 
   void BroadcastStopMessage(int32_t motion_id);
 

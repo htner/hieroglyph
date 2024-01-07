@@ -76,7 +76,8 @@ Aws::S3::S3Client *s3_client_open(const char *user, const char *password,
 		const Aws::String defaultRegion = "ap-northeast-1";
 		clientConfig.scheme = Aws::Http::Scheme::HTTPS;
 		clientConfig.region = awsRegion ? (Aws::String)awsRegion : defaultRegion;
-		s3_client = new Aws::S3::S3Client(cred, clientConfig);
+		s3_client = new Aws::S3::S3Client(cred, clientConfig,
+			Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, true);
 	}
 	return s3_client;
 }

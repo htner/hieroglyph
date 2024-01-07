@@ -36,7 +36,7 @@ public:
 
 	void PlanQueries(List* querytree_list);
 
-  void PlanQuery(Query* query);
+  bool PlanQuery(Query* query);
   // FIXME_SDB call pg function now
   std::string PrepareParams(PlannedStmt* plannedstmt);
 
