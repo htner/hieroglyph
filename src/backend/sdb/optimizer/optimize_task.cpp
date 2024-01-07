@@ -106,11 +106,14 @@ void OptimizeTask::PlanQueries(List* querytree_list) {
 		// offset in the values builder.
 		Query	   *query = lfirst_node(Query, query_list);
 		// ConvertToPlanStmtFromDXL//
-		PlanQuery(query);
+		auto ret = PlanQuery(query);
+		if (!ret) {
+			break;
+		}
 	}
 }
 
-void OptimizeTask::PlanQuery(Query* query) {
+bool OptimizeTask::PlanQuery(Query* query) {
 	PlannedStmt *plan = NULL;
 	char* plan_str = NULL;
 	List* read_rel_list = NULL;
@@ -132,7 +135,17 @@ void OptimizeTask::PlanQuery(Query* query) {
 
 	if (plan == NULL) {
 		// reply_->set_message("plan is empty");
-		return;
+		reply_->set_rescode(-1);
+		auto& log_context = thr_sess->log_context_;
+		auto message = reply_->mutable_message();
+		if (log_context == nullptr) {
+			message->set_code("58000");
+			message->set_message("system error");
+			} else {
+			auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
+			*message = log_cxt->LastErrorData();
+		}
+		return false;
 	}
 
 	if (plan_str) {
@@ -152,6 +165,7 @@ void OptimizeTask::PlanQuery(Query* query) {
 	reply_->set_planstmt_str(planstmt_str);
 
 	elog_node_display(PG_LOG, "query plan: ", plan, false);
+	return true;
 } 
 
 // FIXME_SDB call pg function now

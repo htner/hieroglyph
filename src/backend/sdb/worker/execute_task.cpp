@@ -371,10 +371,10 @@ SliceTable* ExecuteTask::BuildSliceTable() {
 void ExecuteTask::InitRecvStream(int32_t motion_id, int32_t count) {
 	std::unique_lock<std::mutex> mlock(task_mutex_);
 	if (recv_streams_.size() < (size_t)motion_id) {
-		recv_streams_.resize(count);
+		recv_streams_.resize(motion_id);
 		//mutexs_.clear();
 		//conds_.clear();
-		for (int i = mutexs_.size(); i < count; ++i) {
+		for (int i = mutexs_.size(); i < motion_id; ++i) {
 			mutexs_.push_back(std::make_unique<std::mutex>());
 			conds_.push_back(std::make_unique<std::condition_variable>());
 		}
@@ -530,7 +530,7 @@ const std::string& ExecuteTask::RecvTupleChunk(int32_t motion_id, int32 from_rou
 
 			uint16_t tid;
 			memcpy((void*)&tid, str.data() + 2, 2);
-			LOG(ERROR) << "get one chunk from " << from_route << " str " << str.size()
+			LOG(ERROR) << "get one chunk from " << motion_id << "|" << from_route << " str " << str.size()
 				<< "|" << tid;
 			cache_.swap(str);
 			return cache_;
@@ -540,11 +540,11 @@ const std::string& ExecuteTask::RecvTupleChunk(int32_t motion_id, int32 from_rou
 	return cache_;
 }
 
-const std::string* ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* target_route) {
+const std::string& ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* target_route) {
 	cache_.clear();
 	if (recv_streams_.size() < (size_t)motion_id) {
 		LOG(ERROR) << "recv_stream.size() " << recv_streams_.size() << " less motion_id " << motion_id;
-		return &cache_;
+		return cache_;
 	}
 	auto& mutex = mutexs_[motion_id - 1];
 	auto& cond = conds_[motion_id - 1];
@@ -569,8 +569,8 @@ const std::string* ExecuteTask::RecvTupleChunkAny(int32_t motion_id, int32* targ
 				LOG(ERROR) << "get one chunk from " << i << " str " << str.size() 
 					<< "|" << tid;
 				*target_route = i;
-				return new std::string(cache_);	
-				//return cache_;
+				//return new std::string(cache_);	
+				return cache_;
 			}
 		}
 		cond->wait(mlock);
@@ -706,7 +706,7 @@ TupleChunkListItem SDBRecvTupleChunkFrom(void *t,
 										 int16 motion_id, 
 										 int16 source_route) {
 	sdb::ExecuteTask* task = static_cast<sdb::ExecuteTask*>(t);
-	auto buf = task->RecvTupleChunk(motion_id, source_route);
+	const std::string& buf = task->RecvTupleChunk(motion_id, source_route);
 
 	auto tcItem = (TupleChunkListItem) palloc(sizeof(TupleChunkListItemData));
 	tcItem->p_next = NULL;
@@ -722,13 +722,13 @@ TupleChunkListItem SDBRecvTupleChunkFromAny(void *t,
 											int16 *source_route) {
 	sdb::ExecuteTask* task = static_cast<sdb::ExecuteTask*>(t);
 	int32 r = 0;
-	auto buf = task->RecvTupleChunkAny(motion_id, &r);
+	const std::string& buf = task->RecvTupleChunkAny(motion_id, &r);
 	*source_route = r;
 
 	auto tcItem = (TupleChunkListItem) palloc(sizeof(TupleChunkListItemData));
 	tcItem->p_next = NULL;
-	tcItem->chunk_length = buf->size();
-	tcItem->inplace = (char*) (buf->data());
+	tcItem->chunk_length = buf.size();
+	tcItem->inplace = (char*) (buf.data());
 	return tcItem;
 }
 

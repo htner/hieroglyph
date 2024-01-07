@@ -1489,9 +1489,7 @@ InvalidateBuffer(BufferDesc *buf)
 	oldHash = BufTableHashCode(&oldTag);
 	oldPartitionLock = BufMappingPartitionLock(oldHash);
 
-#ifdef SDB_NOUSE
 retry:
-#endif
 
 	/*
 	 * Acquire exclusive mapping lock in preparation for changing the buffer's
