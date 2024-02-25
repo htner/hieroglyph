@@ -23,7 +23,7 @@ class ParquetS3WriterState {
 private:
   /* list parquet reader of target files */
   std::shared_ptr<ParquetWriter> inserter_;
-  std::map<uint64_t, std::shared_ptr<ParquetWriter>> updates;
+  std::map<uint64_t, std::shared_ptr<ParquetWriter>> updates_;
   std::list<std::shared_ptr<ParquetWriter>> uploads_;
   /* memory context of reader */
   MemoryContext cxt;
@@ -77,7 +77,7 @@ private:
 
   // FIXME
   std::map<uint64_t, std::shared_ptr<ParquetWriter>>& Updates() {
-    return updates;
+    return updates_;
   }
 };
 

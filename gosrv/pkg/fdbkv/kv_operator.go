@@ -59,6 +59,7 @@ func (t *KvOperator) Read(key FdbKey, value FdbValue) error {
 		return errors.New("kv not found")
 	}
 	if len(v) == 0 {
+	  log.Println("kvoprator read empty, key, value, error:", key, len(sKey), len(v), v, e)
 		return ErrEmptyData
 	}
 	return UnmarshalValue(v, value)

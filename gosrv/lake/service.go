@@ -104,7 +104,7 @@ func (s *LakeServer) DeleteFiles(ctx context.Context, request *sdb.DeleteFilesRe
 	err := lakeop.DeleteFiles(uint64(request.Rel), request.RemoveFiles)
 	if err != nil {
 		log.Printf("delete files error: %s", err.Error())
-		return nil, fmt.Errorf("insert files error")
+		return nil, fmt.Errorf("delete files error %s", err.Error())
 	}
 	/*
 		err = lakeop.DeleleFiles(uint64(request.Rel), request.GetRemoveFiles())

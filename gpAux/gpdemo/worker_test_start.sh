@@ -8,6 +8,9 @@ rm -rf /tmp/output2.log
 rm -rf /tmp/output3.log
 rm -rf /tmp/output4.log
 
+#cmd="configure tenant_mode=disabled; clearrange \"\" \\xFF;"
+#fdbcli --exec "$cmd" || true
+
 source /usr/local/sdb/greenplum_path.sh
 
 #ls datadirs/optimizer0/global/ -a | grep -E "^[0-9]{4,}" 

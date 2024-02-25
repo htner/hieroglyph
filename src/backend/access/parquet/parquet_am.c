@@ -158,19 +158,19 @@ static bool ParquetFetchRowVersion(Relation relation, ItemPointer tid,
                                    Snapshot snapshot, TupleTableSlot *slot) {
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("feature not supported on appendoptimized relations")));
+           errmsg("fetch_row_version feature not supported on appendoptimized relations")));
 }
 
 static void ParquetGetLatestTid(TableScanDesc sscan, ItemPointer tid) {
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("feature not supported on appendoptimized relations")));
+           errmsg("get_latest_tid feature not supported on appendoptimized relations")));
 }
 
 static bool ParquetTupleTidValid(TableScanDesc scan, ItemPointer tid) {
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("feature not supported on appendoptimized relations")));
+           errmsg("tuple_tid_valid feature not supported on appendoptimized relations")));
 }
 
 static bool ParquetTupleSatisfiesSnapshot(Relation rel, TupleTableSlot *slot,
@@ -178,9 +178,12 @@ static bool ParquetTupleSatisfiesSnapshot(Relation rel, TupleTableSlot *slot,
   /*
    * AO table dose not support unique and tidscan yet.
    */
-  ereport(ERROR,
+  return true;
+/*
+  ereport(ERRO,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("feature not supported on appendoptimized relations")));
+           errmsg("tuple_satisfies_snapshot feature not supported on appendoptimized relations")));
+		   */
 }
 
 static TransactionId ParquetComputeXidHorizonForTuples(Relation rel,
@@ -196,7 +199,7 @@ static TransactionId ParquetComputeXidHorizonForTuples(Relation rel,
    */
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-           errmsg("feature not supported on appendoptimized relations")));
+           errmsg("compute_xid_horizon_for_tuples feature not supported on appendoptimized relations")));
 }
 
 /* ------------------------------------------------------------------------
@@ -289,18 +292,23 @@ extern void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
                               int options, struct BulkInsertStateData *bistate,
                               TransactionId xid);
 
-/*
-static void simple_parquet_insert(Relation relation, HeapTuple tup) {
+extern void ParquetUpdate(Relation relation, ItemPointer otid,
+						  HeapTuple tup);
+
+extern void ParquetDelete(Relation relation, ItemPointer otid);
+
+extern void simple_parquet_insert(Relation relation, HeapTuple tup) {
 	ParquetInsert(relation, tup, 0, 0, NULL, 0);
 }
 
-static void simple_parquet_delete(Relation relation, ItemPointer tid) {
+extern void simple_parquet_delete(Relation relation, ItemPointer tid) {
+	ParquetDelete(relation, tid);
 }
 
-static void simple_parquet_update(Relation relation, ItemPointer otid,
+extern void simple_parquet_update(Relation relation, ItemPointer otid,
 							   HeapTuple tup) {
+	ParquetUpdate(relation, otid, tup);
 }
-*/
 
 /*
  * Release resources and deallocate scan. If TableScanDesc.temp_snap,

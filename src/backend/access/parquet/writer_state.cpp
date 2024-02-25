@@ -127,7 +127,7 @@ bool ParquetS3WriterState::HasS3Client() {
  */
 void ParquetS3WriterState::Upload() {
   auto auto_switch = AutoSwitch(cxt);
-  for (auto update : updates) {
+  for (auto update : updates_) {
     update.second->Upload(dirname.c_str(), s3_client);
   }
 
@@ -138,7 +138,7 @@ void ParquetS3WriterState::Upload() {
   }
 
   CommitUpload();
-  updates.clear();
+  updates_.clear();
   uploads_.clear();
 }
 
@@ -146,11 +146,11 @@ void ParquetS3WriterState::CommitUpload() {
 	auto auto_switch = AutoSwitch(cxt);
 	std::list<sdb::LakeFile> delete_files;
 	
-	if (updates.empty()) {
+	if (updates_.empty()) {
 		return;
 	}
 
-	for (auto update : updates) {
+	for (auto update : updates_) {
 		sdb::LakeFile file;
 		file.set_file_id(update.second->FileId());
 		delete_files.push_back(file);
@@ -241,8 +241,8 @@ bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
   auto auto_switch = AutoSwitch(cxt);
   uint64_t block_id = ItemPointerGetBlockNumber(tid);
   
-  auto it = updates.find(block_id);
-  if (it != updates.end()) {
+  auto it = updates_.find(block_id);
+  if (it != updates_.end()) {
     return it->second->ExecDelete(tid->ip_posid);
   } else {
 	auto w = CreateParquetWriter(rel_id, "", tuple_desc);
@@ -251,7 +251,7 @@ bool ParquetS3WriterState::ExecDelete(ItemPointer tid) {
 	auto filename = std::to_string(block_id) + ".parquet";
 	w->SetFileId(block_id);
 	w->SetOldFilename(filename);
-	updates[block_id] = w;
+	updates_[block_id] = w;
     return w->ExecDelete(tid->ip_posid);
   }
   return false;

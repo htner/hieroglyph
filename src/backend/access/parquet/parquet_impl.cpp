@@ -473,7 +473,12 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 									&TTSOpsVirtual);
   try {
 	while (true) {
-			festate->next(slot);
+			bool ret = festate->next(slot);
+
+			if (!ret) {
+				LOG(ERROR) << "parquet get next slot return false";
+				return nullptr;
+			}
 			if (slot == nullptr) {
 				LOG(ERROR) << "parquet get next slot nullptr";
 				return nullptr;
@@ -533,11 +538,12 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 						} 
 					} 
 				} while (0);
-				LOG(ERROR) << "heap key test result" << valid;
+				//LOG(ERROR) << "heap key test result" << valid;
 			}
 			valid = result;
 
 		if (valid) {
+				LOG(WARNING) << "heap key get ok" << valid;
 				return tuple;
 			}
 	}
@@ -557,12 +563,14 @@ extern "C" HeapTuple ParquetGetNext(TableScanDesc sscan, ScanDirection direction
 /*
  * sdb: it is uesd by heap_delete function
  */
+/*
 extern "C" TM_Result ParquetDelete(Relation relation, ItemPointer tid,
 							CommandId cid, Snapshot crosscheck, bool wait,
 							TM_FailureData *tmfd, bool changingPart) {
 
 	return TM_Ok;
 }
+*/
 
 extern "C" bool ParquetGetNextSlot(TableScanDesc scan, ScanDirection direction,
                                    TupleTableSlot *slot) {
@@ -842,6 +850,98 @@ extern "C" void ParquetDmlFinish(Relation relation) {
 		error = e.what();
 	}
 	fmstate->Upload();
+}
+
+extern "C" void ParquetUpdate(Relation rel, ItemPointer otid,
+								HeapTuple tuple) {
+	if (parquet_am_cxt == NULL) {
+		parquet_am_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
+								  ALLOCSET_DEFAULT_SIZES);
+	}
+	auto old_cxt = MemoryContextSwitchTo(parquet_am_cxt);
+	std::string error;
+	TupleTableSlot *slot;
+	TupleDesc desc;
+	desc = RelationGetDescr(rel);
+	LOG(INFO) << "parquet insert finish: " << error.c_str();
+	//slot = MakeTupleTableSlot(desc, &TTSOpsVirtual);
+	slot = MakeSingleTupleTableSlot(RelationGetDescr(rel),
+	&TTSOpsVirtual);
+	slot->tts_tableOid = RelationGetRelid(rel);
+	heap_deform_tuple(tuple, RelationGetDescr(rel), slot->tts_values, slot->tts_isnull);
+	ExecStoreVirtualTuple(slot);
+	//ExecStoreHeapTuple(tuple, slot, true);
+
+	auto fmstate = GetModifyState(rel);
+
+	if (fmstate == nullptr) {
+		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3_cxt = GetS3Context();
+		fmstate =
+			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
+
+		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
+		LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
+	}
+	//ExecStoreVirtualTuple(slot);
+
+	try {
+		fmstate->ExecDelete(otid);
+		fmstate->ExecInsert(slot);
+		fmstate->Upload();
+		//LOG(INFO) << "parquet insert finish ok?";
+		// if (plstate->selector_function_name)
+		//     fmstate->set_user_defined_func(plstate->selector_function_name);
+	} catch (std::exception &e) {
+		error = e.what();
+	}
+	if (!error.empty()) {
+		LOG(ERROR) << "parquet insert error: " << error.c_str();
+	}
+
+	// LOG(INFO) << "parquet insert finish: " << error.c_str();
+
+	MemoryContextSwitchTo(old_cxt);
+	// return slot;
+
+}
+
+extern "C" void ParquetDelete(Relation rel, ItemPointer otid) {
+	if (parquet_am_cxt == NULL) {
+		parquet_am_cxt = AllocSetContextCreate(NULL, "parquet_s3_fdw temporary data",
+								  ALLOCSET_DEFAULT_SIZES);
+	}
+	auto old_cxt = MemoryContextSwitchTo(parquet_am_cxt);
+	std::string error;
+	TupleDesc desc;
+	desc = RelationGetDescr(rel);
+	LOG(INFO) << "parquet insert finish: " << error.c_str();
+
+	auto fmstate = GetModifyState(rel);
+
+	if (fmstate == nullptr) {
+		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3_cxt = GetS3Context();
+		fmstate =
+			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
+
+		fmstate->SetRel(RelationGetRelationName(rel), RelationGetRelid(rel));
+		LOG(WARNING) << "set rel: " << RelationGetRelationName(rel) << " " << RelationGetRelid(rel);
+	}
+
+	try {
+		fmstate->ExecDelete(otid);
+		fmstate->Upload();
+	} catch (std::exception &e) {
+		error = e.what();
+	}
+	if (!error.empty()) {
+		LOG(ERROR) << "parquet insert error: " << error.c_str();
+	}
+
+	// LOG(INFO) << "parquet insert finish: " << error.c_str();
+	MemoryContextSwitchTo(old_cxt);
+	// return slot;
 }
 
 /*

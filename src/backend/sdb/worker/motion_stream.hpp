@@ -13,6 +13,7 @@ class ExecuteTask;
 class MotionStream: public brpc::StreamInputHandler {
 public:
   explicit MotionStream(ExecuteTask* t, int32_t motion_id);
+  ~MotionStream();
 
   void SetTask(ExecuteTask*);
 
@@ -32,6 +33,10 @@ public:
   virtual void on_closed(brpc::StreamId id);
 
   void SetStreamId(brpc::StreamId id);
+
+  brpc::StreamId StreamId() {
+    return stream_;
+  }
 
   bool Start(const sdb::TaskIdentify& key, const std::string& server_addr);
 

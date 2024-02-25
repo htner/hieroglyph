@@ -17,6 +17,7 @@
 
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/parquetam.h"
 #include "access/htup_details.h"
 #include "catalog/index.h"
 #include "catalog/indexing.h"
@@ -76,6 +77,7 @@ CatalogCloseIndexes(CatalogIndexState indstate)
 static void
 CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 {
+	return;
 	int			i;
 	int			numIndexes;
 	RelationPtr relationDescs;
@@ -232,22 +234,24 @@ CatalogTupleCheckConstraints(Relation heapRel, HeapTuple tup)
 void
 CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 {
-	CatalogIndexState indstate;
+	//CatalogIndexState indstate;
 
-	CatalogTupleCheckConstraints(heapRel, tup);
+	//CatalogTupleCheckConstraints(heapRel, tup);
 
-	indstate = CatalogOpenIndexes(heapRel);
+	//indstate = CatalogOpenIndexes(heapRel);
 
-	simple_heap_insert(heapRel, tup);
-	// simple_parquet_upload(heapRel);
+	if (!IsBootstrapProcessingMode())
+		simple_parquet_insert(heapRel, tup);
+	else
+		simple_heap_insert(heapRel, tup);
 	return;
 
 	/*
 	 * sdb: we not use local index, so we should get catalog and reindex it when exec
 	 * another query
 	 */
-	CatalogIndexInsert(indstate, tup);
-	CatalogCloseIndexes(indstate);
+	//CatalogIndexInsert(indstate, tup);
+	//CatalogCloseIndexes(indstate);
 }
 
 /*
@@ -264,9 +268,12 @@ CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
 {
 	CatalogTupleCheckConstraints(heapRel, tup);
 
+	if (!IsBootstrapProcessingMode())
+		simple_parquet_insert(heapRel, tup);
+	else
 	simple_heap_insert(heapRel, tup);
 
-	CatalogIndexInsert(indstate, tup);
+	//CatalogIndexInsert(indstate, tup);
 }
 
 /*
@@ -289,10 +296,13 @@ CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 
 	indstate = CatalogOpenIndexes(heapRel);
 
-	simple_heap_update(heapRel, otid, tup);
+	if (!IsBootstrapProcessingMode())
+		simple_parquet_update(heapRel, otid, tup);
+	else
+		simple_heap_update(heapRel, otid, tup);
 
-	CatalogIndexInsert(indstate, tup);
-	CatalogCloseIndexes(indstate);
+	// CatalogIndexInsert(indstate, tup);
+	// CatalogCloseIndexes(indstate);
 }
 
 /*
@@ -309,9 +319,12 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 {
 	CatalogTupleCheckConstraints(heapRel, tup);
 
-	simple_heap_update(heapRel, otid, tup);
+	if (!IsBootstrapProcessingMode())
+		simple_parquet_update(heapRel, otid, tup);
+	else
+		simple_heap_update(heapRel, otid, tup);
 
-	CatalogIndexInsert(indstate, tup);
+	//CatalogIndexInsert(indstate, tup);
 }
 
 /*
@@ -332,5 +345,8 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 void
 CatalogTupleDelete(Relation heapRel, ItemPointer tid)
 {
-	simple_heap_delete(heapRel, tid);
+	if (!IsBootstrapProcessingMode())
+		simple_parquet_delete(heapRel, tid);
+	else
+		simple_heap_delete(heapRel, tid);
 }

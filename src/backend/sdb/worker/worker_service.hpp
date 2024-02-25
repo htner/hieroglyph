@@ -85,8 +85,14 @@ public:
 
     brpc::StreamOptions stream_options;
     LOG(INFO) << "get recv stream:" << req->motion_id() << "|" << req->from_route();
-    stream_options.handler = it->second->GetRecvStream(req->motion_id(),
+    auto stream = it->second->GetRecvStream(req->motion_id(),
                                                        req->from_route());
+    if (stream->StreamId() != brpc::INVALID_STREAM_ID) {
+      cntl->SetFailed("accept stream before");
+      return;
+    }
+
+    stream_options.handler = stream;
     if (stream_options.handler == nullptr) {
       // res->set_succ(false);
       cntl->SetFailed("Fail to accept stream ?? ");

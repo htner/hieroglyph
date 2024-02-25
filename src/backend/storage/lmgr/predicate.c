@@ -4611,6 +4611,8 @@ CheckForSerializableConflictIn(Relation relation, HeapTuple tuple,
 void
 CheckTableForSerializableConflictIn(Relation relation)
 {
+	return;
+
 	HASH_SEQ_STATUS seqstat;
 	PREDICATELOCKTARGET *target;
 	Oid			dbId;

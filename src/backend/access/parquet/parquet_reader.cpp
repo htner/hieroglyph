@@ -213,7 +213,7 @@ class DefaultParquetReader : public ParquetReader {
 //	<< " tostring: " << ItemPointerToString(&(slot->tts_tid))
 //	<< " tostring: " << ItemPointerToString(&((*result)->tts_tid))
 //	<< " " << fileid_;
-	//LOG(ERROR) << "parquet reader next " << fileid_ << ", ";
+	LOG(ERROR) << "parquet reader next " << fileid_ << ", ";
 	//slot->
 	//LOG(ERROR) << "from attr: 1 -> "<< DatumGetUInt32((*result)->tts_values[0]);
 	//LOG(ERROR) << "to attr: 1 -> "<< DatumGetUInt32(slot->tts_values[0]);

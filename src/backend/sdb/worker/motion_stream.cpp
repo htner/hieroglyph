@@ -12,6 +12,12 @@ MotionStream::MotionStream(ExecuteTask* t, int32_t motion_id) : task_(t) ,
 	motion_id_(motion_id) {
 }
 
+MotionStream::~MotionStream() {
+	if (stream_ != brpc::INVALID_STREAM_ID) {
+		Close();
+	}
+}
+
 void MotionStream::SetTask(ExecuteTask* t) {
 	task_ = t;
 }
@@ -59,6 +65,10 @@ void MotionStream::on_closed(brpc::StreamId id) {
 }
 
 void MotionStream::SetStreamId(brpc::StreamId id) {
+	if (stream_ != brpc::INVALID_STREAM_ID) {
+		LOG(ERROR) << "Fail to initialize stream id";
+		return;
+	}
 	LOG(INFO) << "set stream id " << id;
 	stream_ = id;
 }
