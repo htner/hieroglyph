@@ -141,7 +141,7 @@ bool OptimizeTask::PlanQuery(Query* query) {
 		if (log_context == nullptr) {
 			message->set_code("58000");
 			message->set_message("system error");
-			} else {
+		} else {
 			auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
 			*message = log_cxt->LastErrorData();
 		}
@@ -159,7 +159,28 @@ bool OptimizeTask::PlanQuery(Query* query) {
 
 	int planstmt_len;
 	int planstmt_len_uncompressed;
-	char* planstmt_cstr = serializeNode((Node*)plan, &planstmt_len, &planstmt_len_uncompressed);
+	char* planstmt_cstr = nullptr;
+
+	PG_TRY();
+	{
+		planstmt_cstr = serializeNode((Node*)plan, &planstmt_len, &planstmt_len_uncompressed);
+	}
+	PG_CATCH();
+	{
+		reply_->set_rescode(-1);
+		auto& log_context = thr_sess->log_context_;
+		auto message = reply_->mutable_message();
+		if (log_context == nullptr) {
+			message->set_code("58000");
+			message->set_message("serialize node error");
+		} else {
+			auto log_cxt = static_cast<LogDetail*>(thr_sess->log_context_);
+			*message = log_cxt->LastErrorData();
+		}
+		return false;
+	}
+	PG_END_TRY();
+
 	std::string planstmt_str(planstmt_cstr, planstmt_len);
 
 	reply_->set_planstmt_str(planstmt_str);
@@ -177,15 +198,26 @@ std::string OptimizeTask::PrepareParams(PlannedStmt* plannedstmt) {
 	}
 	List* param_exec_types;
 	ParamListInfo extern_params = NULL;
-	Bitmapset* send_params = getExecParamsToDispatch(plannedstmt, exec_params, &param_exec_types);
 
-	SerializedParams* sdb_serialized_params = serializeParamsForDispatch(extern_params,
+	int params_len;
+	int params_len_uncompressed;
+	char* params;
+
+	PG_TRY();
+	{
+		Bitmapset* send_params = getExecParamsToDispatch(plannedstmt, exec_params, &param_exec_types);
+
+		SerializedParams* sdb_serialized_params = serializeParamsForDispatch(extern_params,
 																	  exec_params,
 																	  param_exec_types,
 																	  send_params);
-	int params_len;
-	int params_len_uncompressed;
-	char* params = serializeNode((Node*)sdb_serialized_params, &params_len, &params_len_uncompressed);
+		params = serializeNode((Node*)sdb_serialized_params, &params_len, &params_len_uncompressed);
+	}
+	PG_CATCH();
+	{
+		return "";
+	}
+	PG_END_TRY();
 	return std::string(params, params_len);
 }
 

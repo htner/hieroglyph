@@ -25,6 +25,8 @@ extern "C" {
 }
 
 #include "backend/access/parquet/writer_state.hpp"
+#include "backend/access/parquet/parquet_reader.hpp"
+#include "backend/sdb/common/s3_context.hpp"
 #include <brpc/server.h>
 #include <brpc/channel.h>
 #include <butil/iobuf.h>
@@ -97,8 +99,8 @@ std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
     const char *filename) {
   //auto old_cxt = MemoryContextSwitchTo(ctx);
   auto auto_switch = AutoSwitch(cxt);
-  auto reader = CreateParquetWriter(rel_id, filename, tuple_desc);
-  reader->SetRel(rel_name, rel_id);
+  auto w = CreateParquetWriter(rel_id, filename, tuple_desc);
+  w->SetRel(rel_name, rel_id);
   // reader->Open(filename, s3_client);
   // reader->set_options(use_threads, use_mmap);
 
@@ -106,8 +108,8 @@ std::shared_ptr<ParquetWriter> ParquetS3WriterState::NewInserter(
   // reader->create_column_mapping(this->tuple_desc, this->target_attrs);
   // reader->create_new_file_temp_cache();
 
-  reader->PrepareUpload();
-  return reader;
+  w->PrepareUpload();
+  return w;
 }
 
 /**
@@ -122,13 +124,54 @@ bool ParquetS3WriterState::HasS3Client() {
   return false;
 }
 
+extern Aws::S3::S3Client *ParquetGetConnectionByRelation();
+
 /**
  * @brief upload all cached data on readers list
  */
 void ParquetS3WriterState::Upload() {
   auto auto_switch = AutoSwitch(cxt);
-  for (auto update : updates_) {
-    update.second->Upload(dirname.c_str(), s3_client);
+
+	std::vector<int> rowgroups;
+	bool use_mmap = false;
+	bool use_threads = false;
+	Aws::S3::S3Client *s3client = NULL;
+	s3client = ParquetGetConnectionByRelation();
+
+	std::vector<bool> fetched_col(tuple_desc->natts, true);
+
+	for (auto it = updates_.begin(); it != updates_.end(); ++it) {
+		TupleTableSlot* slot = MakeSingleTupleTableSlot(tuple_desc,
+			&TTSOpsVirtual);
+		auto s3_filename = std::to_string(it->second->FileId()) + ".parquet";
+		auto deletes = it->second->Deletes();
+		auto reader  = CreateParquetReader(rel_id, it->second->FileId(),
+									 s3_filename.data(), tuple_desc, fetched_col);
+		reader->SetRowgroupsList(rowgroups);
+		reader->SetOptions(use_threads, use_mmap);
+		if (s3client) {
+			auto s3_cxt = GetS3Context();
+			auto status = reader->Open(s3_cxt->lake_bucket_.c_str(), s3client);
+			if (!status.ok()) {
+				LOG(ERROR) << "open failure";
+				break;
+			}
+		}
+		ReadStatus  res;
+		while(true) {
+			res = reader->Next(slot);
+			if (res != RS_SUCCESS) {
+				LOG(ERROR) << "parquet get next slot nullptr";
+				break;
+			}
+			LOG(ERROR) << "get from old file, pos" << slot->tts_tid.ip_posid;
+			if (deletes.find(slot->tts_tid.ip_posid) != deletes.end()) {
+				continue;
+				} else {
+				LOG(ERROR) << "insert back to new file, pos" << slot->tts_tid.ip_posid;
+			ExecInsert(slot);
+			}
+		}
   }
 
   if (inserter_ != nullptr) {

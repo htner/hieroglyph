@@ -224,7 +224,7 @@ static void destroy_parquet_modify_state(void *arg) {
  * C interface functions
  */
 
-static Aws::S3::S3Client *ParquetGetConnectionByRelation(Relation relation) {
+extern Aws::S3::S3Client *ParquetGetConnectionByRelation() {
   static bool init_s3sdk = false;
   if (!init_s3sdk) {
     parquet_s3_init();
@@ -365,7 +365,7 @@ static ParquetScanDesc ParquetBeginRangeScanInternal(
 
 	//GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
 
-	s3client = ParquetGetConnectionByRelation(relation);
+	s3client = ParquetGetConnectionByRelation();
 
 	TupleDesc tuple_desc = RelationGetDescr(relation);
 	std::vector<bool> fetched_col(tuple_desc->natts, false);
@@ -726,7 +726,7 @@ extern "C" void ParquetDmlInit(Relation rel) {
 										 ALLOCSET_DEFAULT_SIZES);
 	}
 
-  auto s3client = ParquetGetConnectionByRelation(rel);
+  auto s3client = ParquetGetConnectionByRelation();
   try {
 	auto s3_cxt = GetS3Context();
     auto fmstate = CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client,
@@ -765,90 +765,6 @@ extern "C" void ParquetDmlFinish(Relation relation) {
 	if (fmstate == NULL) {
 		return;
 	}
-
-	TupleTableSlot* slot = MakeSingleTupleTableSlot(RelationGetDescr(relation),
-									&TTSOpsVirtual);
-
-	std::unordered_set<uint64_t> lake_files_ids;
-	auto lake_files = ThreadSafeSingleton<sdb::LakeFileMgr>::GetInstance()->GetLakeFiles(relation->rd_id);
-	for (size_t i = 0; i < lake_files.size(); ++i) {
-		lake_files_ids.insert(lake_files[i].file_id()); // <<  " -> " << lake_files[i].file_name();
-		LOG(ERROR) << lake_files[i].file_id(); // <<  " -> " << lake_files[i].file_name();
-		//filenames.push_back(lake_files[i].file_name());
-	}
-	// ParquetS3ReaderState *state;
-	std::vector<int> rowgroups;
-	bool use_mmap = false;
-	bool use_threads = false;
-	Aws::S3::S3Client *s3client = NULL;
-	// ReaderType reader_type = RT_MULTI;
-	// int max_open_files = 10;
-
-	// MemoryContextCallback *callback;
-	// MemoryContext reader_cxt;
-
-	std::string error;
-
-	//GetUsedColumns((Node *)targetlist, tupDesc->natts, &attrs_used);
-
-	s3client = ParquetGetConnectionByRelation(relation);
-
-	TupleDesc tuple_desc = RelationGetDescr(relation);
-	std::vector<bool> fetched_col(tuple_desc->natts, true);
-
-	// ExtractFetchedColumns(targetlist, qual, fetched_col);
-	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-
-	// reader_cxt = AllocSetContextCreate(NULL, "parquet_am tuple data",
-	// ALLOCSET_DEFAULT_SIZES);
-	try {
-		/*
-		state = create_parquet_execution_state(
-			reader_type, reader_cxt, s3_cxt->lake_bucket_.data(), s3client,
-			relation->rd_id, tuple_desc, fetched_col,
-			use_threads, use_mmap, max_open_files);
-
-		*/
-		auto updates = fmstate->Updates();
-		for (auto it = updates.begin(); it != updates.end(); ++it) {
-			LOG(ERROR) << "update file " << it->second->FileId();
-			if (lake_files_ids.find(it->second->FileId()) == lake_files_ids.end()) {
-				LOG(ERROR) << "delete out of file";
-				return;
-			}
-			auto s3_filename = std::to_string(it->second->FileId()) + ".parquet";
-			auto deletes = it->second->Deletes();
-			auto reader  = CreateParquetReader(relation->rd_id, it->second->FileId(),
-									  s3_filename.data(), tuple_desc, fetched_col);
-			reader->SetRowgroupsList(rowgroups);
-			reader->SetOptions(use_threads, use_mmap);
-			if (s3client) {
-				auto s3_cxt = GetS3Context();
-				auto status = reader->Open(s3_cxt->lake_bucket_.c_str(), s3client);
-				if (!status.ok()) {
-					LOG(ERROR) << "open failure";
-					break;
-				}
-			}
-			ReadStatus  res;
-			while(true) {
-				res = reader->Next(slot);
-				if (res != RS_SUCCESS) {
-					LOG(ERROR) << "parquet get next slot nullptr";
-					break;
-				}
-				LOG(ERROR) << "get from old file, pos" << slot->tts_tid.ip_posid;
-				if (deletes.find(slot->tts_tid.ip_posid) != deletes.end()) {
-					continue;
-				} else {
-					LOG(ERROR) << "insert back to new file, pos" << slot->tts_tid.ip_posid;
-					fmstate->ExecInsert(slot);
-				}
-			}
-		}
-	} catch (std::exception &e) {
-		error = e.what();
-	}
 	fmstate->Upload();
 }
 
@@ -875,7 +791,7 @@ extern "C" void ParquetUpdate(Relation rel, ItemPointer otid,
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3client = ParquetGetConnectionByRelation();
 		auto s3_cxt = GetS3Context();
 		fmstate =
 			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
@@ -920,7 +836,7 @@ extern "C" void ParquetDelete(Relation rel, ItemPointer otid) {
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3client = ParquetGetConnectionByRelation();
 		auto s3_cxt = GetS3Context();
 		fmstate =
 			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
@@ -971,7 +887,7 @@ extern "C" void ParquetInsert(Relation rel, HeapTuple tuple, CommandId cid,
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3client = ParquetGetConnectionByRelation();
 		auto s3_cxt = GetS3Context();
 		fmstate =
 			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
@@ -1078,7 +994,7 @@ void simple_parquet_insert_cache(Relation rel, HeapTuple tuple) {
 	auto fmstate = GetModifyState(rel);
 
 	if (fmstate == nullptr) {
-		auto s3client = ParquetGetConnectionByRelation(rel);
+		auto s3client = ParquetGetConnectionByRelation();
 		auto s3_cxt = GetS3Context();
 		fmstate =
 			CreateParquetModifyState(rel, s3_cxt->lake_bucket_.data(), s3client, desc, true);
@@ -1163,7 +1079,7 @@ IndexFetchTableData *ParquetIndexFetchBegin(Relation relation) {
 	scan->xs_base.rel = relation;
 
 	/* aoscan->aofetch is initialized lazily on first fetch */
-	auto s3client = ParquetGetConnectionByRelation(relation);
+	auto s3client = ParquetGetConnectionByRelation();
 
 	TupleDesc tuple_desc = RelationGetDescr(relation);
 	// TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
